@@ -1,5 +1,6 @@
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QSplitter,QTreeWidget,QTreeWidgetItem,QTableWidget,QTableWidgetItem,QPlainTextEdit,QPushButton,QLabel,QComboBox,QLineEdit,QMessageBox,QInputDialog
+from PySide6.QtCore import Qt, Signal,QTimer,QThreadPool,QEvent
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QSplitter,QTreeWidget,QTreeWidgetItem,QTableWidget,QTableWidgetItem,QPlainTextEdit,QPushButton,QLabel,QComboBox,QLineEdit,QMessageBox,QInputDialog,QToolBar,QTabWidget,QScrollArea
+from PySide6.QtGui import QPixmap
 from latex_question_studio.application.importing import ImportService
 from latex_question_studio.application.library import LibraryService
 from latex_question_studio.domain.curriculum import breadcrumb
@@ -12,24 +13,40 @@ class ImportReview(QWidget):
         super().__init__(parent);self.results=results;self.services=services
         self.setWindowTitle('Duyệt nhập và phân loại câu hỏi')
         layout=QVBoxLayout(self)
+        self.preview_generation=0;self.preview_job=None;self.preview_pages=[];self.preview_index=0
+        self.preview_timer=QTimer(self);self.preview_timer.setSingleShot(True);self.preview_timer.setInterval(200);self.preview_timer.timeout.connect(self.compile_preview)
+        self.toolbar=QToolBar('Phân loại và nhập',self);self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly);layout.addWidget(self.toolbar)
+        def action(name,text,callback):
+            result=self.toolbar.addAction(icon(name,'#4ba3eb'),text);result.setToolTip(text);result.triggered.connect(callback);return result
+        action('topic','Thêm dạng dưới bài đang chọn',self.add_topic)
+        self.level=QComboBox();self.level.setToolTip('Mức độ nhận thức để gán cho câu đã chọn')
+        for label,value in [('Chưa gán mức độ',None),('Nhận biết','NB'),('Thông hiểu','TH'),('Vận dụng','VD'),('Vận dụng cao','VDC')]:self.level.addItem(label,value)
+        self.toolbar.addWidget(self.level).setToolTip(self.level.toolTip())
+        action('subject','Gán bài/dạng và mức độ cho câu đã chọn',self.assign_selected)
+        action('chapter','Gán bài/dạng và mức độ cho toàn bộ danh sách',lambda:self.assign_rows(list(range(len(self.results)))))
+        self.toolbar.addSeparator();action('preview','Biên dịch lại preview câu đang chọn',self.compile_preview)
+        action('save','Ghi các câu hợp lệ vào ngân hàng',self.accepted.emit)
+        action('close','Đóng duyệt nhập, giữ phân loại trong hàng chờ',self.rejected.emit)
         errors=sum(bool(r['errors']) for r in results)
         self.summary=QLabel(f'{len(results)} câu • {errors} lỗi • Phân loại được lưu trong hàng chờ trước khi nhập.');layout.addWidget(self.summary)
         split=QSplitter();layout.addWidget(split,1)
         left=QWidget();box=QVBoxLayout(left);self.tree_search=QLineEdit();self.tree_search.setPlaceholderText('Tìm môn, bài, dạng…');box.addWidget(self.tree_search)
         self.tree=QTreeWidget();self.tree.setHeaderLabel('CSDL • Môn → Chương → Bài → Dạng');self.tree.setExpandsOnDoubleClick(True);box.addWidget(self.tree)
-        add=QPushButton('Thêm dạng dưới bài');box.addWidget(add);add.clicked.connect(self.add_topic)
         split.addWidget(left)
         center=QWidget();box=QVBoxLayout(center)
         self.only_missing=QComboBox();self.only_missing.addItems(['Tất cả câu','Chưa gán bài','Chưa gán dạng','Chưa gán mức độ']);box.addWidget(self.only_missing)
         self.table=QTableWidget(len(results),5);self.table.setHorizontalHeaderLabels(['File / câu','Loại','Bài / dạng','Mức độ','Lỗi / gợi ý trùng'])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows);self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection);self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers);self.table.horizontalHeader().setStretchLastSection(True);self.table.setColumnWidth(0,155);self.table.setColumnWidth(2,250);box.addWidget(self.table)
-        controls=QHBoxLayout();self.level=QComboBox()
-        for label,value in [('Chưa gán mức độ',None),('Nhận biết','NB'),('Thông hiểu','TH'),('Vận dụng','VD'),('Vận dụng cao','VDC')]:self.level.addItem(label,value)
-        controls.addWidget(self.level);assign=QPushButton('Gán cho câu đã chọn');assign.clicked.connect(self.assign_selected);controls.addWidget(assign)
-        all_button=QPushButton('Gán toàn bộ danh sách');all_button.clicked.connect(lambda:self.assign_rows(list(range(len(self.results)))));controls.addWidget(all_button);box.addLayout(controls);split.addWidget(center)
-        right=QWidget();box=QVBoxLayout(right);self.details=QLabel('Chọn câu để xem source và phân loại');self.details.setWordWrap(True);box.addWidget(self.details);self.source=QPlainTextEdit();self.source.setReadOnly(True);box.addWidget(self.source);split.addWidget(right);split.setSizes([300,650,350])
-        button=QPushButton('Ghi các câu hợp lệ vào ngân hàng');button.clicked.connect(self.accepted.emit);layout.addWidget(button)
-        cancel=QPushButton('Đóng — giữ hàng chờ');cancel.clicked.connect(self.rejected.emit);layout.addWidget(cancel)
+        split.addWidget(center)
+        right=QWidget();box=QVBoxLayout(right);self.details=QLabel('Chọn câu để xem preview và phân loại');self.details.setWordWrap(True);box.addWidget(self.details)
+        self.preview_tabs=QTabWidget();box.addWidget(self.preview_tabs)
+        preview_panel=QWidget();pv=QVBoxLayout(preview_panel);pv.setContentsMargins(0,0,0,0)
+        self.preview_status=QLabel('Chọn câu để xem preview');self.preview_status.setWordWrap(True);pv.addWidget(self.preview_status)
+        self.preview_scroll=QScrollArea();self.preview_scroll.setWidgetResizable(True);self.preview_scroll.viewport().installEventFilter(self);self.preview_image=QLabel();self.preview_image.setAlignment(Qt.AlignmentFlag.AlignTop|Qt.AlignmentFlag.AlignLeft);self.preview_scroll.setWidget(self.preview_image);pv.addWidget(self.preview_scroll,1)
+        navigation=QHBoxLayout();previous=QPushButton('‹');previous.setToolTip('Trang preview trước');previous.clicked.connect(lambda:self.show_preview_page(self.preview_index-1));navigation.addWidget(previous)
+        self.preview_page_label=QLabel('0 / 0');navigation.addWidget(self.preview_page_label);following=QPushButton('›');following.setToolTip('Trang preview sau');following.clicked.connect(lambda:self.show_preview_page(self.preview_index+1));navigation.addWidget(following);pv.addLayout(navigation)
+        self.preview_tabs.addTab(preview_panel,'Preview');self.source=QPlainTextEdit();self.source.setReadOnly(True);self.preview_tabs.addTab(self.source,'Source')
+        split.addWidget(right);split.setSizes([280,580,500])
         self.table.currentCellChanged.connect(self.show_source);self.only_missing.currentIndexChanged.connect(self.refresh_rows);self.tree_search.textChanged.connect(self.filter_tree)
         self.refresh_tree();self.refresh_rows()
         if results:self.table.setCurrentCell(0,0)
@@ -66,6 +83,9 @@ class ImportReview(QWidget):
 
     def show_source(self,row,*args):
         if row<0:return
+        self.preview_generation+=1
+        if self.preview_job:self.preview_job.cancelled.set()
+        self.preview_pages=[];self.preview_original=None;self.preview_image.clear();self.preview_page_label.setText('0 / 0');self.preview_status.setText('Đang chuẩn bị preview…');self.preview_timer.start()
         r=self.results[row];self.source.setPlainText(r['source']);v=r['parsed'].get('classification',{})
         self.details.setText((breadcrumb(self.nodes,v.get('taxonomy_id')) or 'Chưa phân loại')+' • '+(v.get('cognitive_level') or 'Chưa gán mức độ'))
 
@@ -101,3 +121,69 @@ class ImportReview(QWidget):
             existing=next((n for n in self.nodes if n['parent_id']==node['id'] and n['name'].casefold()==name.strip().casefold()),None)
             selected=existing['id'] if existing else LibraryService(self.services).add_taxonomy(name,'topic',node['id'])
             self.refresh_tree(selected)
+
+    def compile_preview(self,*args):
+        if not self.services or self.table.currentRow()<0:return
+        self.preview_timer.stop();self.preview_generation+=1;generation=self.preview_generation
+        if self.preview_job:self.preview_job.cancelled.set()
+        self.preview_status.setText('Đang biên dịch preview…')
+        record=self.results[self.table.currentRow()];source=record['source']
+        from pathlib import Path
+        import json
+        from latex_question_studio.preview.compiler import Compiler
+        from latex_question_studio.ui.jobs import Job
+        config_path=self.services.config.data_dir/'compiler.json'
+        try:config=json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
+        except (ValueError,OSError):config={}
+        assets={a['reference']:self.services.config.data_dir/a['relative_path'] for a in record['parsed'].get('assets',[])}
+        compiler=Compiler(self.services.config.data_dir,engine=config.get('engine','pdflatex'),preamble_file=config.get('preamble_file') or None)
+        def work(cancelled,progress):
+            result=compiler.compile(source,assets,cancelled)
+            pages=[]
+            if result.ok and not cancelled():
+                first,count=compiler.render(result.pdf);pages.append(first)
+                for page in range(1,count):
+                    if cancelled():break
+                    pages.append(compiler.render(result.pdf,page)[0])
+            return generation,result,pages
+        job=Job(work);self.preview_job=job
+        job.signals.completed.connect(self.preview_ready)
+        job.signals.failed.connect(lambda message,g=generation:self.preview_failed(g,message))
+        QThreadPool.globalInstance().start(job)
+
+    def preview_ready(self,payload):
+        generation,result,pages=payload
+        if generation!=self.preview_generation:return
+        self.preview_job=None
+        if not result.ok or not pages:
+            self.preview_failed(generation,result.log);return
+        self.preview_pages=pages;self.preview_status.setText('Preview câu hỏi và lời giải');self.show_preview_page(0)
+
+    def preview_failed(self,generation,message):
+        if generation!=self.preview_generation:return
+        self.preview_job=None;self.preview_pages=[];self.preview_original=None;self.preview_image.clear();self.preview_status.setText('Không biên dịch được. Xem Source và tooltip để biết lỗi.');self.preview_status.setToolTip(message[-4000:])
+
+    def show_preview_page(self,index):
+        if not 0<=index<len(self.preview_pages):return
+        self.preview_index=index;pixmap=QPixmap();pixmap.loadFromData(self.preview_pages[index]);self.preview_original=pixmap;self.fit_preview();self.preview_page_label.setText(f'{index+1} / {len(self.preview_pages)}')
+
+    def closeEvent(self,event):
+        self.preview_timer.stop();self.preview_generation+=1
+        if self.preview_job:self.preview_job.cancelled.set()
+        super().closeEvent(event)
+
+    def fit_preview(self):
+        pixmap=getattr(self,'preview_original',None)
+        if pixmap is None or pixmap.isNull():return
+        width=max(100,self.preview_scroll.viewport().width()-12)
+        shown=pixmap.scaledToWidth(min(width,pixmap.width()),Qt.TransformationMode.SmoothTransformation)
+        self.preview_image.setMinimumSize(0,0);self.preview_image.setPixmap(shown)
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        if hasattr(self,'preview_scroll'):QTimer.singleShot(0,self.fit_preview)
+
+    def eventFilter(self,obj,event):
+        if hasattr(self,'preview_scroll') and obj==self.preview_scroll.viewport() and event.type()==QEvent.Type.Resize:
+            QTimer.singleShot(0,self.fit_preview)
+        return super().eventFilter(obj,event)

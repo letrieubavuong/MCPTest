@@ -41,3 +41,25 @@ def test_review_tree_assign_multiple_filter_and_reopen(qtbot,tmp_path):
     assert all(json.loads(r['parsed_json'])['classification']['cognitive_level']=='NB' for r in importer.pending())
     review.tree_search.setText('Mệnh đề');assert not review.items['curriculum:math10:lesson:01'].isHidden()
     review.close()
+
+
+def test_review_toolbar_and_real_preview(qtbot,tmp_path):
+    import shutil
+    if not shutil.which('pdflatex'):pytest.skip('TeX engine unavailable')
+    services,importer,batch,results=staged(tmp_path)
+    review=ImportReview(results,services=services);qtbot.addWidget(review);review.show()
+    assert review.preview_tabs.tabText(0)=='Preview' and review.preview_tabs.tabText(1)=='Source'
+    assert all(action.toolTip() for action in review.toolbar.actions() if not action.isSeparator())
+    qtbot.waitUntil(lambda:bool(review.preview_pages),timeout=30000)
+    assert not review.preview_image.pixmap().isNull()
+    assert review.preview_page_label.text()=='1 / 1'
+    review.close()
+
+
+def test_review_ignores_stale_preview_result(qtbot,tmp_path):
+    from types import SimpleNamespace
+    services,importer,batch,results=staged(tmp_path);review=ImportReview(results,services=services);qtbot.addWidget(review)
+    generation=review.preview_generation;review.show_source(1)
+    review.preview_ready((generation,SimpleNamespace(ok=True),[b'invalid old image']))
+    assert review.preview_pages==[]
+    review.close()

@@ -1,3 +1,5 @@
+Bản 0.3.3: trang nhập dùng toolbar; thao tác thêm dạng, chọn mức độ, gán, nhập và đóng nằm trên toolbar icon có tooltip. Cột phải có Preview/Source, tự biên dịch nền khi chọn câu, hỗ trợ ảnh đi kèm, nhiều trang và báo lỗi không chặn phân loại. Preview dùng compiler.json và yêu cầu TeX engine đã cấu hình.
+
 Bản 0.3.2: cố định bố cục trang nhập. Vùng nội dung có QWidget giãn riêng, giữ tiêu đề và thanh nút ở đầu trang cả khi chưa tải dữ liệu.
 
 Bản 0.3.1 — Ra đề theo cây CSDL: chọn phạm vi môn/chương/bài/dạng, chọn loại câu, xem nguồn NB/TH/VD/VDC và số chưa gán mức độ. Nhập số cần lấy rồi thêm vào ma trận; lặp cho các phạm vi khác và tạo đề. Thống kê bỏ câu lưu trữ, source lỗi và câu đã chọn thủ công. Các phạm vi chồng nhau có thể dùng chung nguồn: bộ chọn kiểm tra đủ câu độc lập khi tạo đề. Có xóa hàng và tổng số câu theo mức độ.
