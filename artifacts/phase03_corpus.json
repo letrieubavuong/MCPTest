@@ -1,0 +1,14 @@
+{
+  "total": 3075,
+  "round_trip": 3075,
+  "diagnostic_items": 1,
+  "errors": [
+    {
+      "legacy_stt": 463,
+      "diagnostics": [
+        "MCQ requires exactly one True option"
+      ]
+    }
+  ],
+  "origin": "Legacy ND wrapped in ex; not original source files"
+}

@@ -1,0 +1,21 @@
+{
+  "platform": "Windows-10-10.0.19045-SP0",
+  "python": "3.14.6",
+  "corpus": "Actual legacy DanhsachCH.ND, wrapped in ex; not original source files",
+  "corpus_questions": 3075,
+  "parsed_items": 3075,
+  "imported": 3074,
+  "quarantined": 1,
+  "stage_seconds": 1.3254631999880075,
+  "commit_seconds": 1.9610327000264078,
+  "search_median_ms": 18.930249963887036,
+  "search_max_ms": 80.66719979979098,
+  "page_median_ms": 20.714499871246517,
+  "page_max_ms": 35.26849998161197,
+  "preview_sample": "Synthetic valid MCQ; not full legacy compile corpus",
+  "preview_ok": true,
+  "preview_seconds": 3.4277416998520494,
+  "cache_hit": true,
+  "cache_seconds": 0.013538199942559004,
+  "database_integrity": "ok"
+}

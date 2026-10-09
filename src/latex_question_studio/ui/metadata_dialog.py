@@ -1,0 +1,30 @@
+from PySide6.QtWidgets import QDialog,QFormLayout,QLineEdit,QComboBox,QDialogButtonBox,QLabel
+
+class MetadataDialog(QDialog):
+    def __init__(self, metadata, taxonomy, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Phân loại và nhãn")
+        layout=QFormLayout(self)
+        self.fields={}
+        for key,label in [('subject','Môn'),('grade','Khối'),('chapter','Chương'),('lesson','Bài'),('topic','Chủ đề'),('tags','Nhãn, cách nhau dấu phẩy'),('source','Nguồn')]:
+            value=metadata.get(key,'')
+            if isinstance(value,list):value=', '.join(value)
+            field=QLineEdit(str(value));layout.addRow(label,field);self.fields[key]=field
+        self.taxonomy=QComboBox();self.taxonomy.addItem("Chưa phân loại",None)
+        for node in taxonomy:self.taxonomy.addItem(node['name'],node['id'])
+        self.taxonomy.setCurrentIndex(max(0,self.taxonomy.findData(metadata.get('taxonomy_id'))))
+        layout.addRow("Cây phân loại",self.taxonomy)
+        self.choices={}
+        for key,label,values in [('question_type','Loại câu',['','unknown','mcq','true_false','short_answer','essay']),('difficulty_legacy','Mức độ cũ',['','0','1','2','3','4']),('cognitive_level','Nhận thức',['','NB','TH','VD','VDC'])]:
+            combo=QComboBox();combo.addItems(values);combo.setCurrentText(str(metadata.get(key) if metadata.get(key) is not None else ''));layout.addRow(label,combo);self.choices[key]=combo
+        buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept);buttons.rejected.connect(self.reject);layout.addRow(buttons)
+
+    def values(self):
+        data={key:field.text().strip() for key,field in self.fields.items()}
+        data['tags']=[s.strip() for s in data['tags'].split(',') if s.strip()]
+        data['taxonomy_id']=self.taxonomy.currentData()
+        data.update({k:v.currentText() for k,v in self.choices.items()})
+        data['difficulty_legacy']=int(data['difficulty_legacy']) if data['difficulty_legacy'] else None
+        data['cognitive_level']=data['cognitive_level'] or None
+        return data

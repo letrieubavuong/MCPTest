@@ -1,0 +1,18 @@
+{
+    "version":  "0.2.0",
+    "tests_passed":  40,
+    "extracted_exe_exit":  0,
+    "screenshot_created":  true,
+    "exe_unchanged":  true,
+    "path_without_python":  true,
+    "schema":  7,
+    "clean_windows_vm_tested":  false,
+    "zip_sha256":  "ce07115cae60499012135ebdf65a5eb5e7b2c2ef3958dd6b8e295bc97c10906f",
+    "reference_files_unchanged":  53,
+    "telegram_photo_message_ids":  [
+                                       67,
+                                       68
+                                   ],
+    "final_preview_cancel_fix":  true,
+    "telegram_final_message_id":  70
+}

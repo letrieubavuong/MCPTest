@@ -1,0 +1,310 @@
+{
+  "reference_root": "D:\\OneDrive\\B - MCPTEST 2020\\MCPTest2020",
+  "database": "MCPTest2020/bin/Debug/MCPDatabase.db",
+  "integrity": [
+    [
+      "ok"
+    ]
+  ],
+  "schema": [
+    [
+      "table",
+      "DanhsachID",
+      "CREATE TABLE \"DanhsachID\" (\n\t\"STT\"\tINTEGER NOT NULL UNIQUE,\n\t\"ID\"\tTEXT,\n\t\"NDID\"\tTEXT NOT NULL,\n\t\"TYPE\"\tINTEGER NOT NULL,\n\t\"Level\"\tINTEGER,\n\t\"Ten\"\tTEXT,\n\t\"TMC\"\tINTEGER,\n\tPRIMARY KEY(\"STT\" AUTOINCREMENT)\n)"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_DanhsachID_1",
+      null
+    ],
+    [
+      "table",
+      "sqlite_sequence",
+      "CREATE TABLE sqlite_sequence(name,seq)"
+    ],
+    [
+      "table",
+      "DanhsachCH",
+      "CREATE TABLE \"DanhsachCH\" (\n\t\"STT\"\tINTEGER NOT NULL UNIQUE,\n\t\"ID\"\tTEXT,\n\t\"ND\"\tTEXT NOT NULL UNIQUE,\n\t\"LG\"\tTEXT,\n\t\"EX\"\tINTEGER NOT NULL,\n\t\"LC\"\tTEXT NOT NULL,\n\t\"MD\"\tINTEGER NOT NULL,\n\t\"SL\"\tINTEGER NOT NULL,\n\t\"TMC\"\tINTEGER,\n\tPRIMARY KEY(\"STT\" AUTOINCREMENT)\n)"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_DanhsachCH_1",
+      null
+    ],
+    [
+      "index",
+      "sqlite_autoindex_DanhsachCH_2",
+      null
+    ]
+  ],
+  "questions": 3075,
+  "taxonomy_nodes": 828,
+  "files": [
+    {
+      "path": "MCPDatabase.db",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "MCPTest2020.sln",
+      "bytes": 1139,
+      "sha256": "01542adc66e34bbc581e0330ad7935f57ace11d58c1d7072613ad18aedd94ab6"
+    },
+    {
+      "path": "MCPLibrary\\AssemblyInfo.cs",
+      "bytes": 605,
+      "sha256": "c7fa6e85b5b7957db33e34fc9487a8db3eadf4983941f7df7743d711eb026643"
+    },
+    {
+      "path": "MCPLibrary\\MCPLibrary.cs",
+      "bytes": 1857,
+      "sha256": "4b517f85de3c311890c9f9a84839814feb72f80bfaa603bd4e2fb157b8033cc5"
+    },
+    {
+      "path": "MCPTest2020\\App.config",
+      "bytes": 2430,
+      "sha256": "13873602cc7ed1dd6710683a153560898b4e933348ee0f3c76e562d8d8f851f0"
+    },
+    {
+      "path": "MCPTest2020\\App.xaml",
+      "bytes": 1251,
+      "sha256": "c895c626575d348df05faad31446ddc56c7f345ade6492abbe81d38e4265c7c0"
+    },
+    {
+      "path": "MCPTest2020\\App.xaml.cs",
+      "bytes": 344,
+      "sha256": "5b6602d1996b670cf97dfa2bdd705c1f82c55f2d160882aace4f3ab26069f871"
+    },
+    {
+      "path": "MCPTest2020\\MainWindow.xaml",
+      "bytes": 42536,
+      "sha256": "0b726b5731526fdc89bf10234d36943ca5bb3f2493b5cc299162129a757fac3e"
+    },
+    {
+      "path": "MCPTest2020\\MainWindow.xaml.cs",
+      "bytes": 19085,
+      "sha256": "d87e71d3427e8c18d2a59af5e369f6a2f873623f45d9ba51945b3b2b468617ff"
+    },
+    {
+      "path": "MCPTest2020\\MCPTest2020.csproj",
+      "bytes": 15292,
+      "sha256": "8d4f031118f0161b071c41941f5a38de51a0201f3c78125fb73421ef658922f9"
+    },
+    {
+      "path": "MCPTest2020\\packages.config",
+      "bytes": 924,
+      "sha256": "be36de7d154132690d0bb4cc31de59ad4932975cf19c36c2974d9c6db110cbfb"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UseNhapCSDL.xaml",
+      "bytes": 21120,
+      "sha256": "7ff86fed4fb2b0768f9fea93be4ac7e0f3aa24c35230157dff658debd8a0882c"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UseNhapCSDL.xaml.cs",
+      "bytes": 23461,
+      "sha256": "980fad15c8162b8f454d4b5e203c8a1a196900539a329715907c06f8c16d8ce3"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserChinhcau.xaml",
+      "bytes": 4534,
+      "sha256": "f6dda35055827aa49cf507e1403ac1a58cc8d13f08f61877159c2cb640855bab"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserChinhcau.xaml.cs",
+      "bytes": 795,
+      "sha256": "8d8a0d9ea5acfc686ed54f7cf6b73cce44150fc6a7ad48ae0b7ec123099e8ec5"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserDethiTeX.xaml",
+      "bytes": 9876,
+      "sha256": "9077486ac1eab6f688527d3e674e8c13e4b01022f2ad8f720abf72e899421d36"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserDethiTeX.xaml.cs",
+      "bytes": 4526,
+      "sha256": "f0c1bd6472d85bcaec845e3ed8795008c5b7d87dd680520ce9ce0d7389a3c393"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserEditTeX.xaml",
+      "bytes": 10246,
+      "sha256": "1d9eb255b6e06ccc343339ce85bb9ff39f1b766af71b702fb0fa53cc86bd1cb6"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserEditTeX.xaml.cs",
+      "bytes": 4540,
+      "sha256": "2416279eaa949cdd4409d0a057e281c27639eca512e95fdd167ff153506861ef"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserHienthi.xaml",
+      "bytes": 8260,
+      "sha256": "0ac5d175783f9469478bcbba7e11abfb64ad79ecc34ca6d0a6abf816fc2fa583"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserHienthi.xaml.cs",
+      "bytes": 686,
+      "sha256": "3ebe5ffb4869317cc9b412d6c87db701910fd73c4e9c0d951004ad34b02785f3"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserIntro.xaml",
+      "bytes": 9902,
+      "sha256": "bd5332ddf87e87dba7f2ab0bff23a4c4c3e592e2009d50c8c24c98c00c81474f"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserIntro.xaml.cs",
+      "bytes": 680,
+      "sha256": "9099ffd2ebefd70d2b5e325c18ba28ab847c2415d9afa30f8b4aa56e0d49c8cd"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserMatrande.xaml",
+      "bytes": 44575,
+      "sha256": "da3f6de76f1cc19cd56205fe3762f9d5743ca77dfdadbdc2d22410f41167a18f"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserMatrande.xaml.cs",
+      "bytes": 5920,
+      "sha256": "21ef3c47e4c1a7143e3faf8862b0661d34782580b1a6f0f5a721369606c67e78"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserNumber.xaml",
+      "bytes": 2262,
+      "sha256": "a36b56bd1b7747cb1c045c916aac56bb1f2db3b0e840afa1e44d0ff9b44aabb3"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserNumber.xaml.cs",
+      "bytes": 1612,
+      "sha256": "96b4ac705526597e4376ec79626edafce7d7999eb2195c4c85e07916b431cc3e"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserQLBaigiang.xaml",
+      "bytes": 11909,
+      "sha256": "79f65b15c4ddb8aac5f86781b4013db201f0272017d2f4802ea2f81a07a11654"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserQLBaigiang.xaml.cs",
+      "bytes": 804,
+      "sha256": "c07bd9e1b0fabe2c6c1e4011aaa7ec1626d7a4e533358e192a715c898c4eb73c"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserQLID.xaml",
+      "bytes": 10429,
+      "sha256": "ce507cc01a4228bf4564441d4a3d52229470292d92e6a4aa3f75bbceae113860"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserQLID.xaml.cs",
+      "bytes": 13350,
+      "sha256": "3bf45bbebe0f81e2429b70340acbfbe98a37a3509cdf56cc2490567273f5286c"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserRutdeHH.xaml",
+      "bytes": 20357,
+      "sha256": "d48ee787c85acbf64d71b2548b1b571a1687b01dcf0bf68f7842283df2214fca"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserRutdeHH.xaml.cs",
+      "bytes": 9870,
+      "sha256": "29bf7a53cadfcf4caf5fcaf04c490875983e8c6a4d9fbe371142dc25d0e449cd"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserTimcautrung.xaml",
+      "bytes": 12707,
+      "sha256": "90e1d7d32e2fda8648ac156b9982542601c18d61d129f16a137f6c139172084f"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserTimcautrung.xaml.cs",
+      "bytes": 24914,
+      "sha256": "ee18f15bd2a6a9d33741afb0cd6127877da18d43b78b89e8b48a780ea8d759f6"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserTimkiem.xaml",
+      "bytes": 589,
+      "sha256": "f2c4ee5c0ef2346f30a4517c85dd67f45e9da95e962567524ce047c2c2203e2b"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserTimkiem.xaml.cs",
+      "bytes": 686,
+      "sha256": "817e9e483e7c3ab0ec59ae7236691aefeeda4d0ffca0404fc4fc2dd02ee4fcbc"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserWebsite.xaml",
+      "bytes": 6764,
+      "sha256": "31f7cedc1554fb4d02070a8a73207566ace743d9a8d295cb71d01518fc4f860f"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserWebsite.xaml.cs",
+      "bytes": 23191,
+      "sha256": "1227df6ac28b42a18949676f2c16ef88de4c58aa8224c3fe65cbe3b271fa5ca9"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserXemCSDL.xaml",
+      "bytes": 11165,
+      "sha256": "49077b4a7ca6c92d93ec8f2bc9070b2e9ff0da4a8435e13de4022b251b6721ea"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserXemCSDL.xaml.cs",
+      "bytes": 8898,
+      "sha256": "252655b7a86e71e77c13fa126bf55c3bff46c7eede6a81faf3f07ccc980d71e8"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserXuatBeamer.xaml",
+      "bytes": 16241,
+      "sha256": "732cfc80fab8f82b7163fb24132f7ee1db26b2572d266664ab564f3db39c08aa"
+    },
+    {
+      "path": "MCPTest2020\\MCPUsercontrol\\UserXuatBeamer.xaml.cs",
+      "bytes": 14106,
+      "sha256": "f12d9cd7f8331ecc5f2e5b0134a1243c542102c1209fca188ec0b511d6cd27db"
+    },
+    {
+      "path": "MCPTest2020\\Model\\QuanlyID.cs",
+      "bytes": 2727,
+      "sha256": "afa60515644280c7b982f2ecb48227929a2628bc576a101327b28f643c57f46e"
+    },
+    {
+      "path": "MCPTest2020\\NewForm\\frmEditcau.xaml",
+      "bytes": 5487,
+      "sha256": "c2721a8b3b4aa6fb669992c364bef37ac857d487b34dfcc836c9c5a6f61a9ecd"
+    },
+    {
+      "path": "MCPTest2020\\NewForm\\frmEditcau.xaml.cs",
+      "bytes": 1243,
+      "sha256": "eeccb5b60437e8ae7a54b9b24ba10c66a832db566b24bbd0a988b322bcd829d6"
+    },
+    {
+      "path": "MCPTest2020\\Properties\\AssemblyInfo.cs",
+      "bytes": 2485,
+      "sha256": "d7605e1a3408abdfb3b3a73dd765fbf1749e5c7d3f81eb458ec74b1f8d4c7782"
+    },
+    {
+      "path": "MCPTest2020\\Properties\\Resources.Designer.cs",
+      "bytes": 2851,
+      "sha256": "972068553d7778e58fb90a600548a57c4b5fad706c71c53421dfc4a86ddb9b3b"
+    },
+    {
+      "path": "MCPTest2020\\Properties\\Settings.Designer.cs",
+      "bytes": 2468,
+      "sha256": "ad19c9e7db4bd77ae7840a4cd47edc69caa9366d7686fdacb346cfef13511ce9"
+    },
+    {
+      "path": "MCPTest2020\\ResourceXAML\\MainResource.xaml",
+      "bytes": 409,
+      "sha256": "a14e90d6f26a3568bbadb3b2433c2e9af02299bc1c5856b0cd9fa4914488257b"
+    },
+    {
+      "path": "MCPTest2020\\Viewmodel\\BaseViewModel.cs",
+      "bytes": 1619,
+      "sha256": "a334fa2ab4148290d647216f8733ce87ca37286f0b19594e44913bad43c235d0"
+    },
+    {
+      "path": "MCPTest2020\\Viewmodel\\MainViewModel.cs",
+      "bytes": 23352,
+      "sha256": "9cf2c4cc729fe7035cda27a3ebc057231a89305f830b7badcd1e7f541ce7d6fc"
+    },
+    {
+      "path": "MCPTest2020\\bin\\Debug\\MCPDatabase.db",
+      "bytes": 3010560,
+      "sha256": "728259e313ac702a4cae6721bf5822a0dd9d4ecd9512636138aca08b89c3f640"
+    }
+  ]
+}
