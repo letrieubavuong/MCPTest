@@ -31,3 +31,15 @@ def test_exam_tree_statistics_builds_scoped_matrix(qtbot,tmp_path):
     assert all(row['taxonomy_id']=='curriculum:math10:lesson:01' for row in values['matrix'])
     assert [row['filters']['cognitive_level'] for row in values['matrix']]==['NB','TH']
     assert page.stats_note.text().find('chưa gán mức độ')>=0
+
+
+def test_exam_toolbar_actions_add_remove_generate_and_export(qtbot,tmp_path):
+    from latex_question_studio.ui.main_window import MainWindow
+    services,ids=bank(tmp_path);window=MainWindow(services);qtbot.addWidget(window);page=window.exam_page
+    assert window.exam_export in page.toolbar.actions() and not window.exam_export.isEnabled()
+    assert all(a.toolTip() for a in page.toolbar.actions() if not a.isSeparator())
+    page.add_action.trigger();assert page.matrix.rowCount()==1
+    page.matrix.setCurrentCell(0,0);page.remove_action.trigger();assert page.matrix.rowCount()==0
+    assert page.matrix_summary.text().startswith('Ma trận: 0 câu')
+    with qtbot.waitSignal(page.use_selection):page.select_action.trigger()
+    window.close()

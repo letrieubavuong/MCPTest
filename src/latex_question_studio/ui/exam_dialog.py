@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal,Qt
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QFormLayout,QLineEdit,QSpinBox,QCheckBox,QTableWidget,QTableWidgetItem,QPushButton,QDialogButtonBox,QLabel,QSplitter,QTreeWidget,QTreeWidgetItem,QHBoxLayout,QComboBox
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QFormLayout,QLineEdit,QSpinBox,QCheckBox,QTableWidget,QTableWidgetItem,QPushButton,QDialogButtonBox,QLabel,QSplitter,QTreeWidget,QTreeWidgetItem,QHBoxLayout,QComboBox,QToolBar
 
 class ExamDialog(QWidget):
     submitted = Signal()
@@ -7,14 +7,24 @@ class ExamDialog(QWidget):
     def __init__(self,manual_ids,parent=None,services=None):
         super().__init__(parent);self.manual_ids=manual_ids;self.services=services;self.scope=None
         self.setWindowTitle("Tạo đề thủ công / Ma trận");self.resize(850,530)
-        layout=QVBoxLayout(self);layout.addWidget(QLabel('RA ĐỀ THI'));form=QFormLayout()
+        layout=QVBoxLayout(self);layout.addWidget(QLabel('RA ĐỀ THI'))
+        from latex_question_studio.ui.icons import icon
+        self.toolbar=QToolBar('Ra đề thi',self);self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly);layout.addWidget(self.toolbar)
+        def action(name,text,callback):
+            result=self.toolbar.addAction(icon(name,'#4ba3eb'),text);result.setToolTip(text);result.triggered.connect(callback);return result
+        self.select_action=action('bank','Lấy câu đang chọn từ Xem CSDL',self.use_selection.emit)
+        self.refresh_action=action('preview','Cập nhật thống kê nguồn câu',self.refresh_statistics);self.refresh_action.setEnabled(bool(services))
+        self.scope_action=action('chapter','Thêm phạm vi và số câu cần lấy vào ma trận',self.add_scope_rows);self.scope_action.setEnabled(bool(services))
+        self.toolbar.addSeparator();self.add_action=action('topic','Thêm hàng ma trận',self.add_row)
+        self.remove_action=action('close','Xóa hàng ma trận đang chọn',self.remove_row)
+        self.toolbar.addSeparator();self.generate_action=action('exam','Tạo đề từ câu đã chọn và ma trận',self.submitted.emit)
+        form=QFormLayout()
         self.title=QLineEdit('Đề kiểm tra');form.addRow('Tên đề',self.title)
         self.seed=QSpinBox();self.seed.setRange(0,2_000_000_000);self.seed.setValue(2027);form.addRow('Seed tái lập',self.seed)
         self.shuffle_questions=QCheckBox('Xáo câu');self.shuffle_questions.setChecked(True);form.addRow(self.shuffle_questions)
         self.shuffle_options=QCheckBox('Xáo phương án MCQ, giữ đáp án');self.shuffle_options.setChecked(True);form.addRow(self.shuffle_options)
         layout.addLayout(form)
         self.selection_label=QLabel();layout.addWidget(self.selection_label);self.set_manual_ids(manual_ids)
-        select=QPushButton('Lấy câu đang chọn từ Xem CSDL');select.clicked.connect(self.use_selection.emit);layout.addWidget(select)
         if services:
             from latex_question_studio.application.library import LibraryService
             from latex_question_studio.ui.icons import icon
@@ -33,14 +43,9 @@ class ExamDialog(QWidget):
             for i,(level,label) in enumerate([('NB','Nhận biết'),('TH','Thông hiểu'),('VD','Vận dụng'),('VDC','Vận dụng cao')]):
                 self.stats.setItem(i,0,QTableWidgetItem(label));spin=QSpinBox();spin.setRange(0,500);self.targets[level]=spin;self.stats.setCellWidget(i,2,spin)
             self.stats.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers);box.addWidget(self.stats);self.stats_note=QLabel();self.stats_note.setWordWrap(True);box.addWidget(self.stats_note)
-            refresh=QPushButton('Cập nhật thống kê');refresh.clicked.connect(self.refresh_statistics);box.addWidget(refresh)
-            add=QPushButton('Thêm phạm vi và số câu vào ma trận');add.clicked.connect(self.add_scope_rows);box.addWidget(add)
             self.refresh_statistics()
         self.matrix=QTableWidget(0,7);self.matrix.setHorizontalHeaderLabels(['Môn','Khối','Loại câu','Mức độ','Số câu','Phạm vi CSDL','Có thể lấy']);self.matrix.setColumnWidth(5,260);layout.addWidget(self.matrix)
         self.matrix_summary=QLabel('Ma trận: 0 câu');layout.addWidget(self.matrix_summary);self.matrix.itemChanged.connect(self.update_matrix_summary)
-        button=QPushButton('Thêm hàng ma trận');button.clicked.connect(self.add_row);layout.addWidget(button)
-        remove=QPushButton('Xóa hàng ma trận đang chọn');remove.clicked.connect(lambda:self.matrix.removeRow(self.matrix.currentRow()) if self.matrix.currentRow()>=0 else None);layout.addWidget(remove)
-        button=QPushButton('Tạo đề');button.clicked.connect(self.submitted.emit);layout.addWidget(button)
     def set_manual_ids(self, ids):
         self.manual_ids=list(ids)
         self.selection_label.setText(f'Đã chọn {len(ids)} câu thủ công; các hàng bên dưới lấy thêm câu không trùng.')
@@ -87,3 +92,7 @@ class ExamDialog(QWidget):
             total+=count
             if level_item and level_item.text() in totals:totals[level_item.text()]+=count
         self.matrix_summary.setText('Ma trận: '+str(total)+' câu • '+' • '.join(f'{level}: {count}' for level,count in totals.items()))
+
+    def remove_row(self):
+        if self.matrix.currentRow()>=0:
+            self.matrix.removeRow(self.matrix.currentRow());self.update_matrix_summary()
