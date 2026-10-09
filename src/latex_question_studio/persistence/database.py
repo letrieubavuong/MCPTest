@@ -8,9 +8,9 @@ from pathlib import Path
 import sqlite3
 import uuid
 
-from latex_question_studio.domain.curriculum import migration_sql, math_migration_sql
+from latex_question_studio.domain.curriculum import migration_sql, math_migration_sql, khtn7_migration_sql
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 MIGRATIONS = {
     1: (
         """CREATE TABLE taxonomy_nodes (
@@ -84,6 +84,7 @@ MIGRATIONS = {
     ),
     8: migration_sql(),
     9: math_migration_sql(),
+    10: khtn7_migration_sql(),
 }
 
 class Database:

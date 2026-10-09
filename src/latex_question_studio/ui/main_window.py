@@ -552,12 +552,12 @@ class MainWindow(QMainWindow):
         self.refresh_curriculum_menu(nodes)
 
     def refresh_curriculum_menu(self,nodes):
-        from latex_question_studio.domain.curriculum import ROOT_ID,MATH_ROOT_ID
+        from latex_question_studio.domain.curriculum import ROOT_ID,MATH_ROOT_ID,KHTN7_ROOT_ID
         key=tuple((n['id'],n['parent_id'],n['name']) for n in nodes)
         if getattr(self,'curriculum_menu_key',None)==key:return
         self.curriculum_menu_key=key;self.csdl_menu.clear();self.curriculum_submenus=[]
         self.csdl_menu.addAction('Tất cả câu hỏi',lambda:self.open_taxonomy(None))
-        for root_id,attribute in ((ROOT_ID,'khtn6_menu'),(MATH_ROOT_ID,'math6_menu')):
+        for root_id,attribute in ((ROOT_ID,'khtn6_menu'),(MATH_ROOT_ID,'math6_menu'),(KHTN7_ROOT_ID,'khtn7_menu')):
             root=next((n for n in nodes if n['id']==root_id),None)
             if not root:continue
             menu=QMenu(root['name'],self.csdl_menu);self.csdl_menu.addMenu(menu);setattr(self,attribute,menu)

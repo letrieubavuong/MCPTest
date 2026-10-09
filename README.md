@@ -1,3 +1,5 @@
+Bản 0.2.2: thêm CSDL → KHTN 7, 10 chương và 41 bài (Bài 2–42) theo danh sách người dùng. Tự điền môn Khoa học tự nhiên, lớp 7, chương/bài; schema 10 nâng cấp có backup.
+
 CSDL → TOÁN 6: 9 chương, 43 bài và 2 mục luyện tập chung theo danh sách người dùng. Chọn chương/bài để lọc ngân hàng; tạo câu tại mục đã chọn tự điền môn Toán, lớp 6 và chương/bài. Database nâng cấp lên schema 9 có backup trước migration.
 
 Bản 0.2.1: menu **CSDL → KHTN 6 → Chương → Bài**, đủ 10 chương và 55 bài. Chọn mục để lọc ngân hàng; chọn phân loại bài sẽ đồng bộ môn/khối/chương/bài. Gói mới `release/LaTeXQuestionStudio-0.2.1-win64.zip`. [Báo cáo KHTN 6](docs/20_KHTN6_CURRICULUM_REPORT.md).

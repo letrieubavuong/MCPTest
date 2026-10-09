@@ -58,6 +58,8 @@ def classification(nodes, selected_id):
         values.update(subject='Khoa học tự nhiên',grade='6',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     if MATH_ROOT_ID in seen:
         values.update(subject='Toán',grade='6',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
+    if KHTN7_ROOT_ID in seen:
+        values.update(subject='Khoa học tự nhiên',grade='7',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     return values
 
 
@@ -102,3 +104,33 @@ def math_rows():
 def math_migration_sql():
     def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
     return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in math_rows())
+
+
+KHTN7_ROOT_ID='curriculum:khtn7'
+KHTN7_CHAPTERS=(
+ ('Nguyên tử. Sơ lược về bảng tuần hoàn các nguyên tố hóa học',((2,'Nguyên tử'),(3,'Nguyên tố hóa học'),(4,'Sơ lược về bảng tuần hoàn các nguyên tố hóa học'))),
+ ('Phân tử. Liên kết hóa học',((5,'Phân tử - Đơn chất - Hợp chất'),(6,'Giới thiệu về liên kết hóa học'),(7,'Hóa trị và công thức hóa học'))),
+ ('Tốc độ',((8,'Tốc độ chuyển động'),(9,'Đo tốc độ'),(10,'Đồ thị quãng đường - thời gian'),(11,'Thảo luận về ảnh hưởng của tốc độ trong an toàn giao thông'))),
+ ('Âm thanh',((12,'Sóng âm'),(13,'Độ to và độ cao của âm'),(14,'Phản xạ âm, chống ô nhiễm tiếng ồn'))),
+ ('Ánh sáng',((15,'Năng lượng ánh sáng. Tia sáng, vùng tối'),(16,'Sự phản xạ ánh sáng'),(17,'Ảnh của vật qua gương phẳng'))),
+ ('Từ',((18,'Nam châm'),(19,'Từ trường'),(20,'Chế tạo nam châm điện đơn giản'))),
+ ('Trao đổi chất và chuyển hóa năng lượng ở sinh vật',((21,'Khái quát về trao đổi chất và chuyển hóa năng lượng'),(22,'Quang hợp ở thực vật'),(23,'Một số yếu tố ảnh hưởng đến quang hợp'),(24,'Thực hành: Chứng minh quang hợp ở cây xanh'),(25,'Hô hấp tế bào'),(26,'Một số yếu tố ảnh hưởng đến hô hấp tế bào'),(27,'Thực hành: Hô hấp ở thực vật'),(28,'Trao đổi khí ở sinh vật'),(29,'Vai trò của nước và chất dinh dưỡng đối với sinh vật'),(30,'Trao đổi nước và chất dinh dưỡng ở thực vật'),(31,'Trao đổi nước và chất dinh dưỡng ở động vật'),(32,'Thực hành: Chứng minh thân vận chuyển nước và lá thoát hơi nước'))),
+ ('Cảm ứng ở sinh vật',((33,'Cảm ứng ở sinh vật và tập tính ở động vật'),(34,'Vận dụng hiện tượng cảm ứng ở sinh vật vào thực tiễn'),(35,'Thực hành: Cảm ứng ở sinh vật'))),
+ ('Sinh trưởng và phát triển ở sinh vật',((36,'Khái quát về sinh trưởng và phát triển ở sinh vật'),(37,'Ứng dụng sinh trưởng và phát triển ở sinh vật vào thực tiễn'),(38,'Thực hành: Quan sát, mô tả sự sinh trưởng và phát triển ở một số sinh vật'))),
+ ('Sinh sản ở sinh vật',((39,'Sinh sản vô tính ở sinh vật'),(40,'Sinh sản hữu tính ở sinh vật'),(41,'Một số yếu tố ảnh hưởng và điều hòa, điều khiển sinh sản ở sinh vật'),(42,'Cơ thể sinh vật là một thể thống nhất'))),
+)
+
+
+def khtn7_chapter_id(number):return KHTN7_ROOT_ID+f':chapter:{number:02}'
+def khtn7_lesson_id(number):return KHTN7_ROOT_ID+f':lesson:{number:02}'
+
+
+def khtn7_migration_sql():
+    result=[(KHTN7_ROOT_ID,None,'subject','KHTN 7','KHTN7',None)]
+    for number,(title,lessons) in enumerate(KHTN7_CHAPTERS,1):
+        parent=khtn7_chapter_id(number)
+        result.append((parent,KHTN7_ROOT_ID,'chapter',f'Chương {number}: {title}',f'KHTN7-C{number:02}',None))
+        for index,name in lessons:
+            result.append((khtn7_lesson_id(index),parent,'lesson',f'Bài {index}: {name}',f'KHTN7-C{number:02}-B{index:02}',None))
+    def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
+    return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in result)
