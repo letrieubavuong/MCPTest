@@ -557,7 +557,7 @@ class MainWindow(QMainWindow):
         if getattr(self,'curriculum_menu_key',None)==key:return
         self.curriculum_menu_key=key;self.csdl_menu.clear();self.curriculum_submenus=[]
         self.csdl_menu.addAction('Tất cả câu hỏi',lambda:self.open_taxonomy(None))
-        for root_id,attribute in ((ROOT_ID,'khtn6_menu'),(MATH_ROOT_ID,'math6_menu'),(KHTN7_ROOT_ID,'khtn7_menu'),(MATH7_ROOT_ID,'math7_menu'),(KHTN8_ROOT_ID,'khtn8_menu'),(MATH8_ROOT_ID,'math8_menu'),(KHTN9_ROOT_ID,'khtn9_menu'),(MATH9_ROOT_ID,'math9_menu')):
+        for root_id,attribute in ((ROOT_ID,'khtn6_menu'),(MATH_ROOT_ID,'math6_menu'),(KHTN7_ROOT_ID,'khtn7_menu'),(MATH7_ROOT_ID,'math7_menu'),(KHTN8_ROOT_ID,'khtn8_menu'),(MATH8_ROOT_ID,'math8_menu'),(KHTN9_ROOT_ID,'khtn9_menu'),(MATH9_ROOT_ID,'math9_menu'),('curriculum:math10','math10_menu'),('curriculum:physics10','physics10_menu'),('curriculum:math11','math11_menu')):
             root=next((n for n in nodes if n['id']==root_id),None)
             if not root:continue
             menu=QMenu(root['name'],self.csdl_menu);self.csdl_menu.addMenu(menu);setattr(self,attribute,menu)

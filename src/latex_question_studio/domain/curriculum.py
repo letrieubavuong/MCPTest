@@ -68,6 +68,9 @@ def classification(nodes, selected_id):
     for root,subject in ((KHTN9_ROOT_ID,'Khoa học tự nhiên'),(MATH9_ROOT_ID,'Toán')):
         if root in seen:
             values.update(subject=subject,grade='9',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
+    for key,label,subject,grade,chapters in UPPER_CURRICULA:
+        if 'curriculum:'+key in seen:
+            values.update(subject=subject,grade=grade,chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     return values
 
 
@@ -259,6 +262,56 @@ def grade9_migration_sql():
             parent=root+f':chapter:{number:02}'
             result.append((parent,root,'chapter',f'Chương {number}: {title}',code+f'-C{number:02}',None))
             for index,name in lessons:
+                result.append((root+f':lesson:{index:02}',parent,'lesson',f'Bài {index}: {name}',code+f'-C{number:02}-B{index:02}',None))
+    def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
+    return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in result)
+
+
+UPPER_CURRICULA=(
+ ('math10','TOÁN 10','Toán','10',(
+ ('Mệnh đề và tập hợp',('Mệnh đề','Tập hợp và các phép toán trên tập hợp')),
+ ('Bất phương trình và hệ bất phương trình bậc nhất hai ẩn',('Bất phương trình bậc nhất hai ẩn','Hệ bất phương trình bậc nhất hai ẩn')),
+ ('Hệ thức lượng trong tam giác',('Giá trị lượng giác của một góc từ 0° đến 180°','Hệ thức lượng trong tam giác')),
+ ('Vectơ',('Các khái niệm mở đầu','Tổng và hiệu của hai vectơ','Tích của một vectơ với một số','Vectơ trong mặt phẳng tọa độ','Tích vô hướng của hai vectơ')),
+ ('Các số đặc trưng của mẫu số liệu không ghép nhóm',('Số gần đúng và sai số','Các số đặc trưng đo xu thế trung tâm','Các số đặc trưng đo độ phân tán')),
+ ('Hàm số, đồ thị và ứng dụng',('Hàm số','Hàm số bậc hai','Dấu của tam thức bậc hai','Phương trình quy về phương trình bậc hai')),
+ ('Phương pháp tọa độ trong mặt phẳng',('Phương trình đường thẳng','Vị trí tương đối giữa hai đường thẳng. Góc và khoảng cách','Đường tròn trong mặt phẳng tọa độ','Ba đường conic')),
+ ('Đại số tổ hợp',('Quy tắc đếm','Hoán vị, chỉnh hợp và tổ hợp','Nhị thức Newton')),
+ ('Tính xác suất theo định nghĩa cổ điển',('Biến cố và định nghĩa cổ điển của xác suất','Thực hành tính xác suất theo định nghĩa cổ điển')),
+ )),
+ ('physics10','VẬT LÍ 10','Vật lí','10',(
+ ('Mở đầu',('Làm quen với Vật lí','Các quy tắc an toàn trong phòng thực hành Vật lí','Thực hành tính sai số trong phép đo. Ghi kết quả đo')),
+ ('Động học',('Độ dịch chuyển và quãng đường đi được','Tốc độ và vận tốc','Thực hành: Đo tốc độ của vật chuyển động','Đồ thị độ dịch chuyển – thời gian','Chuyển động biến đổi. Gia tốc','Chuyển động thẳng biến đổi đều','Sự rơi tự do','Thực hành: Đo gia tốc rơi tự do','Chuyển động ném')),
+ ('Động lực học',('Tổng hợp và phân tích lực. Cân bằng lực','Định luật 1 Newton','Định luật 2 Newton','Định luật 3 Newton','Trọng lực và lực căng','Lực ma sát','Lực cản và lực nâng','Một số ví dụ về cách giải các bài toán thuộc phần động lực học','Moment lực. Cân bằng của vật rắn','Thực hành: Tổng hợp lực')),
+ ('Năng lượng, công, công suất',('Năng lượng. Công cơ học','Công suất','Động năng, thế năng','Cơ năng và định luật bảo toàn cơ năng','Hiệu suất')),
+ ('Động lượng',('Động lượng','Định luật bảo toàn động lượng','Thực hành: Xác định động lượng của vật trước và sau va chạm')),
+ ('Chuyển động tròn đều',('Động học của chuyển động tròn đều','Lực hướng tâm và gia tốc hướng tâm')),
+ ('Biến dạng của vật rắn. Áp suất chất lỏng',('Biến dạng của vật rắn','Khối lượng riêng. Áp suất chất lỏng')),
+ )),
+ ('math11','TOÁN 11','Toán','11',(
+ ('Hàm số lượng giác và phương trình lượng giác',('Giá trị lượng giác của góc lượng giác','Công thức lượng giác','Hàm số lượng giác','Phương trình lượng giác cơ bản')),
+ ('Dãy số. Cấp số cộng và cấp số nhân',('Dãy số','Cấp số cộng','Cấp số nhân')),
+ ('Các số đặc trưng đo xu thế trung tâm của mẫu số liệu ghép nhóm',('Mẫu số liệu ghép nhóm','Các số đặc trưng đo xu thế trung tâm')),
+ ('Quan hệ song song trong không gian',('Đường thẳng và mặt phẳng trong không gian','Hai đường thẳng song song','Đường thẳng và mặt phẳng song song','Hai mặt phẳng song song','Phép chiếu song song')),
+ ('Giới hạn. Hàm số liên tục',('Giới hạn của dãy số','Giới hạn của hàm số','Hàm số liên tục')),
+ ('Hàm số mũ và hàm số lôgarit',('Lũy thừa với số mũ thực','Lôgarit','Hàm số mũ và hàm số lôgarit','Phương trình, bất phương trình mũ và lôgarit')),
+ ('Quan hệ vuông góc trong không gian',('Hai đường thẳng vuông góc','Đường thẳng vuông góc với mặt phẳng','Phép chiếu vuông góc. Góc giữa đường thẳng và mặt phẳng','Hai mặt phẳng vuông góc','Khoảng cách','Thể tích')),
+ ('Các quy tắc tính xác suất',('Biến cố hợp, biến cố giao, biến cố độc lập','Công thức cộng xác suất','Công thức nhân xác suất cho hai biến cố độc lập')),
+ ('Đạo hàm',('Định nghĩa và ý nghĩa của đạo hàm','Các quy tắc tính đạo hàm','Đạo hàm cấp hai')),
+ )),
+)
+
+
+def upper_migration_sql():
+    result=[]
+    for key,label,subject,grade,chapters in UPPER_CURRICULA:
+        root='curriculum:'+key;code=key.upper();index=0
+        result.append((root,None,'subject',label,code,None))
+        for number,(title,lessons) in enumerate(chapters,1):
+            parent=root+f':chapter:{number:02}'
+            result.append((parent,root,'chapter',f'Chương {number}: {title}',code+f'-C{number:02}',None))
+            for name in lessons:
+                index+=1
                 result.append((root+f':lesson:{index:02}',parent,'lesson',f'Bài {index}: {name}',code+f'-C{number:02}-B{index:02}',None))
     def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
     return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in result)
