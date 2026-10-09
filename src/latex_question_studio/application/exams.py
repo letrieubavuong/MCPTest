@@ -17,13 +17,28 @@ HIDE_ANSWERS = r"""\renewcommand{\True}{}
 class ExamService:
     def __init__(self,services):self.services=services
 
-    def candidates(self,filters):
+    def candidates(self,filters,taxonomy_id=None):
         results=[];offset=0;search=SearchService(self.services)
         while True:
-            page=search.find(filters=filters,limit=500,offset=offset)
+            page=search.find(filters=filters,limit=500,offset=offset,taxonomy_id=taxonomy_id)
             results.extend(q.id for q in page)
             if len(page)<500:return results
             offset+=500
+
+    def is_valid_candidate(self,qid):
+        q=self.services.questions.get(qid)
+        items=parse_questions(q.latex_source) if q else []
+        return len(items)==1 and not items[0].diagnostics
+
+    def statistics(self,taxonomy_id=None,question_type='',exclude_ids=None):
+        excluded=set(exclude_ids or []);counts={level:0 for level in ('NB','TH','VD','VDC','unclassified')};invalid=0
+        for qid in self.candidates({'question_type':question_type},taxonomy_id):
+            if qid in excluded:continue
+            q=self.services.questions.get(qid);items=parse_questions(q.latex_source)
+            if len(items)!=1 or items[0].diagnostics:
+                invalid+=1;continue
+            level=q.cognitive_level if q.cognitive_level in counts else 'unclassified';counts[level]+=1
+        return {'counts':counts,'invalid':invalid,'total':sum(counts.values())}
 
     def generate(self,title,manual_ids=None,matrix=None,seed=0,shuffle_questions=True,shuffle_options=True):
         if not title.strip():raise ValueError('Tên đề không được rỗng')
@@ -33,7 +48,8 @@ class ExamService:
         for row in matrix:
             count=int(row['count'])
             if not 0<=count<=500:raise ValueError('Số câu mỗi hàng phải từ 0 đến 500')
-            candidates=[q for q in self.candidates(row.get('filters',{})) if q not in manual]
+            candidates=[q for q in self.candidates(row.get('filters',{}),row.get('taxonomy_id')) if q not in manual]
+            candidates=[qid for qid in candidates if self.is_valid_candidate(qid)]
             rng.shuffle(candidates)
             if len(candidates)<count:raise ValueError(f"Thiếu nguồn: cần {count}, có {len(candidates)}")
             slots.extend([candidates[:] for _ in range(count)])

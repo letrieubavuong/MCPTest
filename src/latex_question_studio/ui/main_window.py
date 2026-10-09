@@ -182,7 +182,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(self.import_content, 1)
         self.pages.addWidget(self.import_page)
         from latex_question_studio.ui.exam_dialog import ExamDialog
-        self.exam_page = ExamDialog([], self.pages)
+        self.exam_page = ExamDialog([], self.pages,services=self.services)
         self.exam_page.setObjectName("examPage")
         self.exam_page.submitted.connect(self.generate_exam)
         self.exam_page.use_selection.connect(self.use_exam_selection)

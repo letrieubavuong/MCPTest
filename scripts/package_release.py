@@ -35,10 +35,10 @@ if python_license.exists():shutil.copyfile(python_license,licenses/'PYTHON_LICEN
 
 Python runtime, Qt/PySide6, shiboken6, PyMuPDF and PyInstaller are included. License and copyright texts from installed distributions are in licenses/. PySide6 metadata lists LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only; PyMuPDF is AGPL-3.0 or Artifex Commercial License; PyInstaller has a bootloader exception. These files preserve dependency notices; they do not grant an additional commercial license. TeX Live is external and is not bundled.
 """,encoding='utf-8')
-manifest={'product':'LaTeX Question Studio','version':'0.3.0','architecture':'Windows x64','python':sys.version.split()[0],'dependencies':versions,'exe_sha256':hashlib.sha256(raw).hexdigest(),'tests':54,'clean_windows_vm_tested':False,'config_and_tokens_bundled':False}
+manifest={'product':'LaTeX Question Studio','version':'0.3.1','architecture':'Windows x64','python':sys.version.split()[0],'dependencies':versions,'exe_sha256':hashlib.sha256(raw).hexdigest(),'tests':56,'clean_windows_vm_tested':False,'config_and_tokens_bundled':False}
 (dist/'release_manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding='utf-8')
 release=root/'release';release.mkdir(exist_ok=True)
-archive=release/'LaTeXQuestionStudio-0.3.0-win64.zip'
+archive=release/'LaTeXQuestionStudio-0.3.1-win64.zip'
 with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
     for file in sorted(dist.rglob('*')):
         if file.is_file():z.write(file,Path('LaTeXQuestionStudio')/file.relative_to(dist))
