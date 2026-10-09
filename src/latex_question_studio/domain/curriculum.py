@@ -65,6 +65,9 @@ def classification(nodes, selected_id):
     for root,subject in ((KHTN8_ROOT_ID,'Khoa học tự nhiên'),(MATH8_ROOT_ID,'Toán')):
         if root in seen:
             values.update(subject=subject,grade='8',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
+    for root,subject in ((KHTN9_ROOT_ID,'Khoa học tự nhiên'),(MATH9_ROOT_ID,'Toán')):
+        if root in seen:
+            values.update(subject=subject,grade='9',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     return values
 
 
@@ -204,6 +207,54 @@ def grade8_migration_sql():
         result.append((root,None,'subject',label,code,None))
         if root==KHTN8_ROOT_ID:
             result.append((root+':lesson:01',root,'lesson','Bài 1: '+KHTN8_INTRO,code+'-C00-B01',None))
+        for number,(title,lessons) in enumerate(chapters,1):
+            parent=root+f':chapter:{number:02}'
+            result.append((parent,root,'chapter',f'Chương {number}: {title}',code+f'-C{number:02}',None))
+            for index,name in lessons:
+                result.append((root+f':lesson:{index:02}',parent,'lesson',f'Bài {index}: {name}',code+f'-C{number:02}-B{index:02}',None))
+    def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
+    return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in result)
+
+
+KHTN9_ROOT_ID='curriculum:khtn9'
+MATH9_ROOT_ID='curriculum:math9'
+KHTN9_INTRO='Nhận biết một số dụng cụ, hoá chất. Thuyết trình một vấn đề khoa học'
+KHTN9_CHAPTERS=(
+ ('Năng lượng cơ học',((2,'Động năng. Thế năng'),(3,'Cơ năng'),(4,'Công và công suất'))),
+ ('Ánh sáng',((5,'Khúc xạ ánh sáng'),(6,'Phản xạ toàn phần'),(7,'Lăng kính'),(8,'Thấu kính'),(9,'Thực hành đo tiêu cự của thấu kính hội tụ'),(10,'Kính lúp. Bài tập thấu kính'))),
+ ('Điện',((11,'Điện trở. Định luật Ohm'),(12,'Đoạn mạch nối tiếp, song song'),(13,'Năng lượng của dòng điện và công suất điện'))),
+ ('Điện từ',((14,'Cảm ứng điện từ. Nguyên tắc tạo ra dòng điện xoay chiều'),(15,'Tác dụng của dòng điện xoay chiều'))),
+ ('Năng lượng với cuộc sống',((16,'Vòng năng lượng trên Trái Đất. Năng lượng hoá thạch'),(17,'Một số dạng năng lượng tái tạo'))),
+ ('Kim loại. Sự khác nhau cơ bản giữa phi kim và kim loại',((18,'Tính chất chung của kim loại'),(19,'Dãy hoạt động hoá học'),(20,'Tách kim loại và việc sử dụng hợp kim'),(21,'Sự khác nhau cơ bản giữa phi kim và kim loại'))),
+ ('Giới thiệu về chất hữu cơ. Hydrocarbon và nguồn nhiên liệu',((22,'Giới thiệu về hợp chất hữu cơ'),(23,'Alkane'),(24,'Alkene'),(25,'Nguồn nhiên liệu'))),
+ ('Ethylic alcohol và Acetic acid',((26,'Ethylic alcohol'),(27,'Acetic acid'))),
+ ('Lipid. Carbohydrate. Protein. Polymer',((28,'Lipid'),(29,'Carbohydrate. Glucose và saccharose'),(30,'Tinh bột và cellulose'),(31,'Protein'),(32,'Polymer'))),
+ ('Khai thác tài nguyên từ vỏ trái đất',((33,'Sơ lược về hoá học vỏ Trái Đất và khai thác tài nguyên từ vỏ Trái Đất'),(34,'Khai thác đá vôi. Công nghiệp silicate'),(35,'Khai thác nhiên liệu hoá thạch. Nguồn carbon. Chu trình carbon và sự ấm lên toàn cầu'))),
+ ('Di truyền học Mendel. Cơ sở phân tử của hiện tượng di truyền',((36,'Khái quát về di truyền học'),(37,'Các quy luật di truyền của Mendel'),(38,'Nucleic acid và gene'),(39,'Tái bản DNA và phiên mã tạo RNA'),(40,'Dịch mã và mối quan hệ từ gene đến tính trạng'),(41,'Đột biến gene'))),
+ ('Di truyền nhiễm sắc thể',((42,'Nhiễm sắc thể và bộ nhiễm sắc thể'),(43,'Nguyên phân và giảm phân'),(44,'Nhiễm sắc thể giới tính và cơ chế xác định giới tính'),(45,'Di truyền liên kết'),(46,'Đột biến nhiễm sắc thể'))),
+ ('Di truyền học với con người và đời sống',((47,'Di truyền học với con người'),(48,'Ứng dụng công nghệ di truyền vào đời sống'))),
+ ('Tiến hóa',((49,'Khái niệm tiến hoá và các hình thức chọn lọc'),(50,'Cơ chế tiến hoá'),(51,'Sự phát sinh và phát triển sự sống trên Trái Đất'))),
+)
+MATH9_CHAPTERS=(
+ ('Phương trình và hệ hai phương trình bậc nhất hai ẩn',((1,'Khái niệm phương trình và hệ hai phương trình bậc nhất hai ẩn'),(2,'Giải hệ hai phương trình bậc nhất hai ẩn'),(3,'Giải bài toán bằng cách lập hệ phương trình'))),
+ ('Phương trình và bất phương trình bậc nhất một ẩn',((4,'Phương trình quy về phương trình bậc nhất một ẩn'),(5,'Bất đẳng thức và tính chất'),(6,'Bất phương trình bậc nhất một ẩn'))),
+ ('Căn bậc hai và căn bậc ba',((7,'Căn bậc hai và căn thức bậc hai'),(8,'Khai căn bậc hai với phép nhân và phép chia'),(9,'Biến đổi đơn giản và rút gọn biểu thức chứa căn thức bậc hai'),(10,'Căn bậc ba và căn thức bậc ba'))),
+ ('Hệ thức lượng trong tam giác vuông',((11,'Tỉ số lượng giác của góc nhọn'),(12,'Một số hệ thức giữa cạnh, góc trong tam giác vuông và ứng dụng'))),
+ ('Đường tròn',((13,'Mở đầu về đường tròn'),(14,'Cung và dây của một đường tròn'),(15,'Độ dài của cung tròn. Diện tích hình quạt tròn và hình vành khuyên'),(16,'Vị trí tương đối của đường thẳng và đường tròn'),(17,'Vị trí tương đối của hai đường tròn'))),
+ ('Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn',((18,'Hàm số y = ax² (a ≠ 0)'),(19,'Phương trình bậc hai một ẩn'),(20,'Định lí Viète và ứng dụng'),(21,'Giải bài toán bằng cách lập phương trình'))),
+ ('Tần số và tần số tương đối',((22,'Bảng tần số và biểu đồ tần số'),(23,'Bảng tần số tương đối và biểu đồ tần số tương đối'),(24,'Bảng tần số, tần số tương đối ghép nhóm và biểu đồ'))),
+ ('Xác suất của biến cố trong một số mô hình xác suất đơn giản',((25,'Phép thử ngẫu nhiên và không gian mẫu'),(26,'Xác suất của biến cố liên quan tới phép thử'))),
+ ('Đường tròn ngoại tiếp và đường tròn nội tiếp',((27,'Góc nội tiếp'),(28,'Đường tròn ngoại tiếp và đường tròn nội tiếp của một tam giác'),(29,'Tứ giác nội tiếp'),(30,'Đa giác đều'))),
+ ('Một số hình khối trong thực tiễn',((31,'Hình trụ và hình nón'),(32,'Hình cầu'))),
+)
+
+
+def grade9_migration_sql():
+    result=[]
+    for root,label,code,chapters in ((KHTN9_ROOT_ID,'KHTN 9','KHTN9',KHTN9_CHAPTERS),(MATH9_ROOT_ID,'TOÁN 9','MATH9',MATH9_CHAPTERS)):
+        result.append((root,None,'subject',label,code,None))
+        if root==KHTN9_ROOT_ID:
+            result.append((root+':lesson:01',root,'lesson','Bài 1: '+KHTN9_INTRO,code+'-C00-B01',None))
         for number,(title,lessons) in enumerate(chapters,1):
             parent=root+f':chapter:{number:02}'
             result.append((parent,root,'chapter',f'Chương {number}: {title}',code+f'-C{number:02}',None))
