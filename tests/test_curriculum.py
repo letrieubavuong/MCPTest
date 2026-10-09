@@ -295,3 +295,19 @@ def test_senior_curricula_upgrade_navigation_and_tree_icons(qtbot,tmp_path):
         assert all(not icon.isNull() for icon in icons)
         assert len({icon.cacheKey() for icon in icons})==3
     window.close()
+
+
+def test_tree_mouse_double_click_expands_and_collapses_without_rebuild(qtbot,tmp_path):
+    from PySide6.QtCore import Qt
+    window=MainWindow(create_services(AppConfig.load(tmp_path)));qtbot.addWidget(window);window.show()
+    item=window.taxonomy_items[ROOT_ID];item.setExpanded(False)
+    window.explorer.scrollToItem(item);qtbot.wait(100)
+    position=window.explorer.visualItemRect(item).center()
+    qtbot.mouseClick(window.explorer.viewport(),Qt.MouseButton.LeftButton,pos=position)
+    assert window.taxonomy_items[ROOT_ID] is item
+    assert not item.isExpanded()
+    qtbot.mouseDClick(window.explorer.viewport(),Qt.MouseButton.LeftButton,pos=position)
+    assert item.isExpanded()
+    qtbot.mouseDClick(window.explorer.viewport(),Qt.MouseButton.LeftButton,pos=position)
+    assert not item.isExpanded()
+    window.close()

@@ -77,6 +77,7 @@ class MainWindow(QMainWindow):
         self.library_control.setWindowFlags(Qt.WindowType.Widget)
         self.pages.addWidget(self.library_control)
         self.explorer = QTreeWidget()
+        self.explorer.setExpandsOnDoubleClick(True)
         self.explorer.setHeaderLabel("THƯ VIỆN")
         self.root_node = QTreeWidgetItem(self.explorer, ["Tất cả câu hỏi"])
         self.explorer.itemClicked.connect(self.taxonomy_selected)
@@ -247,11 +248,11 @@ class MainWindow(QMainWindow):
             self._menus[group].addAction(action)
         return action
 
-    def refresh_status(self):
+    def refresh_status(self,refresh_tree=True):
         try:
             count = self.filtered_count()
             self.table_model.replace_rows(self.library_page())
-            self.refresh_taxonomy()
+            if refresh_tree:self.refresh_taxonomy()
             self.database_status.setText(f"Cơ sở dữ liệu đã sẵn sàng • {count} câu hỏi • Trang {self.offset // 100 + 1}")
             from latex_question_studio.application.search import SearchService
             total=SearchService(self.services).find(count_only=True)
@@ -586,7 +587,7 @@ class MainWindow(QMainWindow):
 
     def taxonomy_selected(self,item,*args):
         self.selected_taxonomy=item.data(0,Qt.ItemDataRole.UserRole)
-        self.offset=0;self.refresh_status()
+        self.offset=0;self.refresh_status(refresh_tree=False)
 
     def edit_metadata(self):
         from latex_question_studio.application.library import LibraryService

@@ -1,3 +1,5 @@
+Bản 0.2.8: sửa nhấp đúp mở/thu gọn cây CSDL. Click lọc bảng không tạo lại các item, giữ ổn định chuỗi sự kiện chuột của Qt.
+
 Bản 0.2.7: thêm VẬT LÍ 11 (4 chương/26 bài), TOÁN 12 (5 chương/17 bài theo danh sách cung cấp), VẬT LÍ 12 (4 chương/25 bài). Cây CSDL có icon sách xanh cho môn, thư mục vàng cho chương, trang xanh lá cho bài. Schema 15 nâng cấp có backup; sửa đề khảo sát thành để khảo sát.
 
 Bản 0.2.6: thêm TOÁN 10 (9 chương/27 bài), VẬT LÍ 10 (7 chương/34 bài), TOÁN 11 (9 chương/33 bài) theo danh sách người dùng. Schema 14 nâng cấp có backup và tự điền đúng môn/lớp/chương/bài.
