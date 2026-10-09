@@ -552,12 +552,12 @@ class MainWindow(QMainWindow):
         self.refresh_curriculum_menu(nodes)
 
     def refresh_curriculum_menu(self,nodes):
-        from latex_question_studio.domain.curriculum import ROOT_ID,MATH_ROOT_ID,KHTN7_ROOT_ID,MATH7_ROOT_ID
+        from latex_question_studio.domain.curriculum import ROOT_ID,MATH_ROOT_ID,KHTN7_ROOT_ID,MATH7_ROOT_ID,KHTN8_ROOT_ID,MATH8_ROOT_ID
         key=tuple((n['id'],n['parent_id'],n['name']) for n in nodes)
         if getattr(self,'curriculum_menu_key',None)==key:return
         self.curriculum_menu_key=key;self.csdl_menu.clear();self.curriculum_submenus=[]
         self.csdl_menu.addAction('Tất cả câu hỏi',lambda:self.open_taxonomy(None))
-        for root_id,attribute in ((ROOT_ID,'khtn6_menu'),(MATH_ROOT_ID,'math6_menu'),(KHTN7_ROOT_ID,'khtn7_menu'),(MATH7_ROOT_ID,'math7_menu')):
+        for root_id,attribute in ((ROOT_ID,'khtn6_menu'),(MATH_ROOT_ID,'math6_menu'),(KHTN7_ROOT_ID,'khtn7_menu'),(MATH7_ROOT_ID,'math7_menu'),(KHTN8_ROOT_ID,'khtn8_menu'),(MATH8_ROOT_ID,'math8_menu')):
             root=next((n for n in nodes if n['id']==root_id),None)
             if not root:continue
             menu=QMenu(root['name'],self.csdl_menu);self.csdl_menu.addMenu(menu);setattr(self,attribute,menu)
@@ -565,6 +565,9 @@ class MainWindow(QMainWindow):
             action=menu.addAction('Tất cả '+root['name'],lambda checked=False,key=root_id:self.open_taxonomy(key));action.setData(root_id)
             menu.addSeparator()
             for chapter in (n for n in nodes if n['parent_id']==root_id):
+                if chapter['kind']=='lesson':
+                    action=menu.addAction(chapter['name'],lambda checked=False,key=chapter['id']:self.open_taxonomy(key));action.setData(chapter['id'])
+                    continue
                 submenu=QMenu(chapter['name'],menu);menu.addMenu(submenu);self.curriculum_submenus.append(submenu)
                 action=submenu.addAction('Tất cả câu trong chương',lambda checked=False,key=chapter['id']:self.open_taxonomy(key));action.setData(chapter['id'])
                 submenu.addSeparator()

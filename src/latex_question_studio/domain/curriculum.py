@@ -62,6 +62,9 @@ def classification(nodes, selected_id):
         values.update(subject='Khoa học tự nhiên',grade='7',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     if MATH7_ROOT_ID in seen:
         values.update(subject='Toán',grade='7',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
+    for root,subject in ((KHTN8_ROOT_ID,'Khoa học tự nhiên'),(MATH8_ROOT_ID,'Toán')):
+        if root in seen:
+            values.update(subject=subject,grade='8',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     return values
 
 
@@ -164,5 +167,47 @@ def math7_migration_sql():
         result.append((parent,MATH7_ROOT_ID,'chapter',f'Chương {number}: {title}',f'MATH7-C{number:02}',None))
         for index,name in lessons:
             result.append((math7_lesson_id(index),parent,'lesson',f'Bài {index}: {name}',f'MATH7-C{number:02}-B{index:02}',None))
+    def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
+    return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in result)
+
+
+KHTN8_ROOT_ID='curriculum:khtn8'
+MATH8_ROOT_ID='curriculum:math8'
+KHTN8_INTRO='Sử dụng một số hóa chất, thiết bị cơ bản trong phòng thí nghiệm'
+KHTN8_CHAPTERS=(
+ ('Phản ứng hóa học',((2,'Phản ứng hóa học'),(3,'Mol và tỉ khối chất khí'),(4,'Dung dịch và nồng độ'),(5,'Định luật bảo toàn khối lượng và phương trình hóa học'),(6,'Tính theo phương trình hóa học'),(7,'Tốc độ phản ứng và chất xúc tác'))),
+ ('Một số hợp chất thông dụng',((8,'Acid'),(9,'Base. Thang pH'),(10,'Oxide'),(11,'Muối'),(12,'Phân bón hóa học'))),
+ ('Khối lượng riêng và áp suất',((13,'Khối lượng riêng'),(14,'Thực hành xác định khối lượng riêng'),(15,'Áp suất trên một bề mặt'),(16,'Áp suất chất lỏng. Áp suất khí quyển'),(17,'Lực đẩy Archimedes'))),
+ ('Tác dụng làm quay của lực',((18,'Tác dụng làm quay của lực. Moment lực'),(19,'Đòn bẩy và ứng dụng'))),
+ ('Điện',((20,'Hiện tượng nhiễm điện do cọ xát'),(21,'Dòng điện, nguồn điện'),(22,'Mạch điện đơn giản'),(23,'Tác dụng của dòng điện'),(24,'Cường độ dòng điện và hiệu điện thế'),(25,'Thực hành đo cường độ dòng điện và hiệu điện thế'))),
+ ('Nhiệt',((26,'Năng lượng nhiệt và nội năng'),(27,'Thực hành đo năng lượng nhiệt bằng joulemeter'),(28,'Sự truyền nhiệt'),(29,'Sự nở vì nhiệt'))),
+ ('Sinh học cơ thể người',((30,'Khái quát về cơ thể người'),(31,'Hệ vận động ở người'),(32,'Dinh dưỡng và tiêu hóa ở người'),(33,'Máu và hệ tuần hoàn của cơ thể người'),(34,'Hệ hô hấp ở người'),(35,'Hệ bài tiết ở người'),(36,'Điều hòa môi trường trong của cơ thể người'),(37,'Hệ thần kinh và các giác quan ở người'),(38,'Hệ nội tiết ở người'),(39,'Da và điều hòa thân nhiệt ở người'),(40,'Sinh sản ở người'))),
+ ('Sinh vật và môi trường',((41,'Môi trường và các nhân tố sinh thái'),(42,'Quần thể sinh vật'),(43,'Quần xã sinh vật'),(44,'Hệ sinh thái'),(45,'Sinh quyển'),(46,'Cân bằng tự nhiên'))),
+)
+MATH8_CHAPTERS=(
+ ('Đa thức',((1,'Đơn thức'),(2,'Đa thức'),(3,'Phép cộng và phép trừ đa thức'),(4,'Phép nhân đa thức'),(5,'Phép chia đa thức cho đơn thức'))),
+ ('Hằng đẳng thức đáng nhớ và ứng dụng',((6,'Hiệu hai bình phương. Bình phương của một tổng hay một hiệu'),(7,'Lập phương của một tổng. Lập phương của một hiệu'),(8,'Tổng và hiệu hai lập phương'),(9,'Phân tích đa thức thành nhân tử'))),
+ ('Tứ giác',((10,'Tứ giác'),(11,'Hình thang cân'),(12,'Hình bình hành'),(13,'Hình chữ nhật'),(14,'Hình thoi và hình vuông'))),
+ ('Định lí Thalès',((15,'Định lí Thalès trong tam giác'),(16,'Đường trung bình của tam giác'),(17,'Tính chất đường phân giác của tam giác'))),
+ ('Dữ liệu và biểu đồ',((18,'Thu thập và phân loại dữ liệu'),(19,'Biểu diễn dữ liệu bằng bảng, biểu đồ'),(20,'Phân tích số liệu thống kê dựa vào biểu đồ'))),
+ ('Phân thức đại số',((21,'Phân thức đại số'),(22,'Tính chất cơ bản của phân thức đại số'),(23,'Phép cộng và phép trừ phân thức đại số'),(24,'Phép nhân và phép chia phân thức đại số'))),
+ ('Phương trình bậc nhất và hàm số bậc nhất',((25,'Phương trình bậc nhất một ẩn'),(26,'Giải bài toán bằng cách lập phương trình'),(27,'Khái niệm hàm số và đồ thị của hàm số'),(28,'Hàm số bậc nhất và đồ thị của hàm số bậc nhất'),(29,'Hệ số góc của đường thẳng'))),
+ ('Mở đầu về tính xác suất của biến cố',((30,'Kết quả có thể và kết quả thuận lợi'),(31,'Cách tính xác suất của biến cố bằng tỉ số'),(32,'Mối liên hệ giữa xác suất thực nghiệm với xác suất và ứng dụng'))),
+ ('Tam giác đồng dạng',((33,'Hai tam giác đồng dạng'),(34,'Ba trường hợp đồng dạng của hai tam giác'),(35,'Định lí Pythagore và ứng dụng'),(36,'Các trường hợp đồng dạng của hai tam giác vuông'),(37,'Hình đồng dạng'))),
+ ('Một số hình khối trong thực tiễn',((38,'Hình chóp tam giác đều'),(39,'Hình chóp tứ giác đều'))),
+)
+
+
+def grade8_migration_sql():
+    result=[]
+    for root,label,code,chapters in ((KHTN8_ROOT_ID,'KHTN 8','KHTN8',KHTN8_CHAPTERS),(MATH8_ROOT_ID,'TOÁN 8','MATH8',MATH8_CHAPTERS)):
+        result.append((root,None,'subject',label,code,None))
+        if root==KHTN8_ROOT_ID:
+            result.append((root+':lesson:01',root,'lesson','Bài 1: '+KHTN8_INTRO,code+'-C00-B01',None))
+        for number,(title,lessons) in enumerate(chapters,1):
+            parent=root+f':chapter:{number:02}'
+            result.append((parent,root,'chapter',f'Chương {number}: {title}',code+f'-C{number:02}',None))
+            for index,name in lessons:
+                result.append((root+f':lesson:{index:02}',parent,'lesson',f'Bài {index}: {name}',code+f'-C{number:02}-B{index:02}',None))
     def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
     return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in result)
