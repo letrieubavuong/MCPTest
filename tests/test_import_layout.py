@@ -13,3 +13,15 @@ def test_import_header_stays_at_top_when_content_empty_or_loaded(qtbot,tmp_path)
     window.replace_import_content(QLabel('Nội dung kiểm thử'));qtbot.wait(50)
     assert abs(title.geometry().top()-top)<=2
     window.close()
+
+
+def test_import_review_actions_share_page_toolbar_and_are_removed(qtbot,tmp_path):
+    from latex_question_studio.ui.import_dialog import ImportReview
+    services=create_services(AppConfig.load(tmp_path));window=MainWindow(services);qtbot.addWidget(window);window.show();window.show_page(1)
+    base=len(window.import_toolbar.actions());review=ImportReview([],services=services)
+    window.replace_import_content(review);qtbot.wait(50)
+    assert review.toolbar.isHidden()
+    assert len(window.import_toolbar.actions())>base
+    assert window.import_toolbar.widgetForAction(next(a for a in window.import_toolbar.actions() if a.toolTip()==review.level.toolTip())) is review.level
+    window.replace_import_content(QLabel('Khác'));assert len(window.import_toolbar.actions())==base
+    window.close()

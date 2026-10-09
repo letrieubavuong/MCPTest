@@ -1,3 +1,5 @@
+Bản 0.3.4: đưa thao tác phân loại, mức độ, preview, lưu và đóng lên cùng toolbar Chọn file/Chọn thư mục/Hàng chờ. Dọn action khi đổi nội dung để tránh lặp hoặc gọi control cũ.
+
 Bản 0.3.3: trang nhập dùng toolbar; thao tác thêm dạng, chọn mức độ, gán, nhập và đóng nằm trên toolbar icon có tooltip. Cột phải có Preview/Source, tự biên dịch nền khi chọn câu, hỗ trợ ảnh đi kèm, nhiều trang và báo lỗi không chặn phân loại. Preview dùng compiler.json và yêu cầu TeX engine đã cấu hình.
 
 Bản 0.3.2: cố định bố cục trang nhập. Vùng nội dung có QWidget giãn riêng, giữ tiêu đề và thanh nút ở đầu trang cả khi chưa tải dữ liệu.

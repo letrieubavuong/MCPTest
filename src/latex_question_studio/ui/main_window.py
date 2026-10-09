@@ -510,11 +510,24 @@ class MainWindow(QMainWindow):
         self.start_job(job)
 
     def replace_import_content(self, widget):
+        for action in getattr(self,'import_review_actions',[]):
+            self.import_toolbar.removeAction(action)
+        self.import_review_actions=[]
         while self.import_content.count():
             item = self.import_content.takeAt(0)
             if item.widget(): item.widget().deleteLater()
         self.import_content.addWidget(widget)
         self.import_review = widget
+        if hasattr(widget,'toolbar'):
+            self.import_review_actions.append(self.import_toolbar.addSeparator())
+            for action in list(widget.toolbar.actions()):
+                widget.toolbar.removeAction(action)
+                self.import_toolbar.addAction(action)
+                self.import_review_actions.append(action)
+                button=self.import_toolbar.widgetForAction(action)
+                if hasattr(button,'setToolButtonStyle'):
+                    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            widget.toolbar.hide()
 
     def show_pending(self):
         from latex_question_studio.ui.pending_dialog import PendingDialog
