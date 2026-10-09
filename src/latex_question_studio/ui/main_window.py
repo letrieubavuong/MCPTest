@@ -486,7 +486,7 @@ class MainWindow(QMainWindow):
         self.import_cancel.setEnabled(False)
         batch, results = result
         self.import_status.setText(f"Đã phân tích {len(results)} mục. Xem và xác nhận bên dưới.")
-        review = ImportReview(results, self.import_page)
+        review = ImportReview(results, self.import_page,services=self.services)
         review.accepted.connect(lambda: self.commit_import(batch, review))
         review.rejected.connect(lambda: self.import_status.setText("Đã giữ batch trong hàng chờ."))
         self.replace_import_content(review)

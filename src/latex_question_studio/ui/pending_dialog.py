@@ -13,6 +13,7 @@ class PendingDialog(QWidget):
         self.source=QPlainTextEdit();layout.addWidget(self.source)
         validate=QPushButton('Kiểm tra và lưu bản sửa');validate.clicked.connect(self.repair);layout.addWidget(validate)
         commit=QPushButton('Ghi mục đang chọn vào ngân hàng');commit.clicked.connect(self.commit);layout.addWidget(commit)
+        classify=QPushButton('Mở cây CSDL để phân loại hàng chờ');classify.clicked.connect(self.classify);layout.addWidget(classify)
         self.table.currentCellChanged.connect(self.select);self.refresh()
     def refresh(self):
         self.rows=self.importer.pending();self.table.setRowCount(len(self.rows))
@@ -37,3 +38,16 @@ class PendingDialog(QWidget):
         row=self.rows[i]
         if row['status']!='ready':QMessageBox.warning(self,'Còn lỗi','Kiểm tra và sửa lỗi trước khi ghi.');return
         self.importer.commit(row['batch_id'],{row['id']});self.refresh();self.committed.emit()
+
+    def classify(self):
+        from latex_question_studio.ui.import_dialog import ImportReview
+        results=[{'id':r['id'],'path':r['original_path'],'source':r['working_source'] if r['working_source'] is not None else r['raw_source'],'errors':json.loads(r['diagnostics_json']),'parsed':json.loads(r['parsed_json'])} for r in self.rows]
+        self.review=ImportReview(results,parent=self,services=self.importer.services);self.review.setWindowTitle('Phân loại hàng chờ')
+        self.review.accepted.connect(self.commit_review);self.review.rejected.connect(self.review.hide);self.layout().addWidget(self.review);self.review.show()
+    def commit_review(self):
+        grouped={}
+        for row in self.rows:grouped.setdefault(row['batch_id'],set()).add(row['id'])
+        try:
+            for batch,ids in grouped.items():self.importer.commit(batch,ids)
+            self.review.close();self.refresh();self.committed.emit()
+        except Exception as error:QMessageBox.warning(self,'Không thể ghi',str(error))

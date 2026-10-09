@@ -76,6 +76,20 @@ class ImportService:
                     'error' if result['errors'] else 'ready',json.dumps(result['errors'],ensure_ascii=False),json.dumps(result['parsed'],ensure_ascii=False)))
         return batch, results
 
+    def assign_classification(self,item_ids,taxonomy_id,cognitive_level):
+        from latex_question_studio.domain.curriculum import classification
+        if cognitive_level not in (None,'NB','TH','VD','VDC'):raise ValueError('Mức độ không hợp lệ')
+        with self.services.database.transaction() as c:
+            nodes=[dict(r) for r in c.execute('SELECT * FROM taxonomy_nodes')]
+            if taxonomy_id not in {n['id'] for n in nodes}:raise ValueError('Chọn bài hoặc dạng trên cây CSDL')
+            values={**classification(nodes,taxonomy_id),'taxonomy_id':taxonomy_id,'cognitive_level':cognitive_level}
+            for item_id in item_ids:
+                row=c.execute("SELECT parsed_json FROM import_items WHERE id=? AND status IN ('ready','error')",(item_id,)).fetchone()
+                if not row:raise ValueError('Câu không còn trong hàng chờ')
+                data=json.loads(row[0]);data['classification']=values
+                c.execute('UPDATE import_items SET parsed_json=? WHERE id=?',(json.dumps(data,ensure_ascii=False),item_id))
+        return values
+
     def commit(self, batch, selected_ids=None):
         count = 0
         now = datetime.now(timezone.utc).isoformat()
@@ -83,11 +97,15 @@ class ImportService:
             for row in connection.execute("SELECT * FROM import_items WHERE batch_id=? AND status='ready'",(batch,)).fetchall():
                 if selected_ids is not None and row['id'] not in selected_ids: continue
                 data = json.loads(row['parsed_json'])
-                question = Question(str(uuid.uuid4()),(row['working_source'] if row['working_source'] is not None else row['raw_source']),data['type'],data['solution'],None,None,1)
+                question = Question(str(uuid.uuid4()),(row['working_source'] if row['working_source'] is not None else row['raw_source']),data['type'],data['solution'],None,data.get('classification',{}).get('cognitive_level'),1)
                 connection.execute('INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?)',(
-                    question.id,question.latex_source,question.question_type,question.solution,None,None,1,now,now))
-                QuestionRepository._snapshot(connection,question,now)
-                connection.execute('INSERT INTO question_metadata VALUES (?,?)',(question.id,json.dumps({'answer':data['answer'],'environment':data['environment'],'source_origin':'original','import_item':row['id']},ensure_ascii=False)))
+                    question.id,question.latex_source,question.question_type,question.solution,None,question.cognitive_level,1,now,now))
+                connection.execute('INSERT INTO question_metadata VALUES (?,?)',(question.id,json.dumps({'answer':data['answer'],'environment':data['environment'],'source_origin':'original','import_item':row['id'],**data.get('classification',{})},ensure_ascii=False)))
+                values=data.get('classification',{})
+                if values.get('taxonomy_id'):
+                    connection.execute('INSERT INTO question_taxonomy VALUES (?,?)',(question.id,values['taxonomy_id']))
+                snapshot={**question.__dict__,'metadata':{'answer':data['answer'],'environment':data['environment'],'source_origin':'original','import_item':row['id'],**values}}
+                connection.execute('INSERT INTO question_revisions VALUES (?,?,?,?)',(question.id,1,json.dumps(snapshot,ensure_ascii=False),now))
                 for asset in data['assets']:
                     connection.execute('INSERT OR IGNORE INTO assets VALUES (?,?,?,?)',(asset['hash'],asset['hash'],asset['relative_path'],asset['bytes']))
                     connection.execute('INSERT INTO question_assets VALUES (?,?,?)',(question.id,asset['hash'],asset['reference']))
@@ -116,7 +134,7 @@ class ImportService:
             raw=found.read_bytes();digest=hashlib.sha256(raw).hexdigest();stored=self.root/'assets'/(digest+found.suffix.lower());stored.parent.mkdir(exist_ok=True)
             if not stored.exists():stored.write_bytes(raw)
             assets.append({'reference':reference,'hash':digest,'relative_path':str(stored.relative_to(self.root)),'bytes':len(raw)})
-        data={'type':item.question_type,'solution':item.solution,'answer':item.answer,'environment':item.environment,'assets':assets}
+        data={'classification':json.loads(row['parsed_json']).get('classification',{}),'type':item.question_type,'solution':item.solution,'answer':item.answer,'environment':item.environment,'assets':assets}
         with self.services.database.transaction() as c:
             c.execute('UPDATE import_items SET working_source=?,diagnostics_json=?,parsed_json=?,status=? WHERE id=?',(source,json.dumps(errors,ensure_ascii=False),json.dumps(data,ensure_ascii=False),'error' if errors else 'ready',item_id))
             c.execute('INSERT INTO import_repairs VALUES (?,?,?,?,?)',(str(uuid.uuid4()),item_id,source,json.dumps(errors,ensure_ascii=False),datetime.now(timezone.utc).isoformat()))
