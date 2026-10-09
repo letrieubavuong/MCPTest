@@ -23,7 +23,7 @@ def test_khtn6_upgrade_structure_and_no_reseed_on_reopen(tmp_path):
     expected_ranges=[range(1,9),range(9,12),range(12,16),range(16,18),range(18,22),range(22,25),range(25,40),range(40,46),range(46,52),range(52,56)]
     with db.connect() as c:
         assert c.execute('SELECT latex_source FROM questions').fetchone()[0]=='giữ nguyên'
-        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==174
+        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==222
         assert c.execute('SELECT name FROM taxonomy_nodes WHERE id=?',(ROOT_ID,)).fetchone()[0]=='KHTN 6'
         for number,lessons in enumerate(expected_ranges,1):
             actual={r[0] for r in c.execute('SELECT id FROM taxonomy_nodes WHERE parent_id=?',(chapter_id(number),))}
@@ -32,7 +32,7 @@ def test_khtn6_upgrade_structure_and_no_reseed_on_reopen(tmp_path):
     with db.transaction() as c:c.execute('UPDATE taxonomy_nodes SET name=? WHERE id=?',('Tên tùy chỉnh',lesson_id(1)))
     db.initialize()
     with db.connect() as c:
-        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==174
+        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==222
         assert c.execute('SELECT name FROM taxonomy_nodes WHERE id=?',(lesson_id(1),)).fetchone()[0]=='Tên tùy chỉnh'
 
 
@@ -125,7 +125,7 @@ def test_khtn7_schema9_upgrade_and_menu(qtbot,tmp_path):
         c.execute("UPDATE taxonomy_nodes SET name='Tên riêng' WHERE id=?",(lesson_id(1),))
     db=Database(path);db.initialize();assert db.last_backup.is_file()
     with db.connect() as c:
-        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==173
+        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==221
         assert c.execute('SELECT name FROM taxonomy_nodes WHERE id=?',(lesson_id(1),)).fetchone()[0]=='Tên riêng'
         assert c.execute('SELECT id FROM taxonomy_nodes WHERE id=?',(khtn7_lesson_id(1),)).fetchone() is None
         ranges=[range(2,5),range(5,8),range(8,12),range(12,15),range(15,18),range(18,21),range(21,33),range(33,36),range(36,39),range(39,43)]
@@ -140,5 +140,33 @@ def test_khtn7_schema9_upgrade_and_menu(qtbot,tmp_path):
     chapters=[a.menu() for a in window.khtn7_menu.actions() if a.menu()]
     assert [m.title().split(':')[0] for m in chapters]==[f'Chương {i}' for i in range(1,11)]
     next(a for a in chapters[0].actions() if a.data()==khtn7_lesson_id(2)).trigger()
+    assert [row.id for row in window.table_model.rows]==[q.id]
+    window.close()
+
+
+def test_math7_upgrade_structure_navigation_and_metadata(qtbot,tmp_path):
+    from latex_question_studio.domain.curriculum import MATH7_ROOT_ID,math7_chapter_id,math7_lesson_id
+    path=tmp_path/'schema10.db'
+    with sqlite3.connect(path) as c:
+        for version in range(1,11):
+            for sql in MIGRATIONS[version]:c.execute(sql)
+        c.execute('PRAGMA user_version=10')
+        c.execute("UPDATE taxonomy_nodes SET name='Tên riêng' WHERE id=?",(lesson_id(1),))
+    db=Database(path);db.initialize();assert db.last_backup.is_file()
+    with db.connect() as c:
+        assert c.execute('SELECT name FROM taxonomy_nodes WHERE id=?',(lesson_id(1),)).fetchone()[0]=='Tên riêng'
+        assert c.execute('SELECT count(*) FROM taxonomy_nodes WHERE id LIKE ?', (MATH7_ROOT_ID+'%',)).fetchone()[0]==48
+        ranges=[range(1,5),range(5,8),range(8,12),range(12,17),range(17,20),range(20,24),range(24,29),range(29,31),range(31,36),range(36,38)]
+        for number,indices in enumerate(ranges,1):
+            actual={r[0] for r in c.execute('SELECT id FROM taxonomy_nodes WHERE parent_id=?',(math7_chapter_id(number),))}
+            assert actual=={math7_lesson_id(i) for i in indices}
+    services=create_services(AppConfig.load(tmp_path/'app'));library=LibraryService(services)
+    q=services.questions.create(r'\begin{ex}Hình lăng trụ\end{ex}','essay');library.save_metadata(q.id,{'taxonomy_id':math7_lesson_id(37)})
+    values=library.metadata(q.id);assert values['subject']=='Toán' and values['grade']=='7'
+    assert values['chapter']=='Chương 10: Một số hình khối trong thực tiễn'
+    window=MainWindow(services);qtbot.addWidget(window)
+    chapters=[a.menu() for a in window.math7_menu.actions() if a.menu()]
+    assert [m.title().split(':')[0] for m in chapters]==[f'Chương {i}' for i in range(1,11)]
+    next(a for a in chapters[9].actions() if a.data()==math7_lesson_id(37)).trigger()
     assert [row.id for row in window.table_model.rows]==[q.id]
     window.close()

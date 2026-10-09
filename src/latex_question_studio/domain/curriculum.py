@@ -60,6 +60,8 @@ def classification(nodes, selected_id):
         values.update(subject='Toán',grade='6',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     if KHTN7_ROOT_ID in seen:
         values.update(subject='Khoa học tự nhiên',grade='7',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
+    if MATH7_ROOT_ID in seen:
+        values.update(subject='Toán',grade='7',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     return values
 
 
@@ -132,5 +134,35 @@ def khtn7_migration_sql():
         result.append((parent,KHTN7_ROOT_ID,'chapter',f'Chương {number}: {title}',f'KHTN7-C{number:02}',None))
         for index,name in lessons:
             result.append((khtn7_lesson_id(index),parent,'lesson',f'Bài {index}: {name}',f'KHTN7-C{number:02}-B{index:02}',None))
+    def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
+    return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in result)
+
+
+MATH7_ROOT_ID='curriculum:math7'
+MATH7_CHAPTERS=(
+ ('Số hữu tỉ',((1,'Tập hợp các số hữu tỉ'),(2,'Cộng, trừ, nhân, chia số hữu tỉ'),(3,'Lũy thừa với số mũ tự nhiên của một số hữu tỉ'),(4,'Thứ tự thực hiện các phép tính. Quy tắc chuyển vế'))),
+ ('Số thực',((5,'Làm quen với số thập phân vô hạn tuần hoàn'),(6,'Số vô tỉ. Căn bậc hai số học'),(7,'Tập hợp các số thực'))),
+ ('Góc và đường thẳng song song',((8,'Góc ở vị trí đặc biệt. Tia phân giác của một góc'),(9,'Hai đường thẳng song song và dấu hiệu nhận biết'),(10,'Tiên đề Euclid. Tính chất của hai đường thẳng song song'),(11,'Định lí và chứng minh định lí'))),
+ ('Tam giác bằng nhau',((12,'Tổng các góc trong một tam giác'),(13,'Hai tam giác bằng nhau. Trường hợp bằng nhau thứ nhất của tam giác'),(14,'Trường hợp bằng nhau thứ hai và thứ ba của tam giác'),(15,'Các trường hợp bằng nhau của tam giác vuông'),(16,'Tam giác cân. Đường trung trực của đoạn thẳng'))),
+ ('Thu thập và biểu diễn dữ liệu',((17,'Thu thập và phân loại dữ liệu'),(18,'Biểu đồ hình quạt tròn'),(19,'Biểu đồ đoạn thẳng'))),
+ ('Tỉ lệ thức và đại lượng tỉ lệ',((20,'Tỉ lệ thức'),(21,'Tính chất của dãy tỉ số bằng nhau'),(22,'Đại lượng tỉ lệ thuận'),(23,'Đại lượng tỉ lệ nghịch'))),
+ ('Biểu thức đại số và đa thức một biến',((24,'Biểu thức đại số'),(25,'Đa thức một biến'),(26,'Phép cộng và phép trừ đa thức một biến'),(27,'Phép nhân đa thức một biến'),(28,'Phép chia đa thức một biến'))),
+ ('Làm quen với biến cố và xác suất của biến cố',((29,'Làm quen với biến cố'),(30,'Làm quen với xác suất của biến cố'))),
+ ('Quan hệ giữa các yếu tố trong một tam giác',((31,'Quan hệ giữa góc và cạnh đối diện trong một tam giác'),(32,'Quan hệ giữa đường vuông góc và đường xiên'),(33,'Quan hệ giữa ba cạnh của một tam giác'),(34,'Sự đồng quy của ba đường trung tuyến, ba đường phân giác trong một tam giác'),(35,'Sự đồng quy của ba đường trung trực, ba đường cao trong một tam giác'))),
+ ('Một số hình khối trong thực tiễn',((36,'Hình hộp chữ nhật và hình lập phương'),(37,'Hình lăng trụ đứng tam giác và hình lăng trụ đứng tứ giác'))),
+)
+
+
+def math7_chapter_id(number):return MATH7_ROOT_ID+f':chapter:{number:02}'
+def math7_lesson_id(number):return MATH7_ROOT_ID+f':lesson:{number:02}'
+
+
+def math7_migration_sql():
+    result=[(MATH7_ROOT_ID,None,'subject','TOÁN 7','MATH7',None)]
+    for number,(title,lessons) in enumerate(MATH7_CHAPTERS,1):
+        parent=math7_chapter_id(number)
+        result.append((parent,MATH7_ROOT_ID,'chapter',f'Chương {number}: {title}',f'MATH7-C{number:02}',None))
+        for index,name in lessons:
+            result.append((math7_lesson_id(index),parent,'lesson',f'Bài {index}: {name}',f'MATH7-C{number:02}-B{index:02}',None))
     def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
     return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in result)

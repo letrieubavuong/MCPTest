@@ -1,3 +1,5 @@
+Bản 0.2.3: thêm CSDL → TOÁN 7 (Kết nối tri thức), 10 chương và 37 bài theo danh sách người dùng. Tự điền môn Toán, lớp 7 và chương/bài; schema 11 nâng cấp có backup.
+
 Bản 0.2.2 bổ sung KHTN 7: 10 chương, 41 bài (2–42), schema 10. Tổng cộng 46 kiểm thử đạt, gồm nâng cấp từ schema 9 giữ tên tùy chỉnh và điều hướng đúng câu hỏi lớp 7.
 
 # Danh mục CSDL lớp 6 — bản 0.2.1
