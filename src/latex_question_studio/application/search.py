@@ -12,11 +12,21 @@ class SearchService:
 
     def find(self,text='',filters=None,limit=100,offset=0,taxonomy_id=None,count_only=False):
         if not 1<=limit<=500 or offset<0:raise ValueError('Invalid page bounds')
+        join,where,parameters=self.query_parts(text,filters,taxonomy_id)
+        if join is None:return 0 if count_only else []
+        order='bm25(questions_fts),q.id' if join else 'q.created_at,q.id'
+        if count_only:
+            sql='SELECT count(*) FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id'+join+' WHERE '+' AND '.join(where)
+            with self.services.database.connect() as c:return c.execute(sql,parameters).fetchone()[0]
+        sql='SELECT q.* FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id'+join+' WHERE '+' AND '.join(where)+' ORDER BY '+order+' LIMIT ? OFFSET ?'
+        with self.services.database.connect() as c:return [QuestionRepository._question(r) for r in c.execute(sql,parameters+[limit,offset])]
+
+    def query_parts(self,text='',filters=None,taxonomy_id=None):
         filters=filters or {};parameters=[];where=["coalesce(json_extract(m.data_json,'$.archived'),0)=0"]
         join=''
         if text.strip():
             tokens=re.findall(r"[^\W_]+",text.lower().replace('đ','d'),re.UNICODE)
-            if not tokens:return []
+            if not tokens:return None,[],[]
             query=' AND '.join('"'+token+'"*' for token in tokens)
             join=' JOIN questions_fts f ON f.question_id=q.id'
             where.append('questions_fts MATCH ?');parameters.append(query)
@@ -30,12 +40,7 @@ class SearchService:
                 where.append("EXISTS(SELECT 1 FROM json_each(json_extract(m.data_json,'$.tags')) WHERE value=?)");parameters.append(value)
         if taxonomy_id:
             where.append("q.id IN (WITH RECURSIVE subtree(id) AS (SELECT ? UNION SELECT t.id FROM taxonomy_nodes t JOIN subtree s ON t.parent_id=s.id) SELECT question_id FROM question_taxonomy WHERE taxonomy_id IN (SELECT id FROM subtree))");parameters.append(taxonomy_id)
-        order='bm25(questions_fts),q.id' if join else 'q.created_at,q.id'
-        if count_only:
-            sql='SELECT count(*) FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id'+join+' WHERE '+' AND '.join(where)
-            with self.services.database.connect() as c:return c.execute(sql,parameters).fetchone()[0]
-        sql='SELECT q.* FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id'+join+' WHERE '+' AND '.join(where)+' ORDER BY '+order+' LIMIT ? OFFSET ?'
-        with self.services.database.connect() as c:return [QuestionRepository._question(r) for r in c.execute(sql,parameters+[limit,offset])]
+        return join,where,parameters
 
     @staticmethod
     def fingerprint(source):
@@ -52,7 +57,12 @@ class SearchService:
                 exact=self.fingerprint(row['latex_source'])==fingerprint
                 if exact:score=1.0
                 elif abs(len(row['latex_source'])-len(q.latex_source))>max(len(q.latex_source),1)*.5:continue
-                else:score=SequenceMatcher(None,q.latex_source,row['latex_source'],autojunk=False).ratio()
+                else:
+                    matcher=SequenceMatcher(None,q.latex_source,row['latex_source'],autojunk=False)
+                    # These upper bounds cannot exclude a result accepted by ratio().
+                    if matcher.real_quick_ratio()<threshold:continue
+                    if threshold>0.9 and matcher.quick_ratio()<threshold:continue
+                    score=matcher.ratio()
                 if score>=threshold:results.append({'id':row['id'],'source':row['latex_source'],'score':score,'exact':exact})
         return sorted(results,key=lambda r:(not r['exact'],-r['score']))[:limit]
 

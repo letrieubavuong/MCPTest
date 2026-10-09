@@ -12,11 +12,16 @@ class Job(QRunnable):
         self.function = function
         self.signals = JobSignals()
         self.cancelled = Event()
+        self.finished = Event()
 
     @Slot()
     def run(self):
         try:
             result = self.function(self.cancelled.is_set, self.signals.progress.emit)
-            self.signals.completed.emit(result)
+            from shiboken6 import isValid
+            if isValid(self.signals):self.signals.completed.emit(result)
         except Exception as error:
-            self.signals.failed.emit(str(error))
+            from shiboken6 import isValid
+            if isValid(self.signals):self.signals.failed.emit(str(error))
+        finally:
+            self.finished.set()

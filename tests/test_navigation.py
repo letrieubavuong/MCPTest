@@ -52,6 +52,7 @@ def test_import_review_commit_and_exam_stay_in_main_window(qtbot, tmp_path):
     window.create_exam(); window.use_exam_selection()
     window.generate_exam()
     assert window.pages.currentWidget() is window.exam_page
+    qtbot.waitUntil(lambda: getattr(window,'exam_job',None) is None,timeout=15000)
     assert len(window.exam_snapshot['questions']) == 1
     assert window.exam_export.isEnabled()
     assert not any(isinstance(w, QDialog) and w.isVisible() for w in QApplication.topLevelWidgets())

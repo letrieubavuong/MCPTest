@@ -1,3 +1,23 @@
+# Thư viện 0.5.1 — Bắt đầu từ cây CSDL
+
+Cây **CSDL → Môn → Chương → Bài → Dạng** luôn hiện bên trái trang thư viện. Nhấp đúp để mở/đóng nhánh, bấm bài hoặc dạng để thấy các câu thuộc phạm vi đó ở giữa. Dòng **Phạm vi** cho biết đang xem ở đâu. Bấm một câu để xem nội dung toán bên phải; bấm **Sửa câu** hoặc nhấp đúp câu để mở editor. Các bản nháp ở tab editor vẫn giữ khi bạn chọn bài khác.
+
+**Nhập TeX** chuyển tới trang nhập; chọn file rồi dùng cây ở trang nhập để gán bài/dạng và mức độ. **Phân loại** mở inspector cho câu đang xem. **Lấy vào đề** đưa các câu đã chọn sang ra đề. Các thao tác ít dùng nằm trong **Thao tác khác**. Khi không có câu, xem hướng dẫn trong trang hoặc bấm **Xem tất cả câu** để kiểm tra câu chưa phân loại.
+
+Cây CSDL tự hiện lại khi mở trang, kể cả workspace cũ lưu trạng thái ẩn. Nút thu sidebar ở trang CSDL chỉ làm cây gọn hơn; kéo splitter để tăng chiều rộng.
+
+# Workspace 0.5.0
+
+Thanh icon trái chuyển CSDL, Nhập, Ra đề, Cài đặt và Bài giảng. Tooltip cho biết chức năng. Nút thư mục phía trên thu/mở sidebar; kéo vạch splitter để chia không gian. Các panel có nút đóng; mở lại bằng toolbar hoặc menu Hiển thị. Layout được lưu khi thoát.
+
+CSDL: gõ tìm nhanh, chọn loại/mức độ/trạng thái; Ctrl/Shift để chọn nhiều. Nhấp câu để xem render, nhấp đúp để mở editor. Chọn Thẻ preview để xem bản render đã tải; chỉ câu được chọn mới biên dịch. Inspector Phân loại lưu bài/dạng, mức độ, nhãn và nguồn trực tiếp. Thẻ chưa render hiện tóm tắt; F5 cập nhật câu đang xem.
+
+Editor: Ctrl+S lưu, Ctrl+F tìm, Ctrl+H thay thế; thanh tìm nằm trong editor. F5 biên dịch, nút Đi tới dòng lỗi chuyển tới source khi ánh xạ được, lỗi preamble/tệp phụ xem nhật ký. Thay source làm preview cũ mất hiệu lực.
+
+Nhập: chọn tệp/thư mục → phân tích → chọn bài/dạng trên cây và mức độ → gán các câu đang chọn → tick những câu muốn nhập → Nhập câu đã chọn. Câu không tick hoặc source lỗi vẫn giữ trong hàng chờ. Toolbar hiển thị hợp lệ/lỗi/gợi ý trùng; gợi ý trùng không tự xóa.
+
+Ra đề: chọn phạm vi trái, nhập số NB/TH/VD/VDC trong bảng thống kê, thêm vào ma trận; có thể lấy thêm câu đang chọn từ CSDL. Tạo đề ghim source/đáp án/permutation; danh sách phải là cấu trúc đề đã tạo. Preview và xuất dùng snapshot này. Bài giảng vẫn chèn qua thư viện chọn/tick, giữ revision riêng.
+
 Bản 0.3.3: trang nhập dùng toolbar; thao tác thêm dạng, chọn mức độ, gán, nhập và đóng nằm trên toolbar icon có tooltip. Cột phải có Preview/Source, tự biên dịch nền khi chọn câu, hỗ trợ ảnh đi kèm, nhiều trang và báo lỗi không chặn phân loại. Preview dùng compiler.json và yêu cầu TeX engine đã cấu hình.
 
 Bản 0.3.1 — Ra đề theo cây CSDL: chọn phạm vi môn/chương/bài/dạng, chọn loại câu, xem nguồn NB/TH/VD/VDC và số chưa gán mức độ. Nhập số cần lấy rồi thêm vào ma trận; lặp cho các phạm vi khác và tạo đề. Thống kê bỏ câu lưu trữ, source lỗi và câu đã chọn thủ công. Các phạm vi chồng nhau có thể dùng chung nguồn: bộ chọn kiểm tra đủ câu độc lập khi tạo đề. Có xóa hàng và tổng số câu theo mức độ.
@@ -82,3 +102,6 @@ Tệp → Sao lưu tạo ZIP chứa DB, archive nguồn và assets với checksu
 
 ## Dữ liệu minh họa
 examples/demo.tex và diagram.png gồm MCQ, đúng/sai, trả lời ngắn, tự luận/TikZ/ảnh với dữ liệu học tập mẫu. Nhập file này để thử toàn bộ luồng mà không dùng dữ liệu thật.
+
+
+Preview mặc định từ bản 0.5.2 dùng MAPClass.cls và ex_test.sty trong docs. Trong Cài đặt, để trống “File preamble riêng” để dùng mẫu này; nếu đã cấu hình preamble riêng, mẫu riêng vẫn được ưu tiên. Bản EXE có sẵn class/package; máy cần cài pdfLaTeX và các gói phụ thuộc của MAPClass. Nhấn Xem trước/F5 để biên dịch lại câu đang xem.

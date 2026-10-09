@@ -10,7 +10,9 @@ import uuid
 
 from latex_question_studio.domain.curriculum import migration_sql, math_migration_sql, khtn7_migration_sql, math7_migration_sql, grade8_migration_sql, grade9_migration_sql, upper_migration_sql, senior_migration_sql
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 17
+from latex_question_studio.domain.catalog import migration_sql as catalog_migration_sql
+
 MIGRATIONS = {
     1: (
         """CREATE TABLE taxonomy_nodes (
@@ -90,6 +92,20 @@ MIGRATIONS = {
     13: grade9_migration_sql(),
     14: upper_migration_sql(),
     15: senior_migration_sql(),
+    17: (
+        "CREATE TABLE curriculum_profiles(root_id TEXT PRIMARY KEY REFERENCES taxonomy_nodes(id),subject TEXT NOT NULL,grade TEXT NOT NULL,book TEXT NOT NULL,version TEXT NOT NULL)",
+        "CREATE TABLE curriculum_order(node_id TEXT PRIMARY KEY REFERENCES taxonomy_nodes(id),display_order INTEGER NOT NULL)",
+    )+catalog_migration_sql(),
+    16: (
+        "CREATE TABLE question_analysis(question_id TEXT PRIMARY KEY REFERENCES questions(id) ON DELETE CASCADE,source_hash TEXT NOT NULL,normalized_hash TEXT NOT NULL,parser_version INTEGER NOT NULL,valid INTEGER NOT NULL,parsed_json TEXT NOT NULL)",
+        "CREATE INDEX ix_analysis_normalized ON question_analysis(normalized_hash)",
+        "CREATE INDEX ix_analysis_valid ON question_analysis(parser_version,valid,question_id)",
+        "CREATE TRIGGER analysis_invalidate AFTER UPDATE OF latex_source ON questions WHEN new.latex_source<>old.latex_source BEGIN DELETE FROM question_analysis WHERE question_id=old.id; END",
+        "CREATE INDEX ix_qt_taxonomy ON question_taxonomy(taxonomy_id,question_id)",
+        "CREATE INDEX ix_questions_cognitive ON questions(cognitive_level,question_type)",
+        "CREATE INDEX ix_metadata_subject_grade ON question_metadata(json_extract(data_json,'$.subject'),json_extract(data_json,'$.grade'))",
+        "CREATE INDEX ix_metadata_archived ON question_metadata(coalesce(json_extract(data_json,'$.archived'),0),question_id)",
+    ),
 }
 
 class Database:

@@ -2,7 +2,7 @@
 from copy import deepcopy
 import json
 from pathlib import Path
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer,QEvent
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QSplitter, QTreeWidget, QTreeWidgetItem, QFormLayout,
@@ -23,57 +23,48 @@ class LessonPage(QWidget):
         self.doc=None;self.current_id=None;self.loading=False;self.dirty=False
         self.preview_generation=0;self.preview_job=None;self.pdf=None;self.pdf_page=0
         self.setObjectName('lessonPage')
-        layout=QVBoxLayout(self)
-        heading=QLabel('BÀI GIẢNG  /  Lý thuyết · Dạng toán · Ví dụ · Vận dụng')
-        layout.addWidget(heading)
-        toolbar=QHBoxLayout()
-        self.lesson_list=QComboBox();self.lesson_list.setMinimumWidth(230)
-        self.lesson_list.currentIndexChanged.connect(self.open_selected)
-        toolbar.addWidget(self.lesson_list,1)
-        self.button(toolbar,'Tạo bài',self.new_lesson,QStyle.StandardPixmap.SP_FileIcon)
-        self.button(toolbar,'Nhân bản',self.duplicate)
-        self.button(toolbar,'Lưu',self.save,QStyle.StandardPixmap.SP_DialogSaveButton)
-        self.button(toolbar,'Lịch sử',self.history)
-        layout.addLayout(toolbar)
-        self.title=QLineEdit();self.title.setPlaceholderText('Tên bài giảng')
-        self.title.textEdited.connect(self.changed);layout.addWidget(self.title)
-        splitter=QSplitter();layout.addWidget(splitter,1)
+        from latex_question_studio.ui.components.workspace import Workspace,CommandToolbar
+        from PySide6.QtWidgets import QToolButton,QMenu
+        layout=QVBoxLayout(self);layout.setContentsMargins(8,8,8,8);layout.setSpacing(6)
+        layout.addWidget(QLabel('BÀI GIẢNG  /  Lý thuyết · Dạng toán · Ví dụ · Vận dụng'))
+        self.toolbar=CommandToolbar('Bài giảng',self);layout.addWidget(self.toolbar)
+        self.lesson_list=QComboBox();self.lesson_list.setMinimumContentsLength(14);self.lesson_list.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon);self.lesson_list.currentIndexChanged.connect(self.open_selected);self.toolbar.addWidget(self.lesson_list)
+        self.toolbar.command('lesson','Tạo bài',self.new_lesson)
+        self.toolbar.command('save','Lưu bài · Ctrl+S',self.save,True)
+        self.toolbar.command('preview','Biên dịch toàn bài · F5',self.start_preview,True)
+        self.export_button=self.toolbar.command('chapter','Xuất TeX + PDF',self.export,True)
+        self.toolbar.addSeparator();self.toolbar.command('close','Hủy preview',self.cancel_preview)
+        menu=QMenu(self);menu.addAction('Nhân bản bài',self.duplicate);menu.addAction('Lịch sử / khôi phục',self.history);menu.addAction('Chèn hình PNG/JPG/PDF',self.attach_image)
+        more=QToolButton();more.setText('Thao tác khác');more.setMenu(menu);more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup);self.toolbar.addWidget(more)
+        self.title=QLineEdit();self.title.setPlaceholderText('Tên bài giảng');self.title.textEdited.connect(self.changed);layout.addWidget(self.title)
+        self.workspace=Workspace('lessonSplit');splitter=self.workspace;layout.addWidget(splitter,1)
         outline=QWidget();ol=QVBoxLayout(outline);ol.setContentsMargins(0,0,0,0)
-        self.tree=QTreeWidget();self.tree.setHeaderLabel('CẤU TRÚC BÀI')
-        self.tree.currentItemChanged.connect(self.select_block);ol.addWidget(self.tree,1)
+        self.tree=QTreeWidget();self.tree.setHeaderLabel('OUTLINE BÀI GIẢNG');self.tree.currentItemChanged.connect(self.select_block);ol.addWidget(self.tree,1)
         self.kind=QComboBox()
         for key,label in KINDS.items():self.kind.addItem(label,key)
         ol.addWidget(self.kind)
-        self.button(ol,'Thêm mục cùng cấp',lambda:self.add_block(False))
-        self.button(ol,'Thêm mục con',lambda:self.add_block(True))
-        row=QHBoxLayout();self.button(row,'↑',lambda:self.move(-1));self.button(row,'↓',lambda:self.move(1));ol.addLayout(row)
-        self.button(ol,'Xóa mục',self.remove_block)
+        outline_bar=CommandToolbar('Cấu trúc bài',outline);ol.addWidget(outline_bar)
+        outline_bar.command('topic','Thêm mục cùng cấp',lambda:self.add_block(False));outline_bar.command('chapter','Thêm mục con',lambda:self.add_block(True));outline_bar.command('subject','Đưa mục lên',lambda:self.move(-1));outline_bar.command('lesson','Đưa mục xuống',lambda:self.move(1));outline_bar.command('close','Xóa mục',self.remove_block)
         splitter.addWidget(outline)
         self.work=QTabWidget();splitter.addWidget(self.work)
-        edit=QWidget();el=QVBoxLayout(edit);el.setContentsMargins(5,5,5,5)
-        self.block_title=QLineEdit();self.block_title.setPlaceholderText('Tên mục');self.block_title.textEdited.connect(self.changed)
-        el.addWidget(self.block_title)
+        edit=QWidget();el=QVBoxLayout(edit);el.setContentsMargins(4,4,4,4)
+        self.block_title=QLineEdit();self.block_title.setPlaceholderText('Tên mục');self.block_title.textEdited.connect(self.changed);el.addWidget(self.block_title)
         self.origin=QLabel();self.origin.setWordWrap(True);el.addWidget(self.origin)
         self.policy=QComboBox()
         for key,label in POLICIES.items():self.policy.addItem(label,key)
         self.policy.currentIndexChanged.connect(self.changed);el.addWidget(self.policy)
         self.editor=LatexEditor();self.editor.textChanged.connect(self.changed);el.addWidget(self.editor,3)
-        self.button(el,'Chèn hình PNG/JPG/PDF',self.attach_image)
-        el.addWidget(QLabel('Ghi chú riêng giáo viên (không đưa vào bản học sinh)'))
-        self.notes=QPlainTextEdit();self.notes.setMaximumHeight(100);self.notes.textChanged.connect(self.changed);el.addWidget(self.notes)
-        self.work.addTab(edit,'Biên tập TeX')
-        self.build_picker();self.work.addTab(self.picker,'Chèn từ ngân hàng')
+        el.addWidget(QLabel('Ghi chú riêng giáo viên'))
+        self.notes=QPlainTextEdit();self.notes.setMaximumHeight(75);self.notes.textChanged.connect(self.changed);el.addWidget(self.notes)
+        self.work.addTab(edit,'Biên tập TeX');self.build_picker();self.work.addTab(self.picker,'Thư viện để chèn')
         preview=QWidget();pl=QVBoxLayout(preview);pl.setContentsMargins(0,0,0,0)
-        self.audience=QComboBox();self.audience.addItem('Bản giáo viên','teacher');self.audience.addItem('Bản học sinh','student');pl.addWidget(self.audience)
-        self.worksheet=QCheckBox('Chỉ xuất phiếu bài tập');pl.addWidget(self.worksheet)
-        self.button(pl,'Xem trước toàn bài',self.start_preview,QStyle.StandardPixmap.SP_FileDialogContentsView)
-        self.button(pl,'Hủy tác vụ preview',self.cancel_preview)
+        row=QHBoxLayout();self.audience=QComboBox();self.audience.addItem('Bản giáo viên','teacher');self.audience.addItem('Bản học sinh','student');row.addWidget(self.audience)
+        self.worksheet=QCheckBox('Phiếu bài tập');row.addWidget(self.worksheet);pl.addLayout(row)
         self.preview=QLabel('Tạo hoặc chọn bài để bắt đầu.');self.preview.setAlignment(Qt.AlignmentFlag.AlignTop);self.preview.setWordWrap(True)
-        scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(self.preview);pl.addWidget(scroll,1)
-        row=QHBoxLayout();self.button(row,'← Trang',lambda:self.turn_page(-1));self.button(row,'Trang →',lambda:self.turn_page(1));pl.addLayout(row)
-        self.export_button=self.button(pl,'Xuất bộ TeX + PDF',self.export,QStyle.StandardPixmap.SP_DialogSaveButton)
-        splitter.addWidget(preview);splitter.setSizes([230,650,350])
-        self.status=QLabel('Tạo bài từ mẫu hoặc mở một bài đã lưu.');self.status.setWordWrap(True);layout.addWidget(self.status)
+        self.preview_scroll=QScrollArea();self.preview_scroll.setWidgetResizable(True);self.preview_scroll.viewport().installEventFilter(self);self.preview_scroll.setWidget(self.preview);pl.addWidget(self.preview_scroll,1)
+        bar=CommandToolbar('Trang PDF',preview);bar.command('chapter','Trang trước',lambda:self.turn_page(-1));bar.command('subject','Trang sau',lambda:self.turn_page(1));pl.addWidget(bar)
+        splitter.addWidget(preview);splitter.setSizes([250,650,400]);self.preview_original=None
+        self.status=QLabel('Tạo bài từ mẫu hoặc mở bài đã lưu.');self.status.setWordWrap(True);layout.addWidget(self.status)
         self.autosave=QTimer(self);self.autosave.setSingleShot(True);self.autosave.setInterval(1500);self.autosave.timeout.connect(self.save)
         self.reload_list()
         if self.lesson_list.count():self.open_selected()
@@ -170,6 +161,8 @@ class LessonPage(QWidget):
             parent=items.get(b['parent'])
             if parent:parent.addChild(items[b['id']])
             else:self.tree.addTopLevelItem(items[b['id']])
+        from latex_question_studio.ui.icons import icon
+        for b in self.doc['blocks']:items[b['id']].setIcon(0,icon('chapter' if b['kind'] in ('section','type') else 'lesson','#579bd4'))
         self.tree.expandAll();self.tree.blockSignals(False)
         self.current_id=None
         if selected in items:self.tree.setCurrentItem(items[selected])
@@ -252,7 +245,7 @@ class LessonPage(QWidget):
         row=QHBoxLayout();self.count=QSpinBox();self.count.setRange(1,100);self.count.setValue(3);row.addWidget(QLabel('Số câu'));row.addWidget(self.count)
         self.seed=QSpinBox();self.seed.setRange(0,2_000_000_000);self.seed.setValue(2027);row.addWidget(QLabel('Seed'));row.addWidget(self.seed);layout.addLayout(row)
         self.button(layout,'Trích lọc → xem và tick danh sách đề xuất',self.sample_bank)
-        self.picker_status=QLabel('Lọc và chọn câu; double click để preview. Mở lại bài không tự rút câu mới.');self.picker_status.setWordWrap(True);layout.addWidget(self.picker_status)
+        self.picker_status=QLabel('Lọc và chọn câu; nhấp đúp để xem trước. Mở lại bài không tự rút câu mới.');self.picker_status.setWordWrap(True);layout.addWidget(self.picker_status)
 
     def bank_filters(self):
         return {**{key:combo.currentData() for key,combo in self.filters.items()},'question_type':self.question_type.currentData(),'cognitive_level':self.cognitive.currentData()}
@@ -337,9 +330,16 @@ class LessonPage(QWidget):
         self.preview_job=None;self.pdf=pdf;self.pdf_page=0;self.pdf_pages=pages;self.display_image(data)
 
     def display_image(self,data):
-        pixmap=QPixmap();pixmap.loadFromData(data);scaled=pixmap.scaledToWidth(max(240,self.preview.parentWidget().width()-16),Qt.TransformationMode.SmoothTransformation)
-        self.preview.setText('');self.preview.setMinimumSize(scaled.size());self.preview.setPixmap(scaled)
-        self.status.setText(f'Preview • Trang {self.pdf_page+1}/{self.pdf_pages}')
+        pixmap=QPixmap();pixmap.loadFromData(data);self.preview_original=pixmap;self.fit_preview()
+        self.status.setText(f'Xem trước • Trang {self.pdf_page+1}/{self.pdf_pages}')
+
+    def fit_preview(self):
+        if self.preview_original:
+            self.preview.setMinimumSize(0,0);self.preview.setPixmap(self.preview_original.scaledToWidth(max(100,self.preview_scroll.viewport().width()-12),Qt.TransformationMode.SmoothTransformation))
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        if hasattr(self,'preview_original'):QTimer.singleShot(0,self.fit_preview)
 
     def turn_page(self,direction):
         target=self.pdf_page+direction
@@ -356,7 +356,7 @@ class LessonPage(QWidget):
         if self.preview_job:
             self.preview_job.cancelled.set()
             self.preview_job=None
-        self.pdf=None
+        self.pdf=None;self.preview_original=None
         self.preview.setPixmap(QPixmap());self.preview.setMinimumSize(0,0)
         self.preview.setText('Preview chưa cập nhật. Bấm Xem trước toàn bài.')
         self.preview_generation+=1
@@ -379,3 +379,6 @@ class LessonPage(QWidget):
 
     def export_failed(self,error):
         self.export_job=None;self.export_button.setEnabled(True);self.status.setText('Xuất chưa đạt: '+error)
+    def eventFilter(self,obj,event):
+        if hasattr(self,'preview_scroll') and obj==self.preview_scroll.viewport() and event.type()==QEvent.Type.Resize:QTimer.singleShot(0,self.fit_preview)
+        return super().eventFilter(obj,event)

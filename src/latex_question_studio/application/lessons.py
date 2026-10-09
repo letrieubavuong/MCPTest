@@ -242,6 +242,10 @@ class LessonService:
             # Custom profile dependencies may contain private content: supported
             # source bundles currently use the audited built-in profile only.
             if preamble_file:raise ValueError('Xuất gói bài giảng hiện dùng profile tích hợp; profile riêng chưa được chứng nhận đóng gói')
+            # Ship the exact provided class/package so the exported source recompiles.
+            for relative in dependencies:
+                target=work/(Path(relative).name if Path(relative).suffix==".cls" else relative);target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(compiler.profile_root/relative,target)
             (work/'main.tex').write_text(preamble+'\n'+r'\begin{document}'+'\n'+body+'\n'+r'\end{document}',encoding='utf-8')
             shutil.copyfile(result.pdf,work/'bai-giang.pdf')
             hashes={f.relative_to(work).as_posix():hashlib.sha256(f.read_bytes()).hexdigest() for f in work.rglob('*') if f.is_file()}

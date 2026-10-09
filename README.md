@@ -1,3 +1,21 @@
+# MCPTest — LaTeX Question Studio 0.5.2
+
+Ứng dụng desktop Windows: ngân hàng câu hỏi TeX, cây phân loại môn/chương/bài/dạng, ra đề theo ma trận và thiết kế bài giảng. Preview mặc định dùng MAPClass + ex_test được cung cấp trong docs.
+
+**Tiếp tục trên máy khác:** đọc [tài liệu bàn giao](docs/HANDOVER.md) để cài đặt, chạy tests, build EXE và biết các việc còn lại. [Hướng dẫn sử dụng](docs/USER_GUIDE.md), [ghi chú phát hành](docs/RELEASE_NOTES.md).
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[test]"
+.\scripts\run.ps1
+```
+
+Python 64-bit 3.12+; preview/PDF cần pdfLaTeX và dependency của MAPClass. Đã đạt 95 kiểm thử trên bản 0.5.2; EXE/ZIP đã smoke test trên máy phát triển, chưa kiểm tra VM Windows sạch. Source đầy đủ nằm trên Git; build, môi trường Python và ngân hàng cá nhân được giữ ngoài repository.
+
+## Lịch sử các bản cũ
+
+Các đường dẫn release bên dưới là lịch sử; build mới theo tài liệu bàn giao.
+
 Bản 0.2.7: thêm VẬT LÍ 11 (4 chương/26 bài), TOÁN 12 (5 chương/17 bài theo danh sách cung cấp), VẬT LÍ 12 (4 chương/25 bài). Cây CSDL có icon sách xanh cho môn, thư mục vàng cho chương, trang xanh lá cho bài. Schema 15 nâng cấp có backup; sửa đề khảo sát thành để khảo sát.
 
 Bản 0.2.6: thêm TOÁN 10 (9 chương/27 bài), VẬT LÍ 10 (7 chương/34 bài), TOÁN 11 (9 chương/33 bài) theo danh sách người dùng. Schema 14 nâng cấp có backup và tự điền đúng môn/lớp/chương/bài.
@@ -32,7 +50,7 @@ python -m venv .venv
 .\scripts\build.ps1
 ```
 
-Python 3.12+, đã kiểm thử Python 3.14.6/PySide6 6.11.1/PyMuPDF 1.28.0. Build cần PyInstaller 6.21.0 (`python -m pip install pyinstaller==6.21.0`). Không tự chuyển dữ liệu cũ, không suy diễn mapping nhận thức. Profile article tích hợp đã compile test; MAPClass/ex_test thiếu dependency nên chưa chứng nhận tương thích. Không commit/push.
+Python 3.12+, đã kiểm thử Python 3.14.6/PySide6 6.11.1/PyMuPDF 1.28.0. Build cần PyInstaller 6.21.0 (`python -m pip install pyinstaller==6.21.0`). Không tự chuyển dữ liệu cũ, không suy diễn mapping nhận thức. Thông tin ở mục lịch sử này đã được thay thế bởi tài liệu bàn giao 0.5.2.
 
 Bản 0.1.0 dùng launcher console x64; có thể xuất hiện thêm cửa sổ console. Đã kiểm tra EXE sau giải nén ZIP trên máy hiện tại, PATH không có Python; chưa kiểm thử trên VM Windows sạch. Xem [biên bản bàn giao](docs/15_PHASE09_REPORT.md).
 

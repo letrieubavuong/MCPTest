@@ -36,6 +36,8 @@ class QuestionRepository:
             connection.execute("INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?)", (
                 question.id, latex_source, question_type, solution, difficulty_legacy, cognitive_level, 1, now, now,
             ))
+            from latex_question_studio.persistence.analysis import record
+            record(connection,question.id,question.latex_source)
             self._snapshot(connection, question, now)
         return question
 
@@ -68,6 +70,9 @@ class QuestionRepository:
                  updated.cognitive_level, updated.revision, now, question.id, question.revision))
             if result.rowcount != 1:
                 raise ConcurrentEditError("Question was changed or removed")
+            from latex_question_studio.persistence.analysis import record
+            cached=connection.execute('SELECT 1 FROM question_analysis WHERE question_id=?',(updated.id,)).fetchone()
+            if not cached:record(connection,updated.id,updated.latex_source)
             self._snapshot(connection, updated, now)
         return updated
 

@@ -37,3 +37,37 @@ def test_timeout_kills_tex(tmp_path):
     compiler=Compiler(tmp_path,timeout=.1)
     result=compiler.compile(r'\def\forever{\forever}\forever')
     assert not result.ok and 'thời gian' in result.log
+
+
+def test_provided_profile_and_custom_override(tmp_path, monkeypatch):
+    import latex_question_studio.preview.compiler as module
+    import hashlib
+    preamble, dependencies=Compiler(tmp_path).profile()
+    assert '{MAPClass}' in preamble and '\\newcommand{\\choice}' not in preamble
+    root=module.default_profile_root()
+    for relative in ('Class/MAPClass.cls','Packages/ex_test.sty'):
+        assert dependencies[str(Path(relative))] == hashlib.sha256((root/relative).read_bytes()).hexdigest()
+    custom=tmp_path/'custom.tex';custom.write_text(r'\documentclass{article}',encoding='utf-8')
+    assert Compiler(tmp_path,preamble_file=custom).profile()[0].startswith(r'\documentclass{article}')
+    copied=tmp_path/'profile with spaces'
+    for relative in ('Class/MAPClass.cls','Packages/ex_test.sty'):
+        target=copied/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(root/relative,target)
+    monkeypatch.setattr(module,'default_profile_root',lambda:copied)
+    first=Compiler(tmp_path).profile()[1]
+    with (copied/'Packages/ex_test.sty').open('ab') as stream:stream.write(b'\n% cache invalidation test\n')
+    assert Compiler(tmp_path).profile()[1]!=first
+
+@pytest.mark.skipif(not shutil.which('pdflatex'),reason='pdfLaTeX not installed')
+def test_mapclass_teacher_student_all_question_types(tmp_path):
+    from latex_question_studio.application.lessons import student_source
+    import pymupdf
+    source=r"""\begin{ex}Tính $1+1$.\choice{1}{\True 2}{3}{4}\loigiai{TEACHERSECRET}\end{ex}
+\begin{ex}Đúng sai.\choiceTF{\True Một}{Hai}{\True Ba}{Bốn}\end{ex}
+\begin{ex}Đúng sai bảng.\choiceTFt{Một}{\True Hai}{Ba}{\True Bốn}\end{ex}
+\begin{ex}Trả lời ngắn.\shortans{42}\end{ex}
+\begin{ex}Tự luận $x^2=4$.\loigiai{TEACHERSECRET}\end{ex}"""
+    for teacher in (True,False):
+        result=Compiler(tmp_path).compile(source if teacher else student_source(source,hide_answers=True))
+        assert result.ok,result.log
+        with pymupdf.open(result.pdf) as doc:text=''.join(page.get_text() for page in doc)
+        assert ('TEACHERSECRET' in text)==teacher

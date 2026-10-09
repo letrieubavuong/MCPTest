@@ -36,7 +36,7 @@ def test_review_tree_assign_multiple_filter_and_reopen(qtbot,tmp_path):
     review=ImportReview(results,services=services);qtbot.addWidget(review);review.show()
     review.tree.setCurrentItem(review.items['curriculum:math10:lesson:01']);review.level.setCurrentIndex(review.level.findData('NB'))
     review.assign_rows([0,1]);assert all(r['parsed']['classification']['grade']=='10' for r in results)
-    review.only_missing.setCurrentIndex(1);assert review.table.isRowHidden(0)
+    review.only_missing.setCurrentIndex(1);assert review.table.rowCount()==0
     review.only_missing.setCurrentIndex(2);assert not review.table.isRowHidden(0)
     assert all(json.loads(r['parsed_json'])['classification']['cognitive_level']=='NB' for r in importer.pending())
     review.tree_search.setText('Mệnh đề');assert not review.items['curriculum:math10:lesson:01'].isHidden()
@@ -48,7 +48,7 @@ def test_review_toolbar_and_real_preview(qtbot,tmp_path):
     if not shutil.which('pdflatex'):pytest.skip('TeX engine unavailable')
     services,importer,batch,results=staged(tmp_path)
     review=ImportReview(results,services=services);qtbot.addWidget(review);review.show()
-    assert review.preview_tabs.tabText(0)=='Preview' and review.preview_tabs.tabText(1)=='Source'
+    assert review.preview_tabs.tabText(0)=='Xem trước' and review.preview_tabs.tabText(1)=='Mã LaTeX'
     assert all(action.toolTip() for action in review.toolbar.actions() if not action.isSeparator())
     qtbot.waitUntil(lambda:bool(review.preview_pages),timeout=30000)
     assert not review.preview_image.pixmap().isNull()

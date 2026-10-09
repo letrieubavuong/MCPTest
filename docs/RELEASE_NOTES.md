@@ -1,3 +1,37 @@
+# 0.5.2
+
+- Preview mặc định dùng nguyên bản MAPClass + ex_test do người dùng cung cấp.
+- Đóng gói class/package trong EXE, cache nhận biết thay đổi mẫu.
+- Gói bài giảng kèm dependency để biên dịch TeX lại.
+
+# 0.5.1 — Khôi phục hướng sử dụng thư viện
+
+- Cây CSDL luôn hiện khi mở thư viện; phục hồi trạng thái ẩn của layout cũ, giữ chiều rộng tối thiểu 240px.
+- Bấm bài/dạng đưa danh sách ra trước và lọc đúng phạm vi; các tab editor/draft vẫn giữ.
+- Toolbar có nhãn các thao tác chính; bổ sung dòng phạm vi, hướng dẫn ngắn và trợ giúp danh sách trống.
+- Danh sách hiển thị mức độ và bài/dạng thay cho phiên bản kỹ thuật.
+- Thu sidebar chỉ làm cây CSDL gọn hơn; bỏ nút đóng cây để tránh mất điều hướng.
+
+# 0.5.0 — Desktop workspace redesign
+
+- Activity Bar 64px; splitter workspace và panel có trạng thái lưu riêng.
+- CSDL tìm/lọc inline, multiselect, inspector phân loại/source/lỗi, danh sách và thẻ render theo yêu cầu.
+- Editor tìm/thay thế inline, thụt dòng, toolbar chung, cảnh báo dirty và ánh xạ dòng lỗi khi xác định được.
+- Nhập có bước tiến trình, số hợp lệ/lỗi/trùng và checkbox chọn bỏ câu; chỉ nhập IDs đã chọn.
+- Ra đề ba vùng với thống kê NB/TH/VD/VDC, cảnh báo thiếu nguồn và preview source snapshot.
+- Bài giảng outline/editor/bank/preview với toolbar lưu, biên dịch, xuất; giữ revision, autosave và pinned questions.
+- Light/Dark qua theme module; sửa đổi theme không tạo revision bài giảng và không hủy preview.
+- Xem UI_REDESIGN_REPORT.md cho bằng chứng, ảnh, kiểm thử và giới hạn; launcher console vẫn là hạn chế kỹ thuật đã ghi nhận.
+
+# 0.4.0 ? ?n ??nh k? thu?t
+
+- Th?ng k? SQL v?i cache c?u tr?c LaTeX theo SHA-256 v? parser version; cache kh?ng thay ngu?n/revision.
+- Catalog JSON v? profile s?ch/phi?n b?n c?ng t?n t?i, gi? ID ch??ng/b?i ?? s? d?ng.
+- ?? h?c sinh lo?i ??p ?n/l?i gi?i kh?i TeX v? kh?ng ch?p ?nh ch? d?ng trong l?i gi?i.
+- Ch?n x?o c?u c? nhi?u macro ??p ?n kh?ng r? r?ng; gi? seed, matching v? ??p ?n ??ng.
+- Th?ng k?/t?o ?? ch?y worker c? h?y; h?y preview tr??c thay control; review nh?p ph?n trang 200 c?u.
+- C? audit, benchmark t?ng h?p 1k/10k/50k v? b?o c?o nghi?m thu. Gi?i h?n performance v? Windows console launcher ???c ghi r? trong b?o c?o.
+
 Bản 0.3.5: gom nút ra đề vào toolbar đầu trang: lấy câu, thống kê, thêm phạm vi, thêm/xóa hàng, tạo và xuất đề. Icon có tooltip, xuất chỉ bật sau khi có đề. Xóa hàng cập nhật tổng ma trận.
 
 Bản 0.3.4: đưa thao tác phân loại, mức độ, preview, lưu và đóng lên cùng toolbar Chọn file/Chọn thư mục/Hàng chờ. Dọn action khi đổi nội dung để tránh lặp hoặc gọi control cũ.

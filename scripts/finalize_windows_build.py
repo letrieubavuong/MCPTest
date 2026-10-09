@@ -2,10 +2,12 @@
 from pathlib import Path
 import struct
 import zipfile
+import argparse
 
 root = Path(__file__).resolve().parents[1]
 wheel = root / '.runtime/wheels/pyinstaller-6.21.0-py3-none-win_amd64.whl'
-folder = root / 'dist/LaTeXQuestionStudio'
+parser=argparse.ArgumentParser();parser.add_argument('--dist-dir',type=Path,default=root/'dist/LaTeXQuestionStudio');args=parser.parse_args()
+folder=args.dist_dir.resolve()
 with zipfile.ZipFile(wheel) as archive:
     name = next(n for n in archive.namelist() if n.endswith('Windows-64bit-intel/run.exe'))
     bootloader = archive.read(name)

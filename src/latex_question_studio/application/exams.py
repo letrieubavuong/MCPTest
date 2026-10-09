@@ -12,35 +12,42 @@ HIDE_ANSWERS = r"""\renewcommand{\True}{}
 \renewcommand{\loigiai}[1]{}
 \let\hdan\loigiai
 \renewcommand{\shortans}[2][]{}
+\ifcsname hideansEX\endcsname\AtBeginDocument{\hideansEX{ex}}\fi
 """
 
 class ExamService:
     def __init__(self,services):self.services=services
 
-    def candidates(self,filters,taxonomy_id=None):
-        results=[];offset=0;search=SearchService(self.services)
-        while True:
-            page=search.find(filters=filters,limit=500,offset=offset,taxonomy_id=taxonomy_id)
-            results.extend(q.id for q in page)
-            if len(page)<500:return results
-            offset+=500
+    def candidates(self,filters,taxonomy_id=None,valid_only=False,cancelled=lambda:False):
+        from latex_question_studio.persistence.analysis import ensure,PARSER_VERSION
+        join,where,params=SearchService(self.services).query_parts(filters=filters,taxonomy_id=taxonomy_id)
+        if valid_only:
+            ensure(self.services.database,join,where,params,cancelled)
+            join+=' JOIN question_analysis a ON a.question_id=q.id'
+            where+=['a.valid=1','a.parser_version=?'];params+=[PARSER_VERSION]
+        with self.services.database.connect() as c:
+            return [row[0] for row in c.execute('SELECT q.id FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id'+join+' WHERE '+' AND '.join(where)+' ORDER BY q.created_at,q.id',params)]
 
     def is_valid_candidate(self,qid):
-        q=self.services.questions.get(qid)
-        items=parse_questions(q.latex_source) if q else []
+        from latex_question_studio.persistence.analysis import parsed
+        items=parsed(self.services.database,qid)
         return len(items)==1 and not items[0].diagnostics
 
-    def statistics(self,taxonomy_id=None,question_type='',exclude_ids=None):
-        excluded=set(exclude_ids or []);counts={level:0 for level in ('NB','TH','VD','VDC','unclassified')};invalid=0
-        for qid in self.candidates({'question_type':question_type},taxonomy_id):
-            if qid in excluded:continue
-            q=self.services.questions.get(qid);items=parse_questions(q.latex_source)
-            if len(items)!=1 or items[0].diagnostics:
-                invalid+=1;continue
-            level=q.cognitive_level if q.cognitive_level in counts else 'unclassified';counts[level]+=1
+    def statistics(self,taxonomy_id=None,question_type='',exclude_ids=None,cancelled=lambda:False):
+        from latex_question_studio.persistence.analysis import ensure,PARSER_VERSION
+        join,where,params=SearchService(self.services).query_parts(filters={'question_type':question_type},taxonomy_id=taxonomy_id)
+        excluded=list(set(exclude_ids or []))
+        if excluded:where.append('q.id NOT IN ('+','.join('?' for _ in excluded)+')');params+=excluded
+        ensure(self.services.database,join,where,params,cancelled)
+        sql='SELECT q.cognitive_level,a.valid,count(*) FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id JOIN question_analysis a ON a.question_id=q.id'+join+' WHERE '+' AND '.join(where+['a.parser_version=?'])+' GROUP BY q.cognitive_level,a.valid'
+        counts={level:0 for level in ('NB','TH','VD','VDC','unclassified')};invalid=0
+        with self.services.database.connect() as c:
+            for level,valid,count in c.execute(sql,params+[PARSER_VERSION]):
+                if not valid:invalid+=count
+                else:counts[level if level in counts else 'unclassified']+=count
         return {'counts':counts,'invalid':invalid,'total':sum(counts.values())}
 
-    def generate(self,title,manual_ids=None,matrix=None,seed=0,shuffle_questions=True,shuffle_options=True):
+    def generate(self,title,manual_ids=None,matrix=None,seed=0,shuffle_questions=True,shuffle_options=True,cancelled=lambda:False):
         if not title.strip():raise ValueError('Tên đề không được rỗng')
         rng=random.Random(seed);manual=list(dict.fromkeys(manual_ids or []));matrix=matrix or []
         if len(manual)!=len(manual_ids or []):raise ValueError('Câu chọn thủ công bị lặp')
@@ -48,8 +55,7 @@ class ExamService:
         for row in matrix:
             count=int(row['count'])
             if not 0<=count<=500:raise ValueError('Số câu mỗi hàng phải từ 0 đến 500')
-            candidates=[q for q in self.candidates(row.get('filters',{}),row.get('taxonomy_id')) if q not in manual]
-            candidates=[qid for qid in candidates if self.is_valid_candidate(qid)]
+            candidates=[q for q in self.candidates(row.get('filters',{}),row.get('taxonomy_id'),valid_only=True,cancelled=cancelled) if q not in manual]
             rng.shuffle(candidates)
             if len(candidates)<count:raise ValueError(f"Thiếu nguồn: cần {count}, có {len(candidates)}")
             slots.extend([candidates[:] for _ in range(count)])
@@ -69,9 +75,11 @@ class ExamService:
         if shuffle_questions:rng.shuffle(ids)
         snapshots=[];global_assets={}
         for qid in ids:
+            if cancelled():raise InterruptedError("Đã hủy tạo đề")
             q=self.services.questions.get(qid)
             if not q:raise ValueError('Câu hỏi đã bị xóa')
-            items=parse_questions(q.latex_source)
+            from latex_question_studio.persistence.analysis import parsed
+            items=parsed(self.services.database,qid,q.latex_source)
             if len(items)!=1 or items[0].diagnostics:raise ValueError('Câu chưa phân tích hợp lệ: '+qid[:8])
             item=items[0];source=q.latex_source;permutation=[];answer={}
             if item.question_type in ('mcq','true_false'):
@@ -99,7 +107,20 @@ class ExamService:
             for start,end,value in reversed(replacements):source=source[:start]+value+source[end:]
             snapshots.append({'question_id':qid,'revision':q.revision,'source':source,'original_source':q.latex_source,'solution':item.solution,'permutation':permutation,'answer':answer})
         paper,version=str(uuid.uuid4()),str(uuid.uuid4());now=datetime.now(timezone.utc).isoformat()
-        snapshot={'title':title,'questions':snapshots,'assets':global_assets}
+        # Suggestions only: content equality must not silently remove teacher-selected IDs.
+        from difflib import SequenceMatcher
+        from latex_question_studio.parsing.latex import normalized_source
+        normalized=[normalized_source(q['original_source']) for q in snapshots];warnings=[]
+        for i,left in enumerate(normalized):
+            if cancelled():raise InterruptedError('Đã hủy tạo đề')
+            for j in range(i+1,len(normalized)):
+                right=normalized[j];exact=left==right
+                if not exact and (min(len(left),len(right))/max(len(left),len(right),1)<0.9):continue
+                score=1.0 if exact else SequenceMatcher(None,left,right,autojunk=False).ratio()
+                if exact or score>=0.95:
+                    warnings.append({'kind':'exact' if exact else 'near','question_ids':[snapshots[i]['question_id'],snapshots[j]['question_id']],'score':round(score,4)})
+        snapshot={'title':title,'questions':snapshots,'assets':global_assets,'duplicate_warnings':warnings}
+        if cancelled():raise InterruptedError('Đã hủy tạo đề')
         with self.services.database.transaction() as c:
             c.execute('INSERT INTO exam_papers VALUES (?,?,?)',(paper,title,now))
             c.execute('INSERT INTO exam_versions VALUES (?,?,?,?,?,?)',(version,paper,seed,json.dumps(matrix),json.dumps(snapshot,ensure_ascii=False),now))
@@ -120,18 +141,32 @@ class ExamService:
                 # Values are genuine LaTeX answers; preserve math rather than escaping.
                 lines.append(f"\\noindent {i}. "+str(value)+r'\par')
             else:
-                lines.append(f"\\noindent\\textbf{{Câu {i}.}}\n"+q['source'])
+                source=q['source']
+                if not solutions:
+                    from latex_question_studio.application.lessons import student_source
+                    source=student_source(source,hide_answers=True)
+                lines.append(f"\\noindent\\textbf{{Câu {i}.}}\n"+source)
                 if solutions and q['solution'] and not any(c.name in ('loigiai','hdan') for c in commands(q['source'])):lines.append(r'\loigiai{'+q['solution']+'}')
         return '\n\n'.join(lines)
 
     def export_tex(self,snapshot,path,solutions=False,answer_only=False,preamble=None):
+        body=self.content(snapshot,solutions,answer_only)
+        # A solution-only image is an answer too; do not copy it into student folders.
+        references=set()
+        for cmd in commands(body):
+            if cmd.name!='includegraphics':continue
+            cursor=skip_space(body,cmd.end)
+            if cursor<len(body) and body[cursor]=='*':cursor=skip_space(body,cursor+1)
+            if cursor<len(body) and body[cursor]=='[':_,cursor,_=group(body,cursor,'[',']')
+            references.add(group(body,cursor)[0])
         path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
         for reference,source in snapshot['assets'].items():
+            if reference not in references:continue
             target=path.parent/reference;target.parent.mkdir(parents=True,exist_ok=True)
             if Path(source).resolve()!=target.resolve():shutil.copyfile(source,target)
         header=preamble or BUILTIN_PREAMBLE
         if not solutions and not answer_only:header+='\n'+HIDE_ANSWERS
-        document=header+'\n\\begin{document}\n'+self.content(snapshot,solutions,answer_only)+'\n\\end{document}\n'
+        document=header+'\n\\begin{document}\n'+body+'\n\\end{document}\n'
         path.write_text(document,encoding='utf-8')
         return path
 

@@ -51,6 +51,7 @@ def commands(source):
             elif i < len(source):
                 i += 1
             name = source[start + 1:i]
+            if name=='verb' and i<len(source) and source[i]=='*':name='verb*';i+=1
             yield Command(name, start, i, depth)
             if name in ('verb', 'verb*') and i < len(source):
                 delimiter = source[i]
@@ -108,7 +109,12 @@ def group(source, i, opening='{', closing='}'):
 def brace_error(source):
     i, stack = 0, []
     while i < len(source):
-        if source[i] == '\\': i += 2; continue
+        if source[i] == '\\':
+            match=re.match(r'\\verb\*?([^a-zA-Z\s])',source[i:])
+            if match:
+                stop=source.find(match.group(1),i+match.end());i=len(source) if stop<0 else stop+1
+            else:i+=2
+            continue
         if source[i] == '%':
             j = source.find('\n', i); i = len(source) if j < 0 else j + 1; continue
         if source[i] == '{': stack.append(i)
@@ -122,8 +128,12 @@ def brace_error(source):
 def analyze(item, whole_source=None):
     source = item.source
     macro_commands = list(commands(source))
+    answer_seen=False
     for command in macro_commands:
         try:
+            if command.name in ('choice','choiceTF','choiceTFt','shortans') and command.depth==0:
+                if answer_seen:raise ValueError('Multiple answer macros; ambiguous question cannot be shuffled')
+                answer_seen=True
             if command.name in ('loigiai', 'hdan') and command.depth == 0:
                 item.solution = group(source, command.end)[0]
             elif command.name == 'includegraphics':
@@ -174,7 +184,7 @@ def parse_questions(source):
         except ValueError:
             continue
         if command.name == 'begin':
-            if name in supported and active is None:
+            if name in supported and active is None and command.depth==0:
                 active = (command.start, name, [])
                 stack = []
             elif name in supported and active:

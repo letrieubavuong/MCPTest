@@ -54,22 +54,13 @@ def classification(nodes, selected_id):
     while selected_id in lookup and selected_id not in seen:
         seen.add(selected_id);node=lookup[selected_id];chain.append(node);selected_id=node['parent_id']
     values={n['kind']:n['name'] for n in reversed(chain) if n['kind'] in ('subject','grade','chapter','lesson','topic')}
-    if ROOT_ID in seen:
-        values.update(subject='Khoa học tự nhiên',grade='6',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
-    if MATH_ROOT_ID in seen:
-        values.update(subject='Toán',grade='6',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
-    if KHTN7_ROOT_ID in seen:
-        values.update(subject='Khoa học tự nhiên',grade='7',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
-    if MATH7_ROOT_ID in seen:
-        values.update(subject='Toán',grade='7',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
-    for root,subject in ((KHTN8_ROOT_ID,'Khoa học tự nhiên'),(MATH8_ROOT_ID,'Toán')):
-        if root in seen:
-            values.update(subject=subject,grade='8',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
-    for root,subject in ((KHTN9_ROOT_ID,'Khoa học tự nhiên'),(MATH9_ROOT_ID,'Toán')):
-        if root in seen:
-            values.update(subject=subject,grade='9',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
-    for key,label,subject,grade,chapters in UPPER_CURRICULA+SENIOR_CURRICULA:
-        if 'curriculum:'+key in seen:
+    from latex_question_studio.domain.catalog import builtin_catalog
+    profiles={p['root_id']:p for p in builtin_catalog()['profiles']}
+    for node in chain:
+        profile=profiles.get(node['id'])
+        subject=node.get('profile_subject') or (profile or {}).get('subject')
+        grade=node.get('profile_grade') or (profile or {}).get('grade')
+        if subject and grade:
             values.update(subject=subject,grade=grade,chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     return values
 

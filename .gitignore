@@ -20,3 +20,12 @@ artifacts/
 CodexTelegram/
 *.pfx
 *.key
+
+# User databases, local credentials and private keys
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.pem

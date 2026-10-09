@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import sys
 from latex_question_studio.parsing.latex import commands, group, skip_space
 
 BUILTIN_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
@@ -29,6 +30,18 @@ BUILTIN_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
 \let\hdan\loigiai
 """
 
+MAPCLASS_PREAMBLE = r"""\documentclass[company=BookA4,pagesize=DethiA4,mausac=01,tuychon=GV1]{MAPClass}
+\pagestyle{empty}
+\AtBeginDocument{\showansEX{ex}}
+"""
+
+def default_profile_root():
+    """Use the author-provided files live in a checkout, bundled copies in an EXE."""
+    docs = Path(__file__).resolve().parents[3] / 'docs'
+    if not getattr(sys, 'frozen', False) and (docs / 'Class/MAPClass.cls').is_file():
+        return docs
+    return Path(__file__).resolve().parent / 'data'
+
 @dataclass(frozen=True)
 class CompileResult:
     ok: bool
@@ -47,15 +60,27 @@ class Compiler:
         self.timeout=timeout
         self.cache_limit=cache_limit
 
+    @property
+    def profile_root(self):
+        return self.preamble_file.parent if self.preamble_file else default_profile_root()
+
     def profile(self):
-        preamble=BUILTIN_PREAMBLE
         dependencies={}
         if self.preamble_file:
             preamble=self.preamble_file.read_text(encoding='utf-8-sig')
-            if r'\begin{document}' in preamble:raise ValueError('Preamble phải kết thúc trước begin{document}')
+            roots=[self.profile_root]
+        else:
+            preamble=MAPCLASS_PREAMBLE
+            roots=[self.profile_root/'Class', self.profile_root/'Packages']
+            for relative in ('Class/MAPClass.cls','Packages/ex_test.sty'):
+                if not (self.profile_root/relative).is_file():
+                    raise FileNotFoundError('Thiếu tài nguyên preview: '+relative)
+        if r'\begin{document}' in preamble:
+            raise ValueError('Preamble phải kết thúc trước begin{document}')
+        for root in roots:
             for suffix in ('*.cls','*.sty','*.tex'):
-                for file in self.preamble_file.parent.rglob(suffix):
-                    dependencies[str(file.relative_to(self.preamble_file.parent))]=hashlib.sha256(file.read_bytes()).hexdigest()
+                for file in root.rglob(suffix):
+                    dependencies[str(file.relative_to(self.profile_root))]=hashlib.sha256(file.read_bytes()).hexdigest()
         return preamble+"\n"+self.preamble_extra,dependencies
 
     def compile(self, source, assets=None, cancelled=lambda:False, progress=lambda a,b:None):
@@ -100,7 +125,7 @@ class Compiler:
             document=preamble+'\n\\begin{document}\n'+rewritten+'\n\\end{document}\n'
             (work/'preview.tex').write_text(document,encoding='utf-8')
             environment=os.environ.copy()
-            if self.preamble_file:environment['TEXINPUTS']=str(self.preamble_file.parent).replace('\\','/')+'//;'+environment.get('TEXINPUTS','')
+            environment['TEXINPUTS']=str(self.profile_root).replace('\\','/')+'//'+os.pathsep+environment.get('TEXINPUTS','')
             log_path=work/'process.log'
             with log_path.open('wb') as stream:
                 process=subprocess.Popen([engine,'-no-shell-escape','-interaction=nonstopmode','-halt-on-error','-file-line-error','preview.tex'],cwd=work,stdout=stream,stderr=subprocess.STDOUT,env=environment,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
