@@ -1,3 +1,5 @@
+Bản 0.2.7: thêm VẬT LÍ 11 (4 chương/26 bài), TOÁN 12 (5 chương/17 bài theo danh sách cung cấp), VẬT LÍ 12 (4 chương/25 bài). Cây CSDL có icon sách xanh cho môn, thư mục vàng cho chương, trang xanh lá cho bài. Schema 15 nâng cấp có backup; sửa đề khảo sát thành để khảo sát.
+
 Bản 0.2.6: thêm TOÁN 10 (9 chương/27 bài), VẬT LÍ 10 (7 chương/34 bài), TOÁN 11 (9 chương/33 bài) theo danh sách người dùng. Schema 14 nâng cấp có backup và tự điền đúng môn/lớp/chương/bài.
 
 Bản 0.2.5: thêm KHTN 9 (14 chương, 51 bài; Bài 1 ngoài chương) và TOÁN 9 (10 chương, 32 bài) theo danh sách người dùng. Sửa lỗi gõ dòng diện → dòng điện, aalcohol → alcohol, Mendel và ax². Schema 13 có backup trước nâng cấp; tự điền phân loại lớp 9.

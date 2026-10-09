@@ -68,7 +68,7 @@ def classification(nodes, selected_id):
     for root,subject in ((KHTN9_ROOT_ID,'Khoa học tự nhiên'),(MATH9_ROOT_ID,'Toán')):
         if root in seen:
             values.update(subject=subject,grade='9',chapter=values.get('chapter',''),lesson=values.get('lesson',''))
-    for key,label,subject,grade,chapters in UPPER_CURRICULA:
+    for key,label,subject,grade,chapters in UPPER_CURRICULA+SENIOR_CURRICULA:
         if 'curriculum:'+key in seen:
             values.update(subject=subject,grade=grade,chapter=values.get('chapter',''),lesson=values.get('lesson',''))
     return values
@@ -305,6 +305,44 @@ UPPER_CURRICULA=(
 def upper_migration_sql():
     result=[]
     for key,label,subject,grade,chapters in UPPER_CURRICULA:
+        root='curriculum:'+key;code=key.upper();index=0
+        result.append((root,None,'subject',label,code,None))
+        for number,(title,lessons) in enumerate(chapters,1):
+            parent=root+f':chapter:{number:02}'
+            result.append((parent,root,'chapter',f'Chương {number}: {title}',code+f'-C{number:02}',None))
+            for name in lessons:
+                index+=1
+                result.append((root+f':lesson:{index:02}',parent,'lesson',f'Bài {index}: {name}',code+f'-C{number:02}-B{index:02}',None))
+    def quote(value):return 'NULL' if value is None else "'"+str(value).replace("'","''")+"'"
+    return tuple('INSERT OR IGNORE INTO taxonomy_nodes VALUES ('+','.join(quote(v) for v in row)+')' for row in result)
+
+
+SENIOR_CURRICULA=(
+ ('physics11','VẬT LÍ 11','Vật lí','11',(
+ ('Dao động',('Dao động điều hoà','Mô tả dao động điều hoà','Vận tốc, gia tốc trong dao động điều hoà','Bài tập về dao động điều hoà','Động năng. Thế năng. Sự chuyển hoá năng lượng trong dao động điều hoà','Dao động tắt dần. Dao động cưỡng bức. Hiện tượng cộng hưởng','Bài tập về sự chuyển hoá năng lượng trong dao động điều hoà')),
+ ('Sóng',('Mô tả sóng','Sóng ngang. Sóng dọc. Sự truyền năng lượng của sóng cơ','Thực hành: Đo tần số của sóng âm','Sóng điện từ','Giao thoa sóng','Sóng dừng','Bài tập về sóng','Thực hành: Đo tốc độ truyền âm')),
+ ('Điện trường',('Lực tương tác giữa hai điện tích','Khái niệm điện trường','Điện trường đều','Thế năng điện','Điện thế','Tụ điện')),
+ ('Dòng điện mạch điện',('Cường độ dòng điện','Điện trở. Định luật Ôm','Nguồn điện','Năng lượng và công suất điện','Thực hành: Đo suất điện động và điện trở trong của pin điện hoá')),
+ )),
+ ('math12','TOÁN 12','Toán','12',(
+ ('Ứng dụng đạo hàm để khảo sát và vẽ đồ thị hàm số',('Tính đơn điệu và cực trị của hàm số','Giá trị lớn nhất và giá trị nhỏ nhất của hàm số','Đường tiệm cận của đồ thị hàm số','Khảo sát sự biến thiên và vẽ đồ thị của hàm số','Ứng dụng đạo hàm để giải quyết một số vấn đề liên quan đến thực tiễn')),
+ ('Vectơ và hệ trục tọa độ trong không gian',('Vectơ trong không gian','Hệ trục toạ độ trong không gian','Biểu thức toạ độ của các phép toán vectơ')),
+ ('Các số đặc trưng đo mức độ phân tán của mẫu số liệu ghép nhóm',('Khoảng biến thiên và khoảng tứ phân vị','Phương sai và độ lệch chuẩn')),
+ ('Nguyên hàm và tích phân',('Nguyên hàm','Tích phân','Ứng dụng hình học của tích phân')),
+ ('Phương pháp tọa độ trong không gian',('Phương trình mặt phẳng','Phương trình đường thẳng trong không gian','Công thức tính góc trong không gian','Phương trình mặt cầu')),
+ )),
+ ('physics12','VẬT LÍ 12','Vật lí','12',(
+ ('Vật lí nhiệt',('Cấu trúc của chất. Sự chuyển thể','Nội năng. Định luật I của nhiệt động lực học','Nhiệt độ. Thang nhiệt độ – nhiệt kế','Nhiệt dung riêng','Nhiệt nóng chảy riêng','Nhiệt hoá hơi riêng','Bài tập về vật lí nhiệt')),
+ ('Khí lí tưởng',('Mô hình động học phân tử chất khí','Định luật Boyle','Định luật Charles','Phương trình trạng thái của khí lí tưởng','Áp suất khí theo mô hình động học phân tử. Quan hệ giữa động năng phân tử và nhiệt độ','Bài tập về khí lí tưởng')),
+ ('Từ trường',('Từ trường','Lực từ tác dụng lên dây dẫn mang dòng điện. Cảm ứng từ','Từ thông. Hiện tượng cảm ứng điện từ','Máy phát điện xoay chiều','Ứng dụng hiện tượng cảm ứng điện từ','Điện từ trường. Mô hình sóng điện từ','Bài tập về từ trường')),
+ ('Vật lí hạt nhân',('Cấu trúc hạt nhân','Phản ứng hạt nhân và năng lượng liên kết','Hiện tượng phóng xạ','Công nghiệp hạt nhân','Bài tập về vật lí hạt nhân')),
+ )),
+)
+
+
+def senior_migration_sql():
+    result=[]
+    for key,label,subject,grade,chapters in SENIOR_CURRICULA:
         root='curriculum:'+key;code=key.upper();index=0
         result.append((root,None,'subject',label,code,None))
         for number,(title,lessons) in enumerate(chapters,1):

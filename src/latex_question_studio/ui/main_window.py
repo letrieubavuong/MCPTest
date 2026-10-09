@@ -537,9 +537,12 @@ class MainWindow(QMainWindow):
             expanded=set(getattr(self,'restored_taxonomy_expanded',[ROOT_ID]))
         self.root_node.takeChildren()
         nodes=LibraryService(self.services).taxonomy()
+        from latex_question_studio.ui.icons import icon
+        self.root_node.setIcon(0,icon('bank','#4ba3eb'))
+        tree_icons={kind:icon(name,color) for kind,name,color in (('subject','subject','#4ba3eb'),('grade','subject','#4ba3eb'),('chapter','chapter','#e7ad4b'),('lesson','topic','#55bca3'),('topic','topic','#55bca3'))}
         items={n['id']:QTreeWidgetItem([f"{n['name']} ({n['count']})"]) for n in nodes}
         for n in nodes:
-            item=items[n['id']];item.setData(0,Qt.ItemDataRole.UserRole,n['id']);item.setToolTip(0,n['name'])
+            item=items[n['id']];item.setData(0,Qt.ItemDataRole.UserRole,n['id']);item.setToolTip(0,n['name']);item.setIcon(0,tree_icons.get(n['kind'],tree_icons['topic']))
             items.get(n['parent_id'],self.root_node).addChild(item)
             item.setExpanded(n['id'] in expanded)
         self.taxonomy_items=items;self.taxonomy_built=True
@@ -557,7 +560,7 @@ class MainWindow(QMainWindow):
         if getattr(self,'curriculum_menu_key',None)==key:return
         self.curriculum_menu_key=key;self.csdl_menu.clear();self.curriculum_submenus=[]
         self.csdl_menu.addAction('Tất cả câu hỏi',lambda:self.open_taxonomy(None))
-        for root_id,attribute in ((ROOT_ID,'khtn6_menu'),(MATH_ROOT_ID,'math6_menu'),(KHTN7_ROOT_ID,'khtn7_menu'),(MATH7_ROOT_ID,'math7_menu'),(KHTN8_ROOT_ID,'khtn8_menu'),(MATH8_ROOT_ID,'math8_menu'),(KHTN9_ROOT_ID,'khtn9_menu'),(MATH9_ROOT_ID,'math9_menu'),('curriculum:math10','math10_menu'),('curriculum:physics10','physics10_menu'),('curriculum:math11','math11_menu')):
+        for root_id,attribute in ((ROOT_ID,'khtn6_menu'),(MATH_ROOT_ID,'math6_menu'),(KHTN7_ROOT_ID,'khtn7_menu'),(MATH7_ROOT_ID,'math7_menu'),(KHTN8_ROOT_ID,'khtn8_menu'),(MATH8_ROOT_ID,'math8_menu'),(KHTN9_ROOT_ID,'khtn9_menu'),(MATH9_ROOT_ID,'math9_menu'),('curriculum:math10','math10_menu'),('curriculum:physics10','physics10_menu'),('curriculum:math11','math11_menu'),('curriculum:physics11','physics11_menu'),('curriculum:math12','math12_menu'),('curriculum:physics12','physics12_menu')):
             root=next((n for n in nodes if n['id']==root_id),None)
             if not root:continue
             menu=QMenu(root['name'],self.csdl_menu);self.csdl_menu.addMenu(menu);setattr(self,attribute,menu)

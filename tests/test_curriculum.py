@@ -23,7 +23,7 @@ def test_khtn6_upgrade_structure_and_no_reseed_on_reopen(tmp_path):
     expected_ranges=[range(1,9),range(9,12),range(12,16),range(16,18),range(18,22),range(22,25),range(25,40),range(40,46),range(46,52),range(52,56)]
     with db.connect() as c:
         assert c.execute('SELECT latex_source FROM questions').fetchone()[0]=='giữ nguyên'
-        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==558
+        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==642
         assert c.execute('SELECT name FROM taxonomy_nodes WHERE id=?',(ROOT_ID,)).fetchone()[0]=='KHTN 6'
         for number,lessons in enumerate(expected_ranges,1):
             actual={r[0] for r in c.execute('SELECT id FROM taxonomy_nodes WHERE parent_id=?',(chapter_id(number),))}
@@ -32,7 +32,7 @@ def test_khtn6_upgrade_structure_and_no_reseed_on_reopen(tmp_path):
     with db.transaction() as c:c.execute('UPDATE taxonomy_nodes SET name=? WHERE id=?',('Tên tùy chỉnh',lesson_id(1)))
     db.initialize()
     with db.connect() as c:
-        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==558
+        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==642
         assert c.execute('SELECT name FROM taxonomy_nodes WHERE id=?',(lesson_id(1),)).fetchone()[0]=='Tên tùy chỉnh'
 
 
@@ -125,7 +125,7 @@ def test_khtn7_schema9_upgrade_and_menu(qtbot,tmp_path):
         c.execute("UPDATE taxonomy_nodes SET name='Tên riêng' WHERE id=?",(lesson_id(1),))
     db=Database(path);db.initialize();assert db.last_backup.is_file()
     with db.connect() as c:
-        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==557
+        assert c.execute('SELECT count(*) FROM taxonomy_nodes').fetchone()[0]==641
         assert c.execute('SELECT name FROM taxonomy_nodes WHERE id=?',(lesson_id(1),)).fetchone()[0]=='Tên riêng'
         assert c.execute('SELECT id FROM taxonomy_nodes WHERE id=?',(khtn7_lesson_id(1),)).fetchone() is None
         ranges=[range(2,5),range(5,8),range(8,12),range(12,15),range(15,18),range(18,21),range(21,33),range(33,36),range(36,39),range(39,43)]
@@ -263,4 +263,35 @@ def test_upper_curricula_upgrade_membership_and_navigation(qtbot,tmp_path):
         window.new_question();q=window.editors[window.tabs.currentWidget()];values=library.metadata(q.id)
         assert values['subject']==subject and values['grade']==grade
         assert values['lesson']==f'Bài {total}: {last}'
+    window.close()
+
+
+def test_senior_curricula_upgrade_navigation_and_tree_icons(qtbot,tmp_path):
+    path=tmp_path/'schema14.db'
+    with sqlite3.connect(path) as c:
+        for version in range(1,15):
+            for sql in MIGRATIONS[version]:c.execute(sql)
+        c.execute('PRAGMA user_version=14')
+        c.execute("UPDATE taxonomy_nodes SET name='Tên riêng' WHERE id=?",(lesson_id(1),))
+    db=Database(path);db.initialize();assert db.last_backup.is_file()
+    specs=[('physics11','Vật lí','11',[7,8,6,5],26),('math12','Toán','12',[5,3,2,3,4],17),('physics12','Vật lí','12',[7,6,7,5],25)]
+    with db.connect() as c:
+        assert c.execute('SELECT name FROM taxonomy_nodes WHERE id=?',(lesson_id(1),)).fetchone()[0]=='Tên riêng'
+        for key,subject,grade,counts,total in specs:
+            root='curriculum:'+key;index=0
+            for number,count in enumerate(counts,1):
+                actual={r[0] for r in c.execute('SELECT id FROM taxonomy_nodes WHERE parent_id=?',(root+f':chapter:{number:02}',))}
+                assert actual=={root+f':lesson:{i:02}' for i in range(index+1,index+count+1)};index+=count
+            assert index==total
+    services=create_services(AppConfig.load(tmp_path/'app'));library=LibraryService(services)
+    window=MainWindow(services);qtbot.addWidget(window)
+    for key,subject,grade,counts,total in specs:
+        root='curriculum:'+key;menu=getattr(window,key+'_menu');chapters=[a.menu() for a in menu.actions() if a.menu()]
+        assert len(chapters)==len(counts)
+        next(a for a in chapters[-1].actions() if a.data()==root+f':lesson:{total:02}').trigger()
+        window.new_question();q=window.editors[window.tabs.currentWidget()];values=library.metadata(q.id)
+        assert values['subject']==subject and values['grade']==grade
+        icons=[window.taxonomy_items[node].icon(0) for node in (root,root+':chapter:01',root+':lesson:01')]
+        assert all(not icon.isNull() for icon in icons)
+        assert len({icon.cacheKey() for icon in icons})==3
     window.close()
