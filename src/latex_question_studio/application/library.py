@@ -32,6 +32,10 @@ class LibraryService:
             row=c.execute("SELECT data_json FROM question_metadata WHERE question_id=?",(question_id,)).fetchone()
             data=json.loads(row[0]) if row else {}
             data = dict(values) if replace_existing else {**data, **values}
+            if data.get('taxonomy_id'):
+                from latex_question_studio.domain.curriculum import classification
+                nodes=[dict(r) for r in c.execute('SELECT * FROM taxonomy_nodes')]
+                data.update(classification(nodes,data['taxonomy_id']))
             c.execute("INSERT INTO question_metadata VALUES (?,?) ON CONFLICT(question_id) DO UPDATE SET data_json=excluded.data_json",(question_id,json.dumps(data,ensure_ascii=False)))
             c.execute("UPDATE questions SET revision=revision+1, updated_at=? WHERE id=?",(datetime.now(timezone.utc).isoformat(),question_id))
             q=QuestionRepository._question(c.execute("SELECT * FROM questions WHERE id=?",(question_id,)).fetchone())
@@ -43,7 +47,19 @@ class LibraryService:
 
     def taxonomy(self):
         with self.services.database.connect() as c:
-            return [dict(r) for r in c.execute("SELECT t.*,count(q.question_id) AS count FROM taxonomy_nodes t LEFT JOIN question_taxonomy q ON q.taxonomy_id=t.id GROUP BY t.id ORDER BY t.name")]
+            return [dict(r) for r in c.execute("""
+                WITH RECURSIVE subtree(id,descendant) AS (
+                    SELECT id,id FROM taxonomy_nodes
+                    UNION ALL
+                    SELECT s.id,t.id FROM subtree s JOIN taxonomy_nodes t ON t.parent_id=s.descendant
+                )
+                SELECT t.*,count(DISTINCT CASE WHEN coalesce(json_extract(m.data_json,'$.archived'),0)=0 THEN q.id END) AS count
+                FROM taxonomy_nodes t LEFT JOIN subtree s ON s.id=t.id
+                LEFT JOIN question_taxonomy qt ON qt.taxonomy_id=s.descendant
+                LEFT JOIN questions q ON q.id=qt.question_id
+                LEFT JOIN question_metadata m ON m.question_id=q.id
+                GROUP BY t.id ORDER BY coalesce(t.code,t.name),t.id
+            """)]
 
     def add_taxonomy(self, name, kind, parent_id=None):
         if not name.strip():raise ValueError("Tên phân loại không được rỗng")

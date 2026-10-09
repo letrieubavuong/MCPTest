@@ -1,3 +1,7 @@
+CSDL → TOÁN 6: 9 chương, 43 bài và 2 mục luyện tập chung theo danh sách người dùng. Chọn chương/bài để lọc ngân hàng; tạo câu tại mục đã chọn tự điền môn Toán, lớp 6 và chương/bài. Database nâng cấp lên schema 9 có backup trước migration.
+
+Bản 0.2.1: menu **CSDL → KHTN 6 → Chương → Bài**, đủ 10 chương và 55 bài. Chọn mục để lọc ngân hàng; chọn phân loại bài sẽ đồng bộ môn/khối/chương/bài. Gói mới `release/LaTeXQuestionStudio-0.2.1-win64.zip`. [Báo cáo KHTN 6](docs/20_KHTN6_CURRICULUM_REPORT.md).
+
 Bản mới: `release/LaTeXQuestionStudio-0.2.0-win64.zip`. Có trang Bài giảng với lý thuyết/dạng toán/ví dụ/bài tập từ ngân hàng, tự lưu/revisions, preview và xuất TeX/PDF. [Báo cáo triển khai](docs/19_LESSON_IMPLEMENTATION_REPORT.md). Các gói 0.1.x bên dưới là lịch sử.
 
 # LaTeX Question Studio 0.2.0

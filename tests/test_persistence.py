@@ -51,12 +51,14 @@ def test_revision_failure_rolls_back_entire_edit(database):
 
 
 def test_foreign_keys_and_transaction_rollback(database):
+    with database.connect() as connection:
+        before = connection.execute("SELECT count(*) FROM taxonomy_nodes").fetchone()[0]
     with pytest.raises(sqlite3.IntegrityError):
         with database.transaction() as connection:
             connection.execute("INSERT INTO taxonomy_nodes(id,kind,name) VALUES ('root','grade','12')")
             connection.execute("INSERT INTO taxonomy_nodes(id,parent_id,kind,name) VALUES ('bad','missing','lesson','X')")
     with database.connect() as connection:
-        assert connection.execute("SELECT count(*) FROM taxonomy_nodes").fetchone()[0] == 0
+        assert connection.execute("SELECT count(*) FROM taxonomy_nodes").fetchone()[0] == before
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 

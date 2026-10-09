@@ -15,7 +15,7 @@ def test_metadata_revision_taxonomy_backup_restore(tmp_path):
     library.save_metadata(q.id,{'subject':'Toán','tags':['hàm số'],'taxonomy_id':child})
     assert services.questions.get(q.id).revision==2
     assert library.metadata(q.id)['tags']==['hàm số']
-    assert len(library.taxonomy())==2
+    assert {parent,child}.issubset({n['id'] for n in library.taxonomy()})
     assets=services.config.data_dir/'assets';assets.mkdir();(assets/'sample.png').write_bytes(b'original image')
     archive=library.backup(tmp_path/'backup.zip')
     services.questions.create('later')

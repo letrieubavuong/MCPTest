@@ -1,3 +1,13 @@
+CSDL → TOÁN 6: 9 chương, 43 bài và 2 mục luyện tập chung theo danh sách người dùng. Chọn chương/bài để lọc ngân hàng; tạo câu tại mục đã chọn tự điền môn Toán, lớp 6 và chương/bài. Database nâng cấp lên schema 9 có backup trước migration.
+
+# CSDL KHTN 6 — 0.2.1
+
+- Mở **CSDL → KHTN 6** trên menu đầu cửa sổ. Chọn Tất cả KHTN 6, một chương, hoặc một bài để chuyển về ngân hàng và lọc câu tương ứng.
+- Cây phân loại bên trái trang CSDL có KHTN 6 với 10 chương/55 bài, đúng thứ tự số. Số trong ngoặc là câu đang hoạt động của mục và toàn bộ mục con.
+- Khi sửa Phân loại/Nhãn, chọn đường dẫn KHTN 6 › Chương › Bài. Môn=Khoa học tự nhiên, khối=6 và chương/bài được đồng bộ từ danh mục.
+- Tạo câu mới khi đang chọn bài sẽ gán vào bài đó. Danh mục không tự tạo câu hỏi; bài chưa có câu hiển thị 0.
+- Nhánh mở và bài đang chọn được lưu khi đóng/mở ứng dụng. Database cũ được backup trước khi nâng cấp schema 8; các danh mục/câu cũ giữ nguyên.
+
 # Soạn bài giảng — 0.2.0
 
 1. Mở Bài giảng ở drawer, bấm Tạo bài, nhập tên bài. Cây mẫu có Lý thuyết, Dạng toán, Ví dụ và nhóm Bài tập vận dụng.

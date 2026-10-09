@@ -63,7 +63,7 @@ class MainWindow(QMainWindow):
         drawer_layout.addWidget(self.drawer_toggle)
         self.navigation = QListWidget()
         self.navigation.setObjectName("pageNavigation")
-        self.navigation.addItems(["Xem CSDL", "Nhập câu hỏi", "Ra đề thi", "Cài đặt", "Bài giảng"])
+        self.navigation.addItems(["CSDL", "Nhập câu hỏi", "Ra đề thi", "Cài đặt", "Bài giảng"])
         for index,icon in enumerate((QStyle.StandardPixmap.SP_DirIcon,QStyle.StandardPixmap.SP_ArrowDown,QStyle.StandardPixmap.SP_FileDialogDetailedView,QStyle.StandardPixmap.SP_FileDialogInfoView,QStyle.StandardPixmap.SP_FileIcon)):
             self.navigation.item(index).setIcon(self.style().standardIcon(icon))
         self.navigation.setSpacing(6)
@@ -119,6 +119,7 @@ class MainWindow(QMainWindow):
         self.log_dock = self.make_dock("Nhật ký / Tác vụ", "logs", self.logs, Qt.DockWidgetArea.BottomDockWidgetArea)
         self.log_dock.setMaximumHeight(240)
         self.build_pages()
+        self.csdl_menu = self.menuBar().addMenu("CSDL")
         self.navigation.currentRowChanged.connect(self.show_page)
         self.navigation.setCurrentRow(0)
         self.add_action("Xem CSDL", lambda: self.show_page(0), "Ctrl+1", activity=True)
@@ -216,7 +217,7 @@ class MainWindow(QMainWindow):
     def toggle_drawer(self):
         collapsed = self.drawer.width() > 100
         self.drawer.setFixedWidth(64 if collapsed else 205)
-        labels = ["CSDL", "Nhập", "Đề thi", "Cài đặt", "Bài"] if collapsed else ["Xem CSDL", "Nhập câu hỏi", "Ra đề thi", "Cài đặt", "Bài giảng"]
+        labels = ["CSDL", "Nhập", "Đề thi", "Cài đặt", "Bài"] if collapsed else ["CSDL", "Nhập câu hỏi", "Ra đề thi", "Cài đặt", "Bài giảng"]
         for i, text in enumerate(labels): self.navigation.item(i).setText(text)
         self.drawer_toggle.setText("☰" if collapsed else "☰  Menu")
 
@@ -252,7 +253,12 @@ class MainWindow(QMainWindow):
             self.table_model.replace_rows(self.library_page())
             self.refresh_taxonomy()
             self.database_status.setText(f"Cơ sở dữ liệu đã sẵn sàng • {count} câu hỏi • Trang {self.offset // 100 + 1}")
-            self.root_node.setText(0, f"Tất cả câu hỏi ({count})")
+            from latex_question_studio.application.search import SearchService
+            total=SearchService(self.services).find(count_only=True)
+            self.root_node.setText(0, f"Tất cả câu hỏi ({total})")
+            selected=self.taxonomy_items.get(getattr(self,'selected_taxonomy',None))
+            if selected:
+                self.database_status.setText(f"{selected.text(0)} • {count} câu phù hợp • Trang {self.offset // 100 + 1}")
             self.statusBar().showMessage(f"Sẵn sàng • SQLite • {count} câu hỏi")
         except Exception:
             self.database_status.setText("Không thể đọc cơ sở dữ liệu. Xem nhật ký ứng dụng.")
@@ -294,6 +300,9 @@ class MainWindow(QMainWindow):
         if self.pages.currentIndex()==4:
             self.lesson_page.new_lesson();return
         q = self.services.questions.create("\\begin{ex}\nNội dung câu hỏi\n\\loigiai{}\n\\end{ex}\n")
+        if getattr(self,'selected_taxonomy',None):
+            from latex_question_studio.application.library import LibraryService
+            LibraryService(self.services).save_metadata(q.id,{'taxonomy_id':self.selected_taxonomy})
         self.refresh_status()
         self.open_question(q.id)
 
@@ -386,6 +395,8 @@ class MainWindow(QMainWindow):
             state = json.loads(self.layout_path.read_text(encoding="utf-8"))
             if state.get("version") not in (1, 2):
                 return
+            self.selected_taxonomy=state.get("taxonomy_id")
+            self.restored_taxonomy_expanded=state.get("taxonomy_expanded",[])
             self.restoreGeometry(base64.b64decode(state["geometry"]))
             if state.get("version") == 2:
                 self.library_control.restoreState(base64.b64decode(state["layout"]))
@@ -401,7 +412,13 @@ class MainWindow(QMainWindow):
             self.logs.appendPlainText("Không thể khôi phục layout; dùng mặc định.")
 
     def save_workspace(self):
-        state = {"version": 2, "page": self.pages.currentIndex(), "drawer_collapsed": self.drawer.width() < 100, "lesson_id": self.lesson_page.doc["id"] if self.lesson_page.doc else None, "geometry": base64.b64encode(bytes(self.saveGeometry())).decode(),
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        expanded=[];iterator=QTreeWidgetItemIterator(self.explorer)
+        while iterator.value():
+            item=iterator.value()
+            if item.isExpanded() and item.data(0,Qt.ItemDataRole.UserRole):expanded.append(item.data(0,Qt.ItemDataRole.UserRole))
+            iterator+=1
+        state = {"version": 2, "taxonomy_id":getattr(self,'selected_taxonomy',None),"taxonomy_expanded":expanded, "page": self.pages.currentIndex(), "drawer_collapsed": self.drawer.width() < 100, "lesson_id": self.lesson_page.doc["id"] if self.lesson_page.doc else None, "geometry": base64.b64encode(bytes(self.saveGeometry())).decode(),
                  "layout": base64.b64encode(bytes(self.library_control.saveState())).decode(), "tabs": [q.id for q in self.editors.values()]}
         temp = self.layout_path.with_suffix(".tmp")
         temp.write_text(json.dumps(state), encoding="utf-8")
@@ -509,17 +526,57 @@ class MainWindow(QMainWindow):
 
     def refresh_taxonomy(self):
         from latex_question_studio.application.library import LibraryService
-        expanded=set()
-        for i in range(self.root_node.childCount()):
-            item=self.root_node.child(i)
+        from latex_question_studio.domain.curriculum import ROOT_ID
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        expanded=set();iterator=QTreeWidgetItemIterator(self.explorer)
+        while iterator.value():
+            item=iterator.value()
             if item.isExpanded():expanded.add(item.data(0,Qt.ItemDataRole.UserRole))
+            iterator+=1
+        if not getattr(self,'taxonomy_built',False):
+            expanded=set(getattr(self,'restored_taxonomy_expanded',[ROOT_ID]))
         self.root_node.takeChildren()
-        nodes=LibraryService(self.services).taxonomy();items={n['id']:QTreeWidgetItem([f"{n['name']} ({n['count']})"]) for n in nodes}
+        nodes=LibraryService(self.services).taxonomy()
+        items={n['id']:QTreeWidgetItem([f"{n['name']} ({n['count']})"]) for n in nodes}
         for n in nodes:
-            item=items[n['id']];item.setData(0,Qt.ItemDataRole.UserRole,n['id'])
+            item=items[n['id']];item.setData(0,Qt.ItemDataRole.UserRole,n['id']);item.setToolTip(0,n['name'])
             items.get(n['parent_id'],self.root_node).addChild(item)
             item.setExpanded(n['id'] in expanded)
+        self.taxonomy_items=items;self.taxonomy_built=True
         self.root_node.setExpanded(True)
+        selected=items.get(getattr(self,'selected_taxonomy',None))
+        if selected:
+            self.explorer.setCurrentItem(selected)
+            ancestor=selected.parent()
+            while ancestor:ancestor.setExpanded(True);ancestor=ancestor.parent()
+        self.refresh_curriculum_menu(nodes)
+
+    def refresh_curriculum_menu(self,nodes):
+        from latex_question_studio.domain.curriculum import ROOT_ID,MATH_ROOT_ID
+        key=tuple((n['id'],n['parent_id'],n['name']) for n in nodes)
+        if getattr(self,'curriculum_menu_key',None)==key:return
+        self.curriculum_menu_key=key;self.csdl_menu.clear();self.curriculum_submenus=[]
+        self.csdl_menu.addAction('Tất cả câu hỏi',lambda:self.open_taxonomy(None))
+        for root_id,attribute in ((ROOT_ID,'khtn6_menu'),(MATH_ROOT_ID,'math6_menu')):
+            root=next((n for n in nodes if n['id']==root_id),None)
+            if not root:continue
+            menu=QMenu(root['name'],self.csdl_menu);self.csdl_menu.addMenu(menu);setattr(self,attribute,menu)
+            self.curriculum_submenus.append(menu)
+            action=menu.addAction('Tất cả '+root['name'],lambda checked=False,key=root_id:self.open_taxonomy(key));action.setData(root_id)
+            menu.addSeparator()
+            for chapter in (n for n in nodes if n['parent_id']==root_id):
+                submenu=QMenu(chapter['name'],menu);menu.addMenu(submenu);self.curriculum_submenus.append(submenu)
+                action=submenu.addAction('Tất cả câu trong chương',lambda checked=False,key=chapter['id']:self.open_taxonomy(key));action.setData(chapter['id'])
+                submenu.addSeparator()
+                for lesson in (n for n in nodes if n['parent_id']==chapter['id']):
+                    action=submenu.addAction(lesson['name'],lambda checked=False,key=lesson['id']:self.open_taxonomy(key));action.setData(lesson['id'])
+
+    def open_taxonomy(self,taxonomy_id):
+        self.show_page(0);self.tabs.setCurrentIndex(0)
+        self.selected_taxonomy=taxonomy_id;self.search_text='';self.search_filters={};self.offset=0
+        self.refresh_status()
+        item=self.taxonomy_items.get(taxonomy_id,self.root_node)
+        self.explorer.setCurrentItem(item);item.setExpanded(True);self.explorer.scrollToItem(item)
 
     def taxonomy_selected(self,item,*args):
         self.selected_taxonomy=item.data(0,Qt.ItemDataRole.UserRole)

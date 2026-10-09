@@ -8,7 +8,9 @@ from pathlib import Path
 import sqlite3
 import uuid
 
-SCHEMA_VERSION = 7
+from latex_question_studio.domain.curriculum import migration_sql, math_migration_sql
+
+SCHEMA_VERSION = 9
 MIGRATIONS = {
     1: (
         """CREATE TABLE taxonomy_nodes (
@@ -80,6 +82,8 @@ MIGRATIONS = {
         "CREATE TABLE lesson_revisions(lesson_id TEXT REFERENCES lessons(id) ON DELETE CASCADE,revision INTEGER NOT NULL,document_json TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(lesson_id,revision))",
         "CREATE TABLE lesson_exports(id TEXT PRIMARY KEY,lesson_id TEXT REFERENCES lessons(id),revision INTEGER NOT NULL,audience TEXT NOT NULL,snapshot_json TEXT NOT NULL,relative_path TEXT NOT NULL,created_at TEXT NOT NULL)",
     ),
+    8: migration_sql(),
+    9: math_migration_sql(),
 }
 
 class Database:

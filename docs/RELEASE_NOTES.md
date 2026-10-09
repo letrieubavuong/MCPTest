@@ -1,3 +1,5 @@
+CSDL → TOÁN 6: 9 chương, 43 bài và 2 mục luyện tập chung theo danh sách người dùng. Chọn chương/bài để lọc ngân hàng; tạo câu tại mục đã chọn tự điền môn Toán, lớp 6 và chương/bài. Database nâng cấp lên schema 9 có backup trước migration.
+
 # LaTeX Question Studio 0.2.0 — Soạn bài giảng
 
 Thêm trang Bài giảng: cây lý thuyết/dạng toán/ví dụ/bài tập, biên tập TeX, tự lưu và lịch sử, chèn/trích lọc câu ngân hàng có pin revision và bản sửa cục bộ, ảnh/TikZ, preview nhiều trang, bộ xuất giáo viên/học sinh/phiếu bài tập gồm TeX/PDF/assets/checksum. Icon SVG thống nhất và nút chính/phụ rõ hơn.
