@@ -178,8 +178,10 @@ class MainWindow(QMainWindow):
         self.import_cancel.setEnabled(False)
         self.import_cancel.clicked.connect(lambda: self.import_job.cancelled.set() if getattr(self, 'import_job', None) else None)
         layout.addWidget(self.import_cancel)
-        self.import_content = QVBoxLayout()
-        layout.addLayout(self.import_content, 1)
+        self.import_content_host = QWidget(self.import_page)
+        self.import_content = QVBoxLayout(self.import_content_host)
+        self.import_content.setContentsMargins(0,0,0,0)
+        layout.addWidget(self.import_content_host,1)
         self.pages.addWidget(self.import_page)
         from latex_question_studio.ui.exam_dialog import ExamDialog
         self.exam_page = ExamDialog([], self.pages,services=self.services)

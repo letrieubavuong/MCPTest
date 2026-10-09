@@ -1,3 +1,5 @@
+Bản 0.3.2: cố định bố cục trang nhập. Vùng nội dung có QWidget giãn riêng, giữ tiêu đề và thanh nút ở đầu trang cả khi chưa tải dữ liệu.
+
 Bản 0.3.1 — Ra đề theo cây CSDL: chọn phạm vi môn/chương/bài/dạng, chọn loại câu, xem nguồn NB/TH/VD/VDC và số chưa gán mức độ. Nhập số cần lấy rồi thêm vào ma trận; lặp cho các phạm vi khác và tạo đề. Thống kê bỏ câu lưu trữ, source lỗi và câu đã chọn thủ công. Các phạm vi chồng nhau có thể dùng chung nguồn: bộ chọn kiểm tra đủ câu độc lập khi tạo đề. Có xóa hàng và tổng số câu theo mức độ.
 
 Bản 0.3.0 — Phân loại khi nhập TeX: chọn câu (Ctrl/Shift để chọn nhiều), chọn bài hoặc dạng trên cây CSDL, chọn mức độ rồi Gán. Có gán toàn bộ danh sách, tìm cây, thêm dạng dưới bài, lọc câu chưa gán. Phân loại lưu trong hàng chờ và giữ khi sửa source; khi nhập chuyển sang metadata, liên kết cây và snapshot. Gán lại có xác nhận. Hàng chờ có nút mở lại cây phân loại. Chưa hỗ trợ tự đọc comment metadata hoặc AI phân loại; xem source ở cột phải.
