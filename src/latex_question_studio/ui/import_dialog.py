@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, Signal,QTimer,QThreadPool,QEvent
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QSplitter,QTreeWidget,QTreeWidgetItem,QTableWidget,QTableWidgetItem,QPlainTextEdit,QPushButton,QLabel,QComboBox,QLineEdit,QMessageBox,QInputDialog,QToolBar,QTabWidget,QScrollArea
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QSplitter,QTreeWidget,QTreeWidgetItem,QTableWidget,QTableWidgetItem,QPlainTextEdit,QPushButton,QLabel,QComboBox,QLineEdit,QMessageBox,QInputDialog,QToolBar,QTabWidget,QScrollArea,QListWidget,QListWidgetItem,QFileDialog,QMenu
 from PySide6.QtGui import QPixmap
 from latex_question_studio.application.importing import ImportService
 from latex_question_studio.application.library import LibraryService
@@ -29,14 +29,16 @@ class ImportReview(QWidget):
         self.next_action=action('subject','Trang câu hỏi tiếp',lambda:self.change_page(1))
         self.page_label=QLabel();self.toolbar.addWidget(self.page_label).setToolTip('Duyệt danh sách nhập: tối đa 200 câu mỗi trang')
         self.toolbar.addSeparator();action('preview','Biên dịch lại preview câu đang chọn',self.compile_preview)
+        action('import','Chọn lại ảnh/tài nguyên đang chọn',self.choose_asset)
+        action('chapter','Thêm thư mục tìm kiếm tài nguyên',self.add_search_dir)
         self.confirm_action=action('save','Nhập câu đã chọn',self.accepted.emit)
         self.confirm_action.setProperty('primary',True)
         self.toolbar.widgetForAction(self.confirm_action).setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon);self.toolbar.widgetForAction(self.confirm_action).setProperty('primary',True)
-        action('close','Bỏ / chọn lại các câu đang chọn',self.toggle_inclusion)
         action('close','Đóng duyệt nhập, giữ phân loại trong hàng chờ',self.rejected.emit)
         self.table_placeholder=None
         errors=sum(bool(r['errors']) for r in results)
-        self.summary=QLabel();layout.addWidget(self.summary)
+        from latex_question_studio.ui.import_workflow import StatsStrip
+        self.stats_strip=StatsStrip();layout.addWidget(self.stats_strip);self.summary=QLabel();layout.addWidget(self.summary)
         from latex_question_studio.ui.components.workspace import Workspace
         split=Workspace("importSplit");self.workspace=split;layout.addWidget(split,1)
         left=QWidget();box=QVBoxLayout(left);self.tree_search=QLineEdit();self.tree_search.setPlaceholderText('Tìm môn, bài, dạng…');box.addWidget(self.tree_search)
@@ -44,14 +46,17 @@ class ImportReview(QWidget):
         split.addWidget(left)
         center=QWidget();box=QVBoxLayout(center)
         self.only_missing=QComboBox();self.only_missing.addItems(['Tất cả câu','Chưa gán bài','Chưa gán dạng','Chưa gán mức độ']);box.addWidget(self.only_missing)
-        self.table=QTableWidget(0,5);self.table.setHorizontalHeaderLabels(['Tệp / câu','Loại','Bài / dạng','Mức độ','Lỗi / gợi ý trùng'])
+        self.table=QTableWidget(0,6);self.table.setHorizontalHeaderLabels(['Tệp / câu','Loại','Bài / dạng','Mức độ','Trạng thái','Lỗi / gợi ý trùng'])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows);self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection);self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers);self.table.horizontalHeader().setStretchLastSection(True);self.table.setColumnWidth(0,155);self.table.setColumnWidth(2,250);box.addWidget(self.table)
         from PySide6.QtWidgets import QHeaderView
         self.table.horizontalHeader().setStretchLastSection(False);self.table.horizontalHeader().setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch)
-        for column,width in [(0,105),(1,85),(3,65),(4,110)]:self.table.setColumnWidth(column,width)
+        for column,width in [(0,105),(1,85),(3,65),(4,120),(5,170)]:self.table.setColumnWidth(column,width)
         self.table.setWordWrap(False)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self.inclusion_menu)
         split.addWidget(center)
         right=QWidget();box=QVBoxLayout(right);self.details=QLabel('Chọn câu để xem preview và phân loại');self.details.setWordWrap(True);box.addWidget(self.details)
+        self.resource_list=QListWidget();self.resource_list.setMinimumHeight(80);self.resource_list.setToolTip('Tài nguyên được phát hiện trong câu đang chọn');box.addWidget(self.resource_list)
         self.preview_tabs=QTabWidget();box.addWidget(self.preview_tabs)
         preview_panel=QWidget();pv=QVBoxLayout(preview_panel);pv.setContentsMargins(0,0,0,0)
         self.preview_status=QLabel('Chọn câu để xem preview');self.preview_status.setWordWrap(True);pv.addWidget(self.preview_status)
@@ -63,7 +68,17 @@ class ImportReview(QWidget):
         self.table.currentCellChanged.connect(self.show_source);self.only_missing.currentIndexChanged.connect(self.filter_changed);self.tree_search.textChanged.connect(self.filter_tree)
         self.table.itemChanged.connect(self.inclusion_changed)
         self.refresh_tree();self.refresh_rows()
+        self.update_stats()
         if results:self.table.setCurrentCell(0,0)
+
+    def update_stats(self):
+        total=len(self.results);errors=sum(bool(r.get('errors')) for r in self.results);missing=sum('MISSING_ASSET' in e.get('message','') or 'AMBIGUOUS_ASSET' in e.get('message','') for r in self.results for e in r.get('errors',[]));self.stats_strip.set_values(total,total-errors,missing,errors-missing)
+
+    def inclusion_menu(self,position):
+        menu=QMenu(self.table)
+        action=menu.addAction('Bỏ / chọn lại các câu đang chọn',self.toggle_inclusion)
+        action.setEnabled(bool(self.table.selectionModel().selectedRows()))
+        menu.exec(self.table.viewport().mapToGlobal(position))
 
     def refresh_tree(self,selected=None):
         self.nodes=LibraryService(self.services).taxonomy() if self.services else []
@@ -105,10 +120,10 @@ class ImportReview(QWidget):
         self.table.setRowCount(len(self.visible_indices))
         for row,i in enumerate(self.visible_indices):
             r=self.results[i];values=r['parsed'].get('classification',{});label=breadcrumb(self.nodes,values.get('taxonomy_id'))
-            texts=[f"{__import__('pathlib').Path(r['path']).name} • câu {i+1}",{'mcq':'Trắc nghiệm','essay':'Tự luận','short_answer':'Trả lời ngắn','true_false':'Đúng / sai'}.get(r['parsed'].get('type'),'Chưa xác định'),label or 'Chưa gán',values.get('cognitive_level') or 'Chưa gán','; '.join(e['message'] for e in r['errors'])+(' • Gợi ý trùng' if r.get('duplicate',r['parsed'].get('duplicate_suggestion')) else '')]
+            texts=[f"{__import__('pathlib').Path(r['path']).name} • câu {i+1}",{'mcq':'Trắc nghiệm','essay':'Tự luận','short_answer':'Trả lời ngắn','true_false':'Đúng / sai'}.get(r['parsed'].get('type'),'Chưa xác định'),label or 'Chưa gán',values.get('cognitive_level') or 'Chưa gán',self.status_for(r),'; '.join(e['message'] for e in r['errors'])+(' • Gợi ý trùng' if r.get('duplicate',r['parsed'].get('duplicate_suggestion')) else '')]
             for j,text in enumerate(texts):self.table.setItem(row,j,QTableWidgetItem(text));self.table.item(row,j).setToolTip(text)
             check=self.table.item(row,0);check.setFlags(check.flags()|Qt.ItemFlag.ItemIsUserCheckable);check.setCheckState(Qt.CheckState.Unchecked if r['id'] in self.excluded_ids else Qt.CheckState.Checked)
-        self.rendering_rows=False;self.update_summary()
+        self.rendering_rows=False;self.update_stats();self.update_summary()
         self.page_label.setText(f'{self.page_offset+1 if eligible else 0}–{self.page_offset+len(self.visible_indices)} / {len(eligible)}')
         self.previous_action.setEnabled(self.page_offset>0);self.next_action.setEnabled(self.page_offset+self.page_size<len(eligible))
         if self.visible_indices:self.table.setCurrentCell(0,0);self.show_source(0)
@@ -121,6 +136,10 @@ class ImportReview(QWidget):
         if not 0<=row<len(self.visible_indices):
             self.preview_timer.stop();self.source.clear();self.preview_status.setText('Không có câu trong phạm vi đang lọc');return
         r=self.results[self.visible_indices[row]];self.source.setPlainText(r['source']);v=r['parsed'].get('classification',{})
+        self.resource_list.clear()
+        for asset in r['parsed'].get('assets',[]):
+            item=QListWidgetItem(f"{asset.get('resolution_status','RESOLVED')} · {asset.get('reference','')}");item.setData(Qt.ItemDataRole.UserRole,asset.get('reference',''));item.setToolTip(asset.get('source_context',''));self.resource_list.addItem(item)
+        self.resource_list.addItem(QListWidgetItem(f"{len(r['parsed'].get('assets',[]))} tài nguyên · {len(r['errors'])} lỗi"))
         self.details.setText((breadcrumb(self.nodes,v.get('taxonomy_id')) or 'Chưa phân loại')+' • '+(v.get('cognitive_level') or 'Chưa gán mức độ'))
 
     def assign_selected(self):
@@ -229,6 +248,57 @@ class ImportReview(QWidget):
 
     def selected_ids(self):
         return [r['id'] for r in self.results if r['id'] not in self.excluded_ids]
+
+    @staticmethod
+    def status_for(record):
+        if record.get('duplicate',record.get('parsed',{}).get('duplicate_suggestion')): return 'DUPLICATE'
+        if record.get('errors'):
+            messages=' '.join(error.get('message','') for error in record['errors'])
+            if 'AMBIGUOUS_ASSET' in messages:return 'AMBIGUOUS_ASSET'
+            if 'MISSING_ASSET' in messages or 'Thiếu tài nguyên' in messages:return 'MISSING_ASSET'
+            if 'NEEDS_REVIEW' in messages:return 'NEEDS_REVIEW'
+            return 'INVALID_LATEX'
+        return 'READY'
+
+    def _selected_record(self):
+        row=self.table.currentRow()
+        return self.results[self.visible_indices[row]] if 0<=row<len(self.visible_indices) else None
+
+    def choose_asset(self):
+        record=self._selected_record();item=self.resource_list.currentItem()
+        if not record or not item or not item.data(Qt.ItemDataRole.UserRole):
+            QMessageBox.information(self,'Chọn tài nguyên','Chọn một tài nguyên trong inspector trước.');return
+        reference=item.data(Qt.ItemDataRole.UserRole);path,_=QFileDialog.getOpenFileName(self,'Chọn lại tài nguyên','','Ảnh/PDF/TeX (*.png *.jpg *.jpeg *.pdf *.tex)')
+        if not path:return
+        from pathlib import Path
+        from latex_question_studio.application.assets import AssetStore
+        try:
+            selected=Path(path);staged=AssetStore(self.services.config.data_dir).stage_bytes(selected.read_bytes(),selected.suffix,getattr(self,'batch_id','review-'+record['id']))
+            for asset in record['parsed'].get('assets',[]):
+                if asset.get('reference')==reference:
+                    asset.update({'hash':staged['hash'],'relative_path':staged['relative_path'],'staging_path':staged['staging_path'],'bytes':staged['bytes'],'resolution_status':'RESOLVED','source_context':str(selected.parent.resolve()),'candidates':[str(selected.resolve())]})
+            record['errors']=[error for error in record['errors'] if reference not in error.get('message','')]
+            self.refresh_rows();self.show_source(self.table.currentRow());self.summary.setText('Đã chọn lại tài nguyên; kiểm tra preview rồi nhập câu hợp lệ.')
+        except Exception as error:QMessageBox.warning(self,'Không thể chọn tài nguyên',str(error))
+
+    def add_search_dir(self):
+        folder=QFileDialog.getExistingDirectory(self,'Thêm thư mục tìm kiếm tài nguyên')
+        if not folder:return
+        record=self._selected_record()
+        if not record:return
+        from pathlib import Path
+        from latex_question_studio.application.assets import AssetResolver,AssetStore
+        try:
+            graph=AssetResolver().resolve(record['source'],Path(folder))
+            store=AssetStore(self.services.config.data_dir)
+            for asset in record['parsed'].get('assets',[]):
+                matches=[entry for entry in graph.by_reference().get(asset.get('reference'),()) if entry.dependency_type=='image']
+                if matches and matches[0].resolution_status=='RESOLVED' and matches[0].selected_path:
+                    selected=Path(matches[0].selected_path);staged=store.stage_bytes(selected.read_bytes(),selected.suffix,getattr(self,'batch_id','review-'+record['id']))
+                    asset.update({'hash':staged['hash'],'relative_path':staged['relative_path'],'staging_path':staged['staging_path'],'bytes':staged['bytes'],'resolution_status':'RESOLVED','source_context':matches[0].source_context,'candidates':list(matches[0].candidates)})
+            record['errors']=[error for error in record['errors'] if 'MISSING_ASSET' not in error.get('message','') and 'AMBIGUOUS_ASSET' not in error.get('message','')]
+            self.refresh_rows();self.show_source(self.table.currentRow())
+        except Exception as error:QMessageBox.warning(self,'Không thể thêm thư mục',str(error))
     def inclusion_changed(self,item):
         if self.rendering_rows or item.column()!=0:return
         record=self.results[self.visible_indices[item.row()]]

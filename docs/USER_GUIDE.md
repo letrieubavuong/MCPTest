@@ -1,6 +1,10 @@
 # Thư viện 0.5.1 — Bắt đầu từ cây CSDL
 
-Cây **CSDL → Môn → Chương → Bài → Dạng** luôn hiện bên trái trang thư viện. Nhấp đúp để mở/đóng nhánh, bấm bài hoặc dạng để thấy các câu thuộc phạm vi đó ở giữa. Dòng **Phạm vi** cho biết đang xem ở đâu. Bấm một câu để xem nội dung toán bên phải; bấm **Sửa câu** hoặc nhấp đúp câu để mở editor. Các bản nháp ở tab editor vẫn giữ khi bạn chọn bài khác.
+## Dashboard
+
+Nút **Trang chủ** ở đầu thanh điều hướng mở Dashboard. Các thẻ chỉ số lấy trực tiếp từ CSDL; biểu đồ cho biết phân bố mức độ theo môn, khu vực tài nguyên hiển thị số thiếu/hỏng, hoạt động gần đây lấy các câu cập nhật mới nhất. Quick actions mở Nhập câu hỏi, Ra đề thi, Thư viện hoặc Quản lý tài nguyên. Dashboard hỗ trợ cả giao diện sáng và tối, không thay đổi dữ liệu.
+
+Cây **CSDL → Môn → Chương → Bài → Dạng** luôn hiện bên trái trang thư viện. Nhấp đúp để mở/đóng nhánh, bấm bài hoặc dạng để thấy các câu thuộc phạm vi đó ở giữa. Ngân hàng mặc định hiển thị thẻ preview dạng lưới; dùng bộ chọn chế độ để chuyển sang danh sách gọn khi cần quét nhiều câu. Dòng **Phạm vi** cho biết đang xem ở đâu. Bấm một câu để xem nội dung toán bên phải; bấm **Sửa câu** hoặc nhấp đúp câu để mở editor. Các bản nháp ở tab editor vẫn giữ khi bạn chọn bài khác.
 
 **Nhập TeX** chuyển tới trang nhập; chọn file rồi dùng cây ở trang nhập để gán bài/dạng và mức độ. **Phân loại** mở inspector cho câu đang xem. **Lấy vào đề** đưa các câu đã chọn sang ra đề. Các thao tác ít dùng nằm trong **Thao tác khác**. Khi không có câu, xem hướng dẫn trong trang hoặc bấm **Xem tất cả câu** để kiểm tra câu chưa phân loại.
 
@@ -14,9 +18,11 @@ CSDL: gõ tìm nhanh, chọn loại/mức độ/trạng thái; Ctrl/Shift để 
 
 Editor: Ctrl+S lưu, Ctrl+F tìm, Ctrl+H thay thế; thanh tìm nằm trong editor. F5 biên dịch, nút Đi tới dòng lỗi chuyển tới source khi ánh xạ được, lỗi preamble/tệp phụ xem nhật ký. Thay source làm preview cũ mất hiệu lực.
 
-Nhập: chọn tệp/thư mục → phân tích → chọn bài/dạng trên cây và mức độ → gán các câu đang chọn → tick những câu muốn nhập → Nhập câu đã chọn. Câu không tick hoặc source lỗi vẫn giữ trong hàng chờ. Toolbar hiển thị hợp lệ/lỗi/gợi ý trùng; gợi ý trùng không tự xóa.
+Nhập dùng wizard 5 bước ở thanh bên trái: **Chọn nguồn → Phân tích → Đối chiếu tài nguyên → Xem trước → Xác nhận**. Chọn file/thư mục, theo dõi thẻ Tổng/Hợp lệ/Thiếu tài nguyên/Lỗi biên dịch, sau đó chọn bài/dạng trên cây và mức độ. Bảng câu hỏi, inspector tài nguyên và preview nằm cùng màn hình; câu không tick hoặc source lỗi vẫn giữ trong hàng chờ. Toolbar hiển thị hợp lệ/lỗi/gợi ý trùng; gợi ý trùng không tự xóa.
 
-Ra đề: chọn phạm vi trái, nhập số NB/TH/VD/VDC trong bảng thống kê, thêm vào ma trận; có thể lấy thêm câu đang chọn từ CSDL. Tạo đề ghim source/đáp án/permutation; danh sách phải là cấu trúc đề đã tạo. Preview và xuất dùng snapshot này. Bài giảng vẫn chèn qua thư viện chọn/tick, giữ revision riêng.
+Chọn file TeX, chọn thư mục và mở hàng chờ nằm tại bước **Chọn nguồn**. Thanh công cụ phân loại/nhập chỉ hiện trong **Xem trước**; **Hủy tác vụ** xuất hiện khi đang xử lý. Tick/bỏ tick câu ngay trong bảng; chuột phải để chọn/bỏ nhiều dòng. Đóng duyệt đưa về Chọn nguồn và giữ batch trong hàng chờ.
+
+Ra đề: chọn phạm vi trái, nhập số NB/TH/VD/VDC trong bảng thống kê, thêm vào ma trận; có thể lấy thêm câu đang chọn từ CSDL. Tạo đề ghim source/đáp án/permutation; danh sách phải là cấu trúc đề đã tạo. Preview và xuất dùng snapshot này. Bài giảng dùng outline trái, Soạn thảo/Xem trước ở giữa và Thư viện câu hỏi bên phải; chọn/tick câu rồi bấm Chèn để thêm snapshot revision vào mục hiện tại.
 
 Bản 0.3.3: trang nhập dùng toolbar; thao tác thêm dạng, chọn mức độ, gán, nhập và đóng nằm trên toolbar icon có tooltip. Cột phải có Preview/Source, tự biên dịch nền khi chọn câu, hỗ trợ ảnh đi kèm, nhiều trang và báo lỗi không chặn phân loại. Preview dùng compiler.json và yêu cầu TeX engine đã cấu hình.
 
@@ -48,16 +54,16 @@ CSDL → TOÁN 6: 9 chương, 43 bài và 2 mục luyện tập chung theo danh 
 
 # Soạn bài giảng — 0.2.0
 
-1. Mở Bài giảng ở drawer, bấm Tạo bài, nhập tên bài. Cây mẫu có Lý thuyết, Dạng toán, Ví dụ và nhóm Bài tập vận dụng.
-2. Chọn mục trong cây, sửa tên/source TeX. Thêm mục cùng cấp/con; ↑/↓ đổi thứ tự cùng cha. Bản nháp tự lưu sau 1,5 giây; Lưu/Ctrl+S lưu ngay; Lịch sử khôi phục thành revision mới.
-3. Chọn nhóm đích, mở Chèn từ ngân hàng, Tìm/Làm mới danh mục. Tick câu hoặc đặt bộ lọc/số câu/seed rồi Trích lọc để xem đề xuất. Chọn vai trò Ví dụ/Bài tập và bấm Chèn. Cho phép lặp có chủ đích nếu cần ôn lại cùng câu.
-4. Câu được pin revision. Sửa source ở bài chỉ đổi bản trong bài, không sửa ngân hàng. Ghi chú giáo viên nằm ở ô riêng. Chèn hình quản lý bytes gốc trong kho assets.
+1. Mở Bài giảng ở drawer, bấm Tạo bài, nhập tên bài. Một bài giảng gồm các **tệp nguồn** được lưu trong DB: `theory.tex` cho lý thuyết, một file `.tex` riêng cho mỗi dạng toán (chứa phương pháp và các ví dụ của dạng đó), và `bai-tap-van-dung.tex` cho bài tập vận dụng. Cây outline bên dưới chỉ là các mục thuộc tệp đang chọn; dùng vùng **TỆP NGUỒN BÀI GIẢNG** để chuyển file.
+2. Chọn mục trong cây rồi soạn ở chế độ **WYSIWYG**: gõ văn bản trực tiếp, chọn chữ để dùng B/I/U, chèn tiêu đề hoặc danh sách qua Kiểu đoạn. Công thức và hình hiển thị trong nội dung; nhấp đúp công thức/đối tượng TeX để sửa, dùng M để chèn công thức (nhập biểu thức như `a=\dfrac{v^2-v_0^2}{2s}`, không cần bọc `$`). Gõ/dán công thức đầy đủ `$...$`, `\(...\)` hoặc lệnh định dạng hỗ trợ cũng được nhận dạng trực tiếp. Nếu bài đã lưu từ bản lỗi có mã in thành chữ, bấm **Nhận dạng lại công thức LaTeX** khi nút xuất hiện; có thể hoàn tác và khôi phục revision cũ. Chọn **Mã LaTeX** để chỉnh nguồn, hai chế độ đồng bộ cùng một bản nháp. Thêm mục cùng cấp/con; ↑/↓ đổi thứ tự cùng cha. Bản nháp tự lưu sau 1,5 giây; Lưu/Ctrl+S lưu ngay; Lịch sử khôi phục thành revision mới.
+3. Chọn nhóm đích, mở Chèn từ ngân hàng, Tìm/Làm mới danh mục. Tick câu hoặc đặt bộ lọc/số câu/seed rồi Trích lọc để xem đề xuất. Chọn vai trò Ví dụ/Bài tập và bấm Chèn. Bài tập được lưu kèm `question_id`, revision, source snapshot và `export_index`; cho phép lặp có chủ đích nếu cần ôn lại cùng câu.
+4. Câu được pin revision. Sửa source ở bài chỉ đổi bản trong bài, không sửa ngân hàng. Ghi chú giáo viên nằm ở ô riêng. Chèn hình quản lý bytes gốc trong kho assets. Khi sửa file bài tập, file tự chuyển về Bản nháp; bấm **Chốt file và chỉ mục xuất** trước khi xuất.
 5. Với từng khối chọn Hiện đầy đủ/Chỉ đề bài/Chỉ giáo viên. Ví dụ có lời giải được công khai khi Hiện đầy đủ. Bài tập mặc định Chỉ đề bài; ghi chú riêng không xuất cho học sinh.
-6. Chọn Bản giáo viên/Bản học sinh, Xem trước toàn bài; ←/→ đổi trang. Có thể chọn Chỉ xuất phiếu bài tập. F5 preview, Hủy dừng compile.
-7. Xuất bộ TeX+PDF, chọn thư mục. Ứng dụng tạo thư mục mới có main.tex, bai-giang.pdf, assets và manifest checksum; không ghi đè bộ cũ. Phải cài/cấu hình pdfLaTeX. Profile riêng chưa được chứng nhận gói xuất.
+6. Bấm **Xem trước/F5** để xem PDF của **Mục đang soạn**. Trong tab PDF, chọn **Toàn bài giảng** rồi bấm Xem trước để kiểm tra bố cục cả bài; chọn Bản giáo viên/Bản học sinh, ←/→ đổi trang. Phiếu bài tập áp dụng khi xem toàn bài hoặc xuất bài. Hủy dừng compile.
+7. Xuất bộ TeX+PDF, chọn thư mục. Ứng dụng tạo `main.tex`, các file nguồn `theory.tex`/`dang-*.tex`/`bai-tap-van-dung.tex`, `bai-giang.pdf`, assets và manifest checksum; `main.tex` ghép các file bằng `\input`. DB lưu manifest và source/revision của bài; bộ TeX xuất là bản độc lập để sửa/biên dịch ngoài ứng dụng. Không ghi đè bản cũ. Phải cài/cấu hình pdfLaTeX. Profile riêng chưa được chứng nhận gói xuất.
 8. Sao lưu thư viện giữ cả bài, revisions, ảnh và gói xuất được quản lý. Review bản học sinh trước phát tài liệu, nhất là ảnh/lời giải được viết tự do.
 
-Chưa hỗ trợ nhập đầy đủ bài giảng cũ hoặc Beamer. Nội dung hiện biên tập bằng TeX, không phải editor trực quan. Xem 19_LESSON_IMPLEMENTATION_REPORT.md.
+Chưa hỗ trợ nhập đầy đủ bài giảng cũ hoặc Beamer. WYSIWYG hỗ trợ văn bản, định dạng, tiêu đề, danh sách, câu hỏi/phương án/lời giải, công thức và ảnh. TikZ là đối tượng render; macro/bảng/môi trường ngoài tập hỗ trợ được giữ nguyên thành đối tượng TeX, sửa qua hộp LaTeX hoặc chế độ mã. Comment và cấu trúc đáp án được bảo vệ khi sửa trực quan. Chuyển **Xem trước (PDF)** để kiểm tra bố cục in theo MAPClass; khoảng cách, ngắt trang và macro của bản PDF có thể khác vùng soạn trực quan. Xem `WYSIWYG_IMPLEMENTATION_REPORT.md`.
 
 # Điều hướng từ phiên bản 0.1.1
 
@@ -93,9 +99,17 @@ Cài đặt pdfLaTeX nhận tên pdflatex hoặc đường dẫn pdflatex.exe; p
 Ctrl+Shift+F tìm FTS5, hỗ trợ tiếng Việt không dấu; Bộ lọc theo metadata/type/mức độ/nhãn, trường rỗng không giới hạn. Xóa tìm kiếm/bộ lọc trở về thư viện. Phân trang 100 câu. Tìm câu trùng từ câu đang mở; score chỉ là gợi ý. Chọn một kết quả để xem, xác nhận hợp nhất mới lưu trữ bản phụ. Source/đáp án/assets/revisions bản phụ vẫn giữ nguyên, không tự xóa.
 
 ## Tạo đề
+Trang Ra đề thi có hai hình thức: **Từ ngân hàng câu hỏi** và **Trộn từ file TeX**.
+
 Trong bảng dùng Ctrl/Shift chọn nhiều hàng, hoặc mở một câu, rồi Tạo đề. Có thể chọn thủ công và thêm hàng ma trận (môn/khối/loại/nhận thức/số lượng). Mỗi đề tối đa 500 câu. Seed tái lập; xáo câu/phương án MCQ giữ True và đáp án. TF giữ thứ tự khẳng định. Thiếu nguồn hoặc câu chưa parse hợp lệ sẽ báo lỗi.
 
-Xuất Đề học sinh, Đề kèm lời giải hoặc Đáp án dưới dạng .tex/.pdf. TeX kèm assets hash ở thư mục assets, cần giữ cùng nhau. Đề học sinh ẩn True/lời giải/giá trị shortans. Đề thi → Lịch sử đề xuất lại snapshot câu và đáp án đã lưu.
+Xuất Đề học sinh, Đề kèm lời giải hoặc Đáp án dưới dạng `.tex`/`.pdf`; có thể chọn `.zip` để tạo gói portable gồm `main.tex`, tài nguyên và `manifest.json` checksum. TeX kèm assets hash ở thư mục assets, cần giữ cùng nhau. Đề học sinh ẩn True/lời giải/giá trị shortans. Đề thi → Lịch sử đề xuất lại snapshot câu và đáp án đã lưu.
+
+Trong **Trộn từ file TeX**, chọn file nguồn UTF-8 có các câu `ex`, `ex*`, `vidu` hoặc `vidu*`, nhập các mã đề cách nhau bằng dấu phẩy rồi bấm Tạo mã đề. Mẫu đầy đủ giữ preamble, tiêu đề, nội dung ngoài câu hỏi và cuối tài liệu; đoạn câu hỏi chưa có preamble dùng MAPClass. Mỗi mã lấy toàn bộ câu gốc, chỉ đảo câu trong từng phần; phần mới được xác định từ tiêu đề/nội dung phân cách hoặc khi đổi loại câu. Ngắt trang trong cùng phần vẫn giữ nguyên vị trí. Phương án trắc nghiệm xáo theo lựa chọn; thứ tự khẳng định đúng/sai giữ nguyên.
+
+Chọn mã đề ở bên trái để xem PDF, mã LaTeX và đối chiếu câu/đáp án. Các macro mã đề `\made`, `\maDe`, `\madethi`, `\madeThi` dạng không tham số được cập nhật; nếu chưa có, mã đề được thêm đầu nội dung. Chọn Đề học sinh hoặc Đề kèm lời giải và tùy chọn Xuất PDF, rồi chọn thư mục đích. Mỗi lần xuất tạo thư mục mới `ma-de-...`: TeX/PDF/tài nguyên nằm trong `student` hoặc `teacher`; `dap-an.csv` và `doi-chieu-ma-de.json` nằm riêng ở thư mục gốc của bộ mã đề. Xuất bị lỗi/hủy sẽ không công bố bộ đề dở dang.
+
+File và ảnh gốc được giữ nguyên; trộn từ TeX không đưa câu vào CSDL. File nguồn có lỗi đáp án, thiếu ảnh hoặc mã đề trùng sẽ báo lỗi. Hiện hỗ trợ câu trực tiếp trong file, chưa mở rộng câu qua `input/include`; ảnh dùng đường dẫn tương đối trong thư mục đề. Bản học sinh gỡ đáp án/lời giải trong các câu; nội dung của mẫu nằm ngoài câu hỏi được giữ nguyên. Macro chưa được chứng nhận trong câu sẽ chặn bản học sinh; bản kèm lời giải giữ nguồn câu gốc. Hai hình thức có bản nháp riêng trong phiên làm việc.
 
 ## Backup và giao diện
 Tệp → Sao lưu tạo ZIP chứa DB, archive nguồn và assets với checksum. Phục hồi có xác nhận; ứng dụng kiểm tra checksum/schema/FK và giữ DB trước phục hồi ở backups. Đợi tác vụ nền hoàn tất trước backup/restore. Workspace/theme/cấu hình máy hiện tại được giữ riêng. Đổi giao diện trên Activity Bar; Hiển thị để bật/tắt dock. Layout/tab mở được khôi phục khi khởi động lại.

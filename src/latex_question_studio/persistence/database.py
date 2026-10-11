@@ -10,7 +10,7 @@ import uuid
 
 from latex_question_studio.domain.curriculum import migration_sql, math_migration_sql, khtn7_migration_sql, math7_migration_sql, grade8_migration_sql, grade9_migration_sql, upper_migration_sql, senior_migration_sql
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 19
 from latex_question_studio.domain.catalog import migration_sql as catalog_migration_sql
 
 MIGRATIONS = {
@@ -106,6 +106,19 @@ MIGRATIONS = {
         "CREATE INDEX ix_metadata_subject_grade ON question_metadata(json_extract(data_json,'$.subject'),json_extract(data_json,'$.grade'))",
         "CREATE INDEX ix_metadata_archived ON question_metadata(coalesce(json_extract(data_json,'$.archived'),0),question_id)",
     ),
+    18: (
+        "ALTER TABLE question_assets ADD COLUMN source_context TEXT NOT NULL DEFAULT 'legacy'",
+        "ALTER TABLE question_assets ADD COLUMN dependency_type TEXT NOT NULL DEFAULT 'image'",
+        "ALTER TABLE question_assets ADD COLUMN resolution_status TEXT NOT NULL DEFAULT 'RESOLVED'",
+        "ALTER TABLE question_assets ADD COLUMN candidates_json TEXT NOT NULL DEFAULT '[]'",
+        "CREATE INDEX ix_assets_status ON question_assets(resolution_status,asset_id)",
+    ),
+    19: (
+        "CREATE TABLE lesson_files(id TEXT PRIMARY KEY,lesson_id TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,role TEXT NOT NULL,title TEXT NOT NULL,filename TEXT NOT NULL,position INTEGER NOT NULL,source TEXT NOT NULL,locked INTEGER NOT NULL DEFAULT 1,updated_at TEXT NOT NULL,UNIQUE(lesson_id,filename))",
+        "CREATE INDEX ix_lesson_files_lesson_position ON lesson_files(lesson_id,position)",
+        "CREATE TABLE lesson_file_exercises(file_id TEXT NOT NULL REFERENCES lesson_files(id) ON DELETE CASCADE,position INTEGER NOT NULL,export_index INTEGER NOT NULL,question_id TEXT NOT NULL REFERENCES questions(id),revision INTEGER NOT NULL,source_snapshot TEXT NOT NULL,locked INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(file_id,position),UNIQUE(file_id,export_index))",
+        "CREATE INDEX ix_lesson_file_exercises_question ON lesson_file_exercises(question_id,revision)",
+    ),
 }
 
 class Database:
@@ -155,6 +168,24 @@ class Database:
                 raise RuntimeError("Database is newer than this application")
             for target in range(version + 1, SCHEMA_VERSION + 1):
                 for statement in MIGRATIONS[target]:
+                    if target == 18 and statement.startswith('ALTER TABLE question_assets ADD COLUMN'):
+                        column = statement.split(' ADD COLUMN ', 1)[1].split(' ', 1)[0]
+                        columns = {row[1] for row in connection.execute('PRAGMA table_info(question_assets)')}
+                        if column in columns:
+                            continue
+                    if target == 18 and statement.startswith('CREATE INDEX ix_assets_status'):
+                        if connection.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name='ix_assets_status'").fetchone():
+                            continue
+                    if target == 19 and statement.startswith('CREATE TABLE lesson_files'):
+                        if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='lesson_files'").fetchone():
+                            continue
+                    if target == 19 and statement.startswith('CREATE TABLE lesson_file_exercises'):
+                        if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='lesson_file_exercises'").fetchone():
+                            continue
+                    if target == 19 and statement.startswith('CREATE INDEX'):
+                        index_name=statement.split('CREATE INDEX ',1)[1].split(' ',1)[0]
+                        if connection.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?",(index_name,)).fetchone():
+                            continue
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={target}")
 

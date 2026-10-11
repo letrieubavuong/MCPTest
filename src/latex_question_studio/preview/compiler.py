@@ -75,7 +75,7 @@ class Compiler:
             for relative in ('Class/MAPClass.cls','Packages/ex_test.sty'):
                 if not (self.profile_root/relative).is_file():
                     raise FileNotFoundError('Thiếu tài nguyên preview: '+relative)
-        if r'\begin{document}' in preamble:
+        if any(command.name == 'begin' and command.depth == 0 and group(preamble, command.end)[0] == 'document' for command in commands(preamble)):
             raise ValueError('Preamble phải kết thúc trước begin{document}')
         for root in roots:
             for suffix in ('*.cls','*.sty','*.tex'):

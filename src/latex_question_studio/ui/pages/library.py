@@ -3,7 +3,7 @@ from collections import OrderedDict
 import json,re
 from PySide6.QtCore import Qt,QTimer,QSize
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLineEdit,QComboBox,QTabWidget,QPlainTextEdit,QFormLayout,QPushButton,QListWidget,QListWidgetItem,QLabel,QStackedWidget,QHeaderView,QScrollArea)
+from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLineEdit,QComboBox,QTabWidget,QPlainTextEdit,QFormLayout,QPushButton,QListWidget,QListWidgetItem,QLabel,QStackedWidget,QHeaderView,QScrollArea,QListView,QFrame)
 from latex_question_studio.ui.components.workspace import CommandToolbar
 from latex_question_studio.application.library import LibraryService
 from latex_question_studio.application.search import SearchService
@@ -51,12 +51,12 @@ class LibraryWorkspace:
         self.level=QComboBox();self.level.addItem('Mọi mức độ','')
         for key,label in [('NB','Nhận biết'),('TH','Thông hiểu'),('VD','Vận dụng'),('VDC','Vận dụng cao')]:self.level.addItem(label,key)
         self.state=QComboBox()
-        for label,key in [('Đang sử dụng','active'),('Chưa phân loại','unclassified'),('Source lỗi','invalid'),('Đã lưu trữ','archived')]:self.state.addItem(label,key)
-        self.mode=QComboBox();self.mode.addItems(['Danh sách gọn','Thẻ preview'])
+        for label,key in [('Đang sử dụng','active'),('Chưa phân loại','unclassified'),('Source lỗi','invalid'),('Đã lưu trữ','archived'),('Có tài nguyên','has_asset'),('Thiếu / hỏng tài nguyên','asset_problem'),('Cần xem xét tài nguyên','asset_review')]:self.state.addItem(label,key)
+        self.mode=QComboBox();self.mode.addItems(['Danh sách gọn','Thẻ preview']);self.mode.setCurrentIndex(1)
         for combo in (self.kind,self.level,self.state,self.mode):row.addWidget(combo)
         layout.insertLayout(2,row)
         layout.removeWidget(w.table);self.stack=QStackedWidget();self.stack.addWidget(w.table)
-        self.cards=QListWidget();self.cards.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection);self.stack.addWidget(self.cards);layout.insertWidget(4,self.stack,1)
+        self.cards=QListWidget();self.cards.setObjectName('questionCards');self.cards.setViewMode(QListView.ViewMode.IconMode);self.cards.setFlow(QListView.Flow.LeftToRight);self.cards.setResizeMode(QListView.ResizeMode.Adjust);self.cards.setMovement(QListView.Movement.Static);self.cards.setWrapping(True);self.cards.setSpacing(8);self.cards.setGridSize(QSize(218,205));self.cards.setIconSize(QSize(196,112));self.cards.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection);self.stack.addWidget(self.cards);layout.insertWidget(4,self.stack,1)
         w.table.setSelectionMode(w.table.SelectionMode.ExtendedSelection);w.table.setWordWrap(False)
         w.table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.Stretch);w.table.setColumnWidth(1,95);w.table.setColumnWidth(2,75);w.table.setColumnWidth(3,140)
         w.table.verticalHeader().setDefaultSectionSize(35)
@@ -67,9 +67,11 @@ class LibraryWorkspace:
         self.query.textChanged.connect(lambda *a:self.timer.start())
         for combo in (self.kind,self.level,self.state):combo.currentIndexChanged.connect(self.filters_changed)
         self.mode.currentIndexChanged.connect(self.switch_mode)
+        self.stack.setCurrentIndex(1)
         w.refresh_button.hide()
         self.inspector=QTabWidget();w.preview_dock.layout().replaceWidget(scroll,self.inspector);self.inspector.addTab(scroll,'Xem trước')
         metadata=QWidget();form=QFormLayout(metadata);self.meta_title=QLabel('Chọn câu hỏi');self.meta_title.setWordWrap(True);form.addRow(self.meta_title)
+        self.asset_status=QLabel('Tài nguyên: chưa kiểm tra');self.asset_status.setWordWrap(True);form.addRow(self.asset_status)
         self.taxonomy=QComboBox();self.taxonomy.setMinimumContentsLength(15);self.taxonomy.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon);self.taxonomy.addItem('Chưa phân loại',None)
         nodes=LibraryService(w.services).taxonomy();self.nodes=nodes
         for n in nodes:
@@ -112,10 +114,11 @@ class LibraryWorkspace:
         self.selected_id=q.id if q else None
         if q:
             self.source.setPlainText(q.latex_source);self.load_metadata(q);self.w.preview.setText('Đang chuẩn bị xem trước…')
-            if self.w.pages.currentIndex()==0 and self.w.tabs.currentIndex()==0:self.preview_timer.start()
+            if self.w.tabs.currentIndex()==0:self.preview_timer.start()
         else:self.source.clear();self.w.preview.setText('Chọn câu để xem trước.');self.meta_title.setText('Chọn câu hỏi')
     def load_metadata(self,q):
         m=LibraryService(self.w.services).metadata(q.id)
+        self.asset_status.setText('Tài nguyên: '+self.asset_summary(q.id))
         self.taxonomy.setCurrentIndex(max(0,self.taxonomy.findData(m.get('taxonomy_id'))));self.meta_level.setCurrentIndex(max(0,self.meta_level.findData(q.cognitive_level or '')))
         self.tags.setText(', '.join(m.get('tags',[])));self.origin.setText(m.get('source',''));self.meta_title.setText(f'{TYPE_LABELS.get(q.question_type,q.question_type)} • Phiên bản {q.revision} • {q.id[:8]}')
     def save_metadata(self):
@@ -142,10 +145,30 @@ class LibraryWorkspace:
         if state=='archived':where[0]="coalesce(json_extract(m.data_json,'$.archived'),0)=1"
         elif state=='unclassified':where.append("(q.cognitive_level IS NULL OR q.cognitive_level='' OR NOT EXISTS (SELECT 1 FROM question_taxonomy t WHERE t.question_id=q.id))")
         elif state=='invalid':where.append("EXISTS (SELECT 1 FROM question_analysis a WHERE a.question_id=q.id AND a.valid=0)")
+        elif state=='has_asset':where.append("EXISTS (SELECT 1 FROM question_assets qa WHERE qa.question_id=q.id)")
+        elif state=='asset_problem':where.append("EXISTS (SELECT 1 FROM question_assets qa WHERE qa.question_id=q.id AND qa.resolution_status<>'RESOLVED')")
+        elif state=='asset_review':where.append("EXISTS (SELECT 1 FROM question_assets qa WHERE qa.question_id=q.id AND qa.resolution_status IN ('NEEDS_REVIEW','AMBIGUOUS_ASSET'))")
         sql=('SELECT count(*)' if count_only else 'SELECT q.*')+' FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id'+join+' WHERE '+' AND '.join(where)
         if not count_only:sql+=' ORDER BY '+('bm25(questions_fts),q.id' if join else 'q.created_at,q.id')+' LIMIT ? OFFSET ?';args+=[100,w.offset]
         with w.services.database.connect() as c:
             return c.execute(sql,args).fetchone()[0] if count_only else [QuestionRepository._question(r) for r in c.execute(sql,args)]
+
+    def asset_summary(self, question_id):
+        from latex_question_studio.application.assets import AssetStore
+        with self.w.services.database.connect() as connection:
+            rows=connection.execute('SELECT a.relative_path,a.content_hash,qa.resolution_status FROM question_assets qa JOIN assets a ON a.id=qa.asset_id WHERE qa.question_id=?',(question_id,)).fetchall()
+        if not rows:return 'không có'
+        store=AssetStore(self.w.services.config.data_dir);bad=[];shared=[]
+        for row in rows:
+            check=store.verify(row['relative_path'],row['content_hash'])
+            if row['resolution_status']!='RESOLVED' or not check['ok']:bad.append(row['resolution_status'] if row['resolution_status']!='RESOLVED' else 'CORRUPT_ASSET')
+            with self.w.services.database.connect() as connection:
+                links=connection.execute('SELECT count(*) FROM question_assets WHERE asset_id=(SELECT id FROM assets WHERE relative_path=?)',(row['relative_path'],)).fetchone()[0]
+            if links>1:shared.append(links)
+        result=f'{len(rows)} file(s)'
+        if bad:result+=' · '+', '.join(bad)
+        if shared:result+=f' · dùng chung {max(shared)} câu'
+        return result
     def switch_mode(self,index):
         self.stack.setCurrentIndex(index);self.sync_cards()
     def sync_cards(self):
@@ -153,12 +176,13 @@ class LibraryWorkspace:
         selected={item.data(Qt.ItemDataRole.UserRole) for item in self.cards.selectedItems()};current=self.cards.currentItem().data(Qt.ItemDataRole.UserRole) if self.cards.currentItem() else None
         self.cards.blockSignals(True);self.cards.clear()
         for q in self.w.table_model.rows:
-            item=QListWidgetItem(self.cards);item.setData(Qt.ItemDataRole.UserRole,q.id);item.setSizeHint(QSize(200,180));box=QWidget();layout=QVBoxLayout(box)
-            title=QLabel(f'{TYPE_LABELS.get(q.question_type,q.question_type)} • {q.cognitive_level or "Chưa gán mức độ"} • {q.id[:8]}');layout.addWidget(title)
-            label=QLabel();label.setWordWrap(True)
+            item=QListWidgetItem(self.cards);item.setData(Qt.ItemDataRole.UserRole,q.id);item.setSizeHint(QSize(210,198));box=QFrame();box.setObjectName('questionCard');layout=QVBoxLayout(box);layout.setContentsMargins(8,7,8,7);layout.setSpacing(4)
+            title=QLabel(f'{q.id[:8]}  •  {TYPE_LABELS.get(q.question_type,q.question_type)}');title.setObjectName('cardTitle');title.setToolTip(q.latex_source);layout.addWidget(title)
+            badge=QLabel(q.cognitive_level or 'Chưa gán mức độ');badge.setObjectName('cardBadge');layout.addWidget(badge)
+            label=QLabel();label.setWordWrap(True);label.setObjectName('cardPreview')
             if q.id in self.images and self.images[q.id][:2]==(q.revision,q.latex_source):label.setPixmap(self.images[q.id][2].scaled(QSize(max(100,self.cards.viewport().width()-30),125),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation))
             else:label.setText(readable(q.latex_source)[:240]+'\nChọn thẻ để tải bản render toán học.');label.setToolTip(q.latex_source)
-            layout.addWidget(label,1);self.cards.setItemWidget(item,box)
+            layout.addWidget(label,1);footer=QLabel('Chọn thẻ để xem preview toán học');footer.setObjectName('cardFooter');layout.addWidget(footer);self.cards.setItemWidget(item,box)
             if q.id in selected:item.setSelected(True)
             if q.id==current:self.cards.setCurrentItem(item)
         self.cards.blockSignals(False)

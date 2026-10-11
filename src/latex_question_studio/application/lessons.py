@@ -15,6 +15,8 @@ from latex_question_studio.preview.compiler import Compiler
 KINDS = {'theory':'Lý thuyết', 'method':'Dạng toán / Phương pháp', 'example':'Ví dụ',
          'exercise':'Bài tập vận dụng', 'section':'Nhóm nội dung'}
 POLICIES = {'full':'Hiện đầy đủ', 'question':'Chỉ đề bài', 'private':'Chỉ giáo viên'}
+FILE_ROLES = ('theory', 'method', 'exercise')
+FILE_ROLE_LABELS = {'theory':'File lý thuyết', 'method':'File dạng toán + ví dụ', 'exercise':'File bài tập vận dụng'}
 
 
 def stamp():
@@ -25,6 +27,21 @@ def block(kind, title, parent=None, source=''):
     return {'id':str(uuid.uuid4()), 'parent':parent, 'kind':kind, 'title':title,
             'source':source, 'policy':'question' if kind=='exercise' else 'full',
             'assets':{}, 'question':None, 'teacher_notes':''}
+
+
+def _slug(value):
+    value=''.join(char.lower() if char.isalnum() else '-' for char in value)
+    return '-'.join(part for part in value.split('-') if part)[:48] or 'noi-dung'
+
+
+def _descendants(blocks, roots):
+    selected=set(roots);changed=True
+    while changed:
+        changed=False
+        for item in blocks:
+            if item.get('parent') in selected and item['id'] not in selected:
+                selected.add(item['id']);changed=True
+    return selected
 
 
 def tex_text(text):
@@ -49,13 +66,13 @@ def without_comments(source):
 # Student source uses the explicitly supported built-in vocabulary. Unknown
 # macros/definitions must be reviewed instead of claiming their answers are hidden.
 STUDENT_COMMANDS=set(('begin end choice choiceTF choiceTFt True shortans loigiai hdan '
-    'frac dfrac tfrac sqrt left right text textrm textbf textit emph underline '
+    'frac dfrac tfrac sqrt left right text textrm textbf textit emph underline textbackslash textasciicircum textasciitilde '
     'sin cos tan cot log ln exp lim max min sum prod int iint infty partial prime '
     'alpha beta gamma delta theta lambda mu pi sigma omega Delta Omega '
     'cdot times div pm mp le leq ge geq ne neq approx equiv in notin subset '
     'subseteq cup cap emptyset forall exists mathbb mathcal mathrm mathbf '
     'vec overrightarrow overline hat bar underbrace overbrace displaystyle '
-    'quad qquad hspace vspace smallskip medskip bigskip par noindent '
+    'quad qquad hspace vspace smallskip medskip bigskip par noindent section subsection subsubsection '
     'includegraphics linewidth textwidth textheight item label ref pageref dots ldots cdots vdots ddots '
     'draw node path fill filldraw coordinate foreach newpage clearpage '
     'centering caption multicolumn hline cline to mapsto longrightarrow '
@@ -96,7 +113,108 @@ class LessonService:
     def get(self, lesson_id):
         with self.services.database.connect() as c:
             row=c.execute('SELECT document_json FROM lessons WHERE id=?',(lesson_id,)).fetchone()
-        return json.loads(row[0]) if row else None
+        return self.ensure_files(json.loads(row[0])) if row else None
+
+    def ensure_files(self, doc):
+        """Add the canonical TeX-file manifest without rewriting legacy blocks."""
+        result=deepcopy(doc)
+        blocks=result.get('blocks',[])
+        existing={entry.get('role'):entry for entry in result.get('files',[]) if entry.get('role') in FILE_ROLES}
+        files=[]
+        theory_roots=[item['id'] for item in blocks if item.get('kind')=='theory' and item.get('parent') is None]
+        if theory_roots:
+            ids=_descendants(blocks,theory_roots)
+            old=existing.get('theory',{})
+            files.append({'id':old.get('id',str(uuid.uuid4())),'role':'theory','title':'Lý thuyết','filename':'theory.tex','block_ids':[item['id'] for item in blocks if item['id'] in ids],'locked':old.get('locked',True)})
+        methods=[item for item in blocks if item.get('kind')=='method' and item.get('parent') is None]
+        for index,item in enumerate(methods,1):
+            ids=_descendants(blocks,[item['id']])
+            old=next((entry for entry in result.get('files',[]) if entry.get('role')=='method' and item['id'] in entry.get('block_ids',[])),{})
+            files.append({'id':old.get('id',str(uuid.uuid4())),'role':'method','title':item.get('title') or f'Dạng toán {index}','filename':f'dang-{index:02d}-{_slug(item.get("title", "dang-toan"))}.tex','block_ids':[block['id'] for block in blocks if block['id'] in ids],'locked':old.get('locked',True)})
+        exercise_roots=[item['id'] for item in blocks if item.get('kind') in ('section','exercise') and item.get('parent') is None]
+        if exercise_roots:
+            ids=_descendants(blocks,exercise_roots)
+            old=next((entry for entry in result.get('files',[]) if entry.get('role')=='exercise'),{})
+            files.append({'id':old.get('id',str(uuid.uuid4())),'role':'exercise','title':'Bài tập vận dụng','filename':'bai-tap-van-dung.tex','block_ids':[item['id'] for item in blocks if item['id'] in ids],'locked':old.get('locked',True)})
+        result['files']=files
+        result['file_model_version']=1
+        return result
+
+    def file_manifest(self, doc):
+        return deepcopy(self.ensure_files(doc).get('files',[]))
+
+    def _raw_file_source(self, doc, entry):
+        selected=set(entry.get('block_ids',[]));blocks=[item for item in doc.get('blocks',[]) if item['id'] in selected]
+        lines=[r'\section*{'+tex_text(entry.get('title',FILE_ROLE_LABELS[entry['role']]))+'}']
+        for item in blocks:
+            if item.get('title'):
+                lines.append(r'\subsection*{'+tex_text(item['title'])+'}')
+            if item.get('source'):
+                lines.append(item['source'])
+        return '\n\n'.join(lines)
+
+    def sync_file_tables(self, connection, doc):
+        """Persist canonical source files and pinned exercise indexes in SQLite."""
+        normalized=self.ensure_files(doc);now=stamp()
+        connection.execute('DELETE FROM lesson_files WHERE lesson_id=?',(doc['id'],))
+        for position,entry in enumerate(normalized.get('files',[])):
+            connection.execute('INSERT INTO lesson_files VALUES (?,?,?,?,?,?,?,?,?)',(
+                entry['id'],doc['id'],entry['role'],entry.get('title',FILE_ROLE_LABELS[entry['role']]),entry['filename'],position,
+                self._raw_file_source(normalized,entry),int(entry.get('locked',True)),now))
+            if entry['role']!='exercise':continue
+            exercise_position=0
+            for block_id in entry.get('block_ids',[]):
+                item=next((block for block in normalized['blocks'] if block['id']==block_id),None)
+                question=item.get('question') if item else None
+                if not question:continue
+                connection.execute('INSERT INTO lesson_file_exercises VALUES (?,?,?,?,?,?,?)',(
+                    entry['id'],exercise_position,exercise_position+1,question['id'],question['revision'],item.get('source',''),int(entry.get('locked',True))))
+                exercise_position+=1
+
+    def file_records(self, lesson_id):
+        with self.services.database.connect() as connection:
+            files=[dict(row) for row in connection.execute('SELECT * FROM lesson_files WHERE lesson_id=? ORDER BY position',(lesson_id,))]
+            for entry in files:
+                entry['locked']=bool(entry['locked'])
+                entry['exercises']=[dict(row) for row in connection.execute('SELECT * FROM lesson_file_exercises WHERE file_id=? ORDER BY export_index',(entry['id'],))]
+            return files
+
+    def lock_file(self, doc, role, locked=True):
+        candidate=self.ensure_files(doc)
+        for entry in candidate.get('files',[]):
+            if entry['role']==role:
+                entry['locked']=bool(locked)
+                if role=='exercise':
+                    for index,block_id in enumerate(entry.get('block_ids',[]),1):
+                        block_item=next((item for item in candidate['blocks'] if item['id']==block_id),None)
+                        if block_item and block_item.get('question'):
+                            block_item['question']['export_index']=index
+                break
+        return candidate
+
+    def mark_file_dirty(self, doc, block_id):
+        candidate=self.ensure_files(doc)
+        for entry in candidate.get('files',[]):
+            if block_id in entry.get('block_ids',[]):
+                entry['locked']=False
+                break
+        return candidate
+
+    def _file_document(self, doc, entry):
+        selected=set(entry.get('block_ids',[]))
+        blocks=[deepcopy(item) for item in doc.get('blocks',[]) if item['id'] in selected]
+        for item in blocks:
+            if item.get('parent') not in selected:
+                item['parent']=None
+        return {'id':doc['id'],'title':entry.get('title',FILE_ROLE_LABELS[entry['role']]),'revision':doc.get('revision',0),'blocks':blocks,'recipes':[],'files':[]}
+
+    def file_sources(self, doc, audience='teacher', worksheet=False):
+        normalized=self.ensure_files(doc);result=[]
+        for entry in normalized.get('files',[]):
+            subdoc=self._file_document(normalized,entry)
+            source,assets=self.body(subdoc,audience,worksheet,include_titles=False,include_block_titles=True)
+            result.append((entry,source,assets))
+        return result
 
     def create(self, title='Bài giảng mới'):
         theory=block('theory','A. Lý thuyết')
@@ -105,6 +223,7 @@ class LessonService:
         exercises=block('section','B. Bài tập vận dụng')
         doc={'id':str(uuid.uuid4()),'title':title,'revision':0,'subject':'Toán','grade':'12',
              'blocks':[theory,method,example,exercises],'recipes':[]}
+        doc=self.ensure_files(doc)
         return self.save(doc)
 
     def validate(self, doc):
@@ -120,6 +239,7 @@ class LessonService:
                 seen.add(parent);parent=nodes[parent]['parent']
 
     def save(self, doc):
+        doc=self.ensure_files(doc)
         self.validate(doc);saved=deepcopy(doc);saved['revision']+=1
         payload=json.dumps(saved,ensure_ascii=False);now=stamp()
         with self.services.database.transaction() as c:
@@ -131,6 +251,7 @@ class LessonService:
                 if row[0]!=doc['revision']:raise ValueError('Bài đã thay đổi ở nơi khác; mở lại trước khi lưu')
                 c.execute('UPDATE lessons SET title=?,revision=?,document_json=?,updated_at=? WHERE id=?',(saved['title'],saved['revision'],payload,now,doc['id']))
             c.execute('INSERT INTO lesson_revisions VALUES (?,?,?,?)',(doc['id'],saved['revision'],payload,now))
+            self.sync_file_tables(c,saved)
         return saved
 
     def history(self, lesson_id):
@@ -188,10 +309,11 @@ class LessonService:
         b['assets'][reference]={'path':relative.as_posix(),'hash':digest}
         return r'\includegraphics[width=.75\linewidth]{'+reference+'}'
 
-    def body(self, doc, audience='teacher', worksheet=False):
+    def body(self, doc, audience='teacher', worksheet=False, include_titles=True, include_block_titles=None):
         self.validate(doc)
         if audience not in ('teacher','student'):raise ValueError('Đối tượng không hợp lệ')
-        assets={};lines=[r'\section*{'+tex_text(doc['title'])+'}'];nodes=doc['blocks']
+        if include_block_titles is None:include_block_titles=include_titles
+        assets={};lines=[r'\section*{'+tex_text(doc['title'])+'}'] if include_titles else [];nodes=doc['blocks']
         def render(parent=None,depth=0):
             for b in nodes:
                 if b['parent']!=parent:continue
@@ -199,7 +321,7 @@ class LessonService:
                 include=not worksheet or b['kind'] in ('exercise','section','method')
                 if include:
                     command='subsection*' if depth==0 else 'subsubsection*'
-                    lines.append('\\'+command+'{'+tex_text(b['title'])+'}')
+                    if include_block_titles:lines.append('\\'+command+'{'+tex_text(b['title'])+'}')
                     source=b['source']
                     if audience=='student':source=student_source(source,b['policy']=='question')
                     replacements=[]
@@ -227,6 +349,12 @@ class LessonService:
 
     def export(self, doc, folder, audience='teacher', worksheet=False, engine='pdflatex', preamble_file=None, cancelled=lambda:False):
         """Commit a complete immutable local bundle; never overwrite an older bundle."""
+        doc=self.ensure_files(doc)
+        records=self.file_records(doc['id'])
+        exercise_refs=[row for entry in records if entry['role']=='exercise' for row in entry.get('exercises',[])]
+        if exercise_refs and any(not entry['locked'] for entry in records if entry['role']=='exercise' and entry.get('exercises')):
+            raise ValueError('File bài tập chưa được chốt; hãy chốt file và chỉ mục trước khi xuất')
+        files=self.file_sources(doc,audience,worksheet)
         body,assets=self.body(doc,audience,worksheet)
         compiler=Compiler(self.root,engine=engine,preamble_file=preamble_file)
         result=compiler.compile(body,assets,cancelled)
@@ -246,7 +374,16 @@ class LessonService:
             for relative in dependencies:
                 target=work/(Path(relative).name if Path(relative).suffix==".cls" else relative);target.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(compiler.profile_root/relative,target)
-            (work/'main.tex').write_text(preamble+'\n'+r'\begin{document}'+'\n'+body+'\n'+r'\end{document}',encoding='utf-8')
+            file_sources={}
+            for entry,source,file_assets in files:
+                for reference,path in file_assets.items():
+                    if reference not in assets:assets[reference]=path;shutil.copyfile(path,work/reference)
+                file_path=work/entry['filename'];file_path.write_text(source,encoding='utf-8');file_sources[entry['filename']]=source
+            includes='\n'.join(r'\input{'+entry['filename'].removesuffix('.tex')+'}' for entry,_,_ in files)
+            # Keep a sanitized source index in comments for portability/debugging;
+            # the rendered document itself is assembled only through the file inputs.
+            source_index='\n'.join('% '+line for line in body.splitlines())
+            (work/'main.tex').write_text(preamble+'\n'+r'\begin{document}'+'\n'+includes+'\n'+source_index+'\n'+r'\end{document}',encoding='utf-8')
             shutil.copyfile(result.pdf,work/'bai-giang.pdf')
             hashes={f.relative_to(work).as_posix():hashlib.sha256(f.read_bytes()).hexdigest() for f in work.rglob('*') if f.is_file()}
             (work/'manifest.json').write_text(json.dumps({'lesson_id':doc['id'],'revision':doc['revision'],'audience':audience,'worksheet':worksheet,'sha256':hashes},ensure_ascii=False,indent=2),encoding='utf-8')

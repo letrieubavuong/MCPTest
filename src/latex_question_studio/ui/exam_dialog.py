@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal,Qt
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QFormLayout,QLineEdit,QSpinBox,QCheckBox,QTableWidget,QTableWidgetItem,QPushButton,QDialogButtonBox,QLabel,QSplitter,QTreeWidget,QTreeWidgetItem,QHBoxLayout,QComboBox,QToolBar
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QFormLayout,QLineEdit,QSpinBox,QCheckBox,QTableWidget,QTableWidgetItem,QPushButton,QDialogButtonBox,QLabel,QSplitter,QTreeWidget,QTreeWidgetItem,QHBoxLayout,QComboBox,QToolBar,QTabBar,QStackedWidget,QListWidget,QListWidgetItem,QHeaderView
 
 class ExamDialog(QWidget):
     submitted = Signal()
@@ -8,8 +8,13 @@ class ExamDialog(QWidget):
         super().__init__(parent);self.manual_ids=list(manual_ids);self.services=services;self.scope=None;self.run_job=run_job;self.stats_generation=0;self.stats_job=None;self.available=None;self.snapshot=None
         from latex_question_studio.ui.components.workspace import Workspace,CommandToolbar
         from latex_question_studio.ui.panels.question_preview import QuestionPreview
-        from PySide6.QtWidgets import QListWidget,QHeaderView
         layout=QVBoxLayout(self);layout.setContentsMargins(8,8,8,8);layout.setSpacing(6);layout.addWidget(QLabel('RA ĐỀ THI'))
+        self.exam_steps=QListWidget();self.exam_steps.setObjectName('examSteps');self.exam_steps.setFixedWidth(160)
+        for index,(title,detail) in enumerate([('Thông tin đề','Tên, seed, hình thức'),('Chọn câu hỏi','Ma trận và danh sách câu'),('Cấu hình','Xáo câu, đáp án'),('Xem trước','Kiểm tra đề đã tạo'),('Xuất đề','TeX, PDF, đáp án')]):
+            self.exam_steps.addItem(QListWidgetItem(f'{index+1}  {title}\n     {detail}'))
+        self.modes=QTabBar();self.modes.addTab('Từ ngân hàng câu hỏi');self.modes.addTab('Trộn từ file TeX');layout.addWidget(self.modes)
+        self.mode_stack=QStackedWidget();body=QHBoxLayout();body.addWidget(self.exam_steps);body.addWidget(self.mode_stack,1);layout.addLayout(body,1)
+        bank_page=QWidget();self.mode_stack.addWidget(bank_page);self.bank_layout=QVBoxLayout(bank_page);self.bank_layout.setContentsMargins(0,0,0,0);layout=self.bank_layout
         self.toolbar=CommandToolbar('Ra đề thi',self);layout.addWidget(self.toolbar)
         self.generate_action=self.toolbar.command('exam','Tạo đề',self.submitted.emit,True)
         self.select_action=self.toolbar.command('bank','Lấy câu đang chọn từ CSDL',self.use_selection.emit)
@@ -43,7 +48,7 @@ class ExamDialog(QWidget):
         self.matrix.horizontalHeader().setStretchLastSection(True);box.addWidget(self.matrix,1)
         self.matrix_summary=QLabel('Ma trận: 0 câu');self.matrix_summary.setWordWrap(True);box.addWidget(self.matrix_summary);self.matrix.itemChanged.connect(self.update_matrix_summary)
         right=QWidget();rb=QVBoxLayout(right);rb.setContentsMargins(0,0,0,0);rb.addWidget(QLabel('CÂU ĐÃ CHỌN / CẤU TRÚC ĐỀ'))
-        self.chosen=QListWidget();self.chosen.setMaximumHeight(180);rb.addWidget(self.chosen)
+        self.chosen=QListWidget();self.chosen.setMinimumWidth(220);self.chosen.setMaximumHeight(280);rb.addWidget(self.chosen)
         self.preview=QuestionPreview(services,run_job);rb.addWidget(self.preview,1);self.workspace.addWidget(right);self.workspace.setSizes([260,620,420]);self.chosen.currentRowChanged.connect(self.preview_selected)
         self.nodes=[];self.tree_items={}
         if services:
@@ -57,6 +62,12 @@ class ExamDialog(QWidget):
         self.question_type.currentIndexChanged.connect(self.refresh_statistics)
         self.set_manual_ids(manual_ids)
         if services:self.refresh_statistics()
+        from latex_question_studio.ui.tex_exam_page import TexExamPage
+        self.tex_page=TexExamPage(services,run_job,self);self.mode_stack.addWidget(self.tex_page);self.modes.currentChanged.connect(self.mode_stack.setCurrentIndex)
+        self.set_exam_step(1)
+
+    def set_exam_step(self,index):
+        index=max(0,min(index,self.exam_steps.count()-1));self.exam_steps.setCurrentRow(index)
 
     def update_shortage(self,*args):
         if not self.available:return
@@ -136,7 +147,7 @@ class ExamDialog(QWidget):
         job.signals.failed.connect(failed);self.run_job(job)
 
     def closeEvent(self,event):
-        self.cancel_statistics();self.preview.cancel();super().closeEvent(event)
+        self.cancel_statistics();self.preview.cancel();self.tex_page.cancel_all();super().closeEvent(event)
 
     def add_scope_rows(self):
         from latex_question_studio.domain.curriculum import classification,breadcrumb

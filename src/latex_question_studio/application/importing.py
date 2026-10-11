@@ -7,6 +7,7 @@ import uuid
 from latex_question_studio.parsing.latex import parse_questions, normalized_source
 from latex_question_studio.domain.question import Question
 from latex_question_studio.persistence.questions import QuestionRepository
+from latex_question_studio.application.assets import AssetResolver, AssetStore, serialize_graph
 
 class ImportCancelled(Exception):
     pass
@@ -15,6 +16,8 @@ class ImportService:
     def __init__(self, services):
         self.services = services
         self.root = services.config.data_dir
+        self.resolver = AssetResolver()
+        self.asset_store = AssetStore(self.root)
 
     def stage(self, paths, cancelled=lambda: False, progress=lambda done, total: None):
         batch = str(uuid.uuid4())
@@ -40,6 +43,10 @@ class ImportService:
             except UnicodeError:
                 source, parsed = '', []
             source_records.append((file_id, str(path), encoding, str(archive.relative_to(self.root)), digest))
+            graph = None
+            if source:
+                graph = self.resolver.resolve(source, path, cancelled)
+            graph_by_reference = graph.by_reference() if graph else {}
             if not parsed:
                 results.append({'id':str(uuid.uuid4()),'file_id':file_id,'path':str(path),'source':'', 'start':0,'end':len(raw),
                     'errors':[{'message':'Không giải mã được file; byte gốc đã lưu trong archive','line':1,'column':1}], 'parsed':{}})
@@ -48,20 +55,34 @@ class ImportService:
                 errors = [asdict(d) for d in item.diagnostics]
                 assets = []
                 for reference in item.assets:
-                    candidate = path.parent / reference
-                    options = [candidate] if candidate.suffix else [candidate.with_suffix(ext) for ext in ('.pdf','.png','.jpg','.jpeg')]
-                    found = next((p for p in options if p.is_file()), None)
-                    if found:
+                    resolution = next((entry for entry in graph_by_reference.get(reference, ()) if entry.dependency_type == 'image'), None)
+                    if resolution and resolution.resolution_status == 'RESOLVED' and resolution.selected_path:
+                        found = Path(resolution.selected_path)
                         asset_raw = found.read_bytes()
                         asset_hash = hashlib.sha256(asset_raw).hexdigest()
-                        stored = self.root / 'assets' / (asset_hash + found.suffix.lower())
-                        stored.parent.mkdir(parents=True, exist_ok=True)
-                        if not stored.exists(): stored.write_bytes(asset_raw)
-                        assets.append({'reference':reference,'hash':asset_hash,'relative_path':str(stored.relative_to(self.root)),'bytes':len(asset_raw)})
+                        stored = self.asset_store.stage_bytes(asset_raw, found.suffix.lower(), batch)
+                        assets.append({'reference':reference,'hash':asset_hash,'relative_path':stored['relative_path'],
+                                       'staging_path':stored['staging_path'],
+                                       'bytes':len(asset_raw),'source_context':resolution.source_context,
+                                       'dependency_type':resolution.dependency_type,'resolution_status':resolution.resolution_status,
+                                       'candidates':list(resolution.candidates)})
                     else:
-                        errors.append({'message':f'Thiếu tài nguyên: {reference}','line':source.count('\n',0,item.start)+1,'column':1})
+                        status = resolution.resolution_status if resolution else 'MISSING_ASSET'
+                        message = resolution.message if resolution else f'Thiếu tài nguyên: {reference}'
+                        assets.append({'reference':reference,'hash':'','relative_path':'','staging_path':'','bytes':0,
+                                       'source_context':resolution.source_context if resolution else str(path.parent.resolve()),
+                                       'dependency_type':resolution.dependency_type if resolution else 'image',
+                                       'resolution_status':status,'candidates':list(resolution.candidates) if resolution else []})
+                        errors.append({'message':f'{status}: {reference} — {message}','line':source.count('\n',0,item.start)+1,'column':1})
+                if graph:
+                    for dependency in graph.references:
+                        if dependency.resolution_status != 'RESOLVED' and dependency.dependency_type != 'image':
+                            errors.append({'message':f'{dependency.resolution_status}: {dependency.original_reference} — {dependency.message}',
+                                           'line':source.count('\n',0,item.start)+1,'column':1})
                 results.append({'id':str(uuid.uuid4()),'file_id':file_id,'path':str(path),'source':item.source,'start':item.start,'end':item.end,
-                    'errors':errors,'parsed':{'type':item.question_type,'solution':item.solution,'answer':item.answer,'environment':item.environment,'assets':assets,'analysis_hash':hashlib.sha256(item.source.encode()).hexdigest(),'analysis_version':PARSER_VERSION,'analysis_start':0,'analysis_end':len(item.source)}})
+                    'errors':errors,'parsed':{'type':item.question_type,'solution':item.solution,'answer':item.answer,'environment':item.environment,
+                    'assets':assets,'resource_graph':serialize_graph(graph) if graph else None,
+                    'analysis_hash':hashlib.sha256(item.source.encode()).hexdigest(),'analysis_version':PARSER_VERSION,'analysis_start':0,'analysis_end':len(item.source)}})
             progress(number + 1, len(paths))
         hashes=[hashlib.sha256(normalized_source(r['source']).encode()).hexdigest() for r in results]
         existing=set()
@@ -100,6 +121,13 @@ class ImportService:
         return values
 
     def commit(self, batch, selected_ids=None, cancelled=lambda:False):
+        try:
+            return self._commit(batch, selected_ids, cancelled)
+        finally:
+            # A canceled or failed commit must not leave a durable staging tree.
+            self.asset_store.cleanup_batch(batch)
+
+    def _commit(self, batch, selected_ids=None, cancelled=lambda:False):
         count = 0
         now = datetime.now(timezone.utc).isoformat()
         with self.services.database.transaction() as connection:
@@ -123,9 +151,11 @@ class ImportService:
                     connection.execute('INSERT INTO question_taxonomy VALUES (?,?)',(question.id,values['taxonomy_id']))
                 snapshot={**question.__dict__,'metadata':{'answer':data['answer'],'environment':data['environment'],'source_origin':'original','import_item':row['id'],**values}}
                 connection.execute('INSERT INTO question_revisions VALUES (?,?,?,?)',(question.id,1,json.dumps(snapshot,ensure_ascii=False),now))
-                for asset in data['assets']:
+                for asset in data.get('assets',[]):
+                    self.asset_store.promote(asset)
                     connection.execute('INSERT OR IGNORE INTO assets VALUES (?,?,?,?)',(asset['hash'],asset['hash'],asset['relative_path'],asset['bytes']))
-                    connection.execute('INSERT INTO question_assets VALUES (?,?,?)',(question.id,asset['hash'],asset['reference']))
+                    connection.execute('INSERT INTO question_assets(question_id,asset_id,original_reference,source_context,dependency_type,resolution_status,candidates_json) VALUES (?,?,?,?,?,?,?)',
+                                       (question.id,asset['hash'],asset['reference'],asset.get('source_context','legacy'),asset.get('dependency_type','image'),asset.get('resolution_status','RESOLVED'),json.dumps(asset.get('candidates',[]),ensure_ascii=False)))
                 connection.execute("UPDATE import_items SET status='imported',question_id=? WHERE id=?",(question.id,row['id']))
                 count += 1
             connection.execute("UPDATE import_batches SET status='reviewed' WHERE id=?",(batch,))
@@ -143,16 +173,19 @@ class ImportService:
         items=parse_questions(source)
         if len(items)!=1:raise ValueError('Mỗi mục sửa phải chứa đúng một câu')
         item=items[0];errors=[asdict(d) for d in item.diagnostics];assets=[]
+        graph=self.resolver.resolve(source,Path(row['original_path']),lambda:False)
+        graph_by_reference=graph.by_reference()
         for reference in item.assets:
-            candidate=Path(row['original_path']).parent/reference
-            options=[candidate] if candidate.suffix else [candidate.with_suffix(ext) for ext in ('.pdf','.png','.jpg','.jpeg')]
-            found=next((p for p in options if p.is_file()),None)
-            if not found:errors.append({'message':'Thiếu ảnh: '+reference,'line':1,'column':1});continue
-            raw=found.read_bytes();digest=hashlib.sha256(raw).hexdigest();stored=self.root/'assets'/(digest+found.suffix.lower());stored.parent.mkdir(exist_ok=True)
-            if not stored.exists():stored.write_bytes(raw)
-            assets.append({'reference':reference,'hash':digest,'relative_path':str(stored.relative_to(self.root)),'bytes':len(raw)})
+            resolution=next((entry for entry in graph_by_reference.get(reference,()) if entry.dependency_type=='image'),None)
+            found=Path(resolution.selected_path) if resolution and resolution.resolution_status=='RESOLVED' and resolution.selected_path else None
+            if not found:errors.append({'message':(resolution.resolution_status if resolution else 'MISSING_ASSET')+': '+reference,'line':1,'column':1});continue
+            raw=found.read_bytes();digest=hashlib.sha256(raw).hexdigest();stored=self.asset_store.stage_bytes(raw,found.suffix.lower(),row['batch_id'])
+            assets.append({'reference':reference,'hash':digest,'relative_path':stored['relative_path'],'staging_path':stored['staging_path'],'bytes':len(raw),
+                           'source_context':resolution.source_context,'dependency_type':resolution.dependency_type,
+                           'resolution_status':resolution.resolution_status,'candidates':list(resolution.candidates)})
         from latex_question_studio.persistence.analysis import PARSER_VERSION
-        data={'classification':json.loads(row['parsed_json']).get('classification',{}),'type':item.question_type,'solution':item.solution,'answer':item.answer,'environment':item.environment,'assets':assets,'analysis_hash':hashlib.sha256(source.encode()).hexdigest(),'analysis_version':PARSER_VERSION,'analysis_start':item.start,'analysis_end':item.end}
+        data={'classification':json.loads(row['parsed_json']).get('classification',{}),'type':item.question_type,'solution':item.solution,'answer':item.answer,'environment':item.environment,'assets':assets,
+              'resource_graph':serialize_graph(graph),'analysis_hash':hashlib.sha256(source.encode()).hexdigest(),'analysis_version':PARSER_VERSION,'analysis_start':item.start,'analysis_end':item.end}
         with self.services.database.transaction() as c:
             c.execute('UPDATE import_items SET working_source=?,diagnostics_json=?,parsed_json=?,status=? WHERE id=?',(source,json.dumps(errors,ensure_ascii=False),json.dumps(data,ensure_ascii=False),'error' if errors else 'ready',item_id))
             c.execute('INSERT INTO import_repairs VALUES (?,?,?,?,?)',(str(uuid.uuid4()),item_id,source,json.dumps(errors,ensure_ascii=False),datetime.now(timezone.utc).isoformat()))

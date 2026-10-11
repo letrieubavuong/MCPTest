@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
 from PySide6.QtGui import QAction, QKeySequence, QPixmap, QPalette, QColor
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
     QDockWidget, QTreeWidget, QTreeWidgetItem, QTabWidget, QPlainTextEdit, QTableView,
-    QToolBar, QMessageBox, QSplitter, QFileDialog, QProgressBar, QDialog, QInputDialog, QScrollArea, QMenu, QHBoxLayout, QStackedWidget, QListWidget, QLineEdit, QFormLayout, QStyle)
+    QToolBar, QMessageBox, QSplitter, QFileDialog, QProgressBar, QDialog, QInputDialog, QScrollArea, QMenu, QHBoxLayout, QStackedWidget, QListWidget, QLineEdit, QFormLayout, QStyle, QGroupBox)
 from latex_question_studio.application.services import Services
 
 class QuestionTableModel(QAbstractTableModel):
@@ -43,6 +43,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.services = services
         self.setWindowTitle("LaTeX Question Studio")
+        from latex_question_studio.ui.icons import application_icon
+        self.setWindowIcon(application_icon())
         self.resize(1380, 860)
         self.setMinimumSize(800, 500)
         self.editors = {}
@@ -116,7 +118,11 @@ class MainWindow(QMainWindow):
         self.library_vertical.setSizes([640,120])
         self.library_control.setCentralWidget(self.library_vertical)
         self.build_pages()
+        from latex_question_studio.ui.dashboard import DashboardPage
+        self.dashboard_page=DashboardPage(self.services,{'import':lambda:self.show_page(1),'exam':lambda:self.show_page(2),'library':lambda:self.show_page(0),'settings':lambda:self.show_page(3)},self.pages)
+        self.pages.addWidget(self.dashboard_page)
         self.csdl_menu = self.menuBar().addMenu("CSDL")
+        self.shell.home_clicked.connect(self.open_dashboard)
         self.navigation.currentRowChanged.connect(self.show_page)
         self.navigation.setCurrentRow(0)
         self.add_action("Xem CSDL", lambda: self.show_page(0), "Ctrl+1", activity=True)
@@ -158,6 +164,7 @@ class MainWindow(QMainWindow):
         self.ensure_library_tree()
         self.apply_theme()
         self.refresh_status()
+        if not self.layout_path.exists():self.open_dashboard()
 
     def build_pages(self):
         self.import_page = QWidget()
@@ -165,26 +172,22 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(self.import_page)
         layout.addWidget(QLabel("NHẬP CÂU HỎI"))
         self.import_toolbar=QToolBar('Nhập câu hỏi',self.import_page)
+        self.import_toolbar.setObjectName('importContextToolbar');self.import_toolbar.setMovable(False)
         self.import_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         from latex_question_studio.ui.icons import icon
-        for name,text,callback in (('import','Chọn file TeX',self.import_files),('chapter','Chọn thư mục',self.import_folder),('bank','Hàng chờ / Sửa lỗi',self.show_pending)):
-            action=self.import_toolbar.addAction(icon(name,'#4ba3eb'),text);action.setToolTip(text);action.triggered.connect(callback)
-            if name=='import':self.import_toolbar.widgetForAction(action).setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         layout.addWidget(self.import_toolbar)
-        self.import_steps=QLabel('1 Chọn tệp   →   2 Phân tích   →   3 Duyệt / phân loại   →   4 Xác nhận nhập')
-        layout.addWidget(self.import_steps)
-        self.import_status = QLabel("Chọn file hoặc thư mục LaTeX để xem trước, rồi xác nhận nhập.")
-        self.import_status.setWordWrap(True)
-        layout.addWidget(self.import_status)
-        self.import_progress = QProgressBar(); self.import_progress.setValue(0)
-        layout.addWidget(self.import_progress)
-        self.import_cancel=self.import_toolbar.addAction(icon('close','#4ba3eb'),'Hủy phân tích')
-        self.import_cancel.setToolTip('Hủy phân tích file TeX đang chạy');self.import_cancel.setEnabled(False)
+        self.import_cancel=self.import_toolbar.addAction(icon('close','#4ba3eb'),'Hủy tác vụ')
+        self.import_cancel.setToolTip('Hủy phân tích hoặc ghi câu hỏi đang chạy');self.import_cancel.setEnabled(False)
+        self.import_toolbar.widgetForAction(self.import_cancel).setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.import_cancel.triggered.connect(self.cancel_import)
-        self.import_content_host = QWidget(self.import_page)
-        self.import_content = QVBoxLayout(self.import_content_host)
-        self.import_content.setContentsMargins(0,0,0,0)
-        layout.addWidget(self.import_content_host,1)
+        from latex_question_studio.ui.import_workflow import ImportWorkflow
+        self.import_workflow=ImportWorkflow({'file':self.import_files,'folder':self.import_folder,'pending':self.show_pending},self.import_page)
+        self.import_steps=self.import_workflow.steps;self.import_status=self.import_workflow.status;self.import_progress=self.import_workflow.progress
+        self.import_content_host=self.import_workflow.content_host;self.import_content=self.import_workflow.content
+        layout.addWidget(self.import_workflow,1)
+        self.import_workflow.step_changed.connect(self.update_import_controls)
+        self.import_cancel.changed.connect(self.update_import_controls)
+        self.update_import_controls()
         self.pages.addWidget(self.import_page)
         from latex_question_studio.ui.exam_dialog import ExamDialog
         self.exam_page = ExamDialog([], self.pages,services=self.services,run_job=self.start_job)
@@ -193,7 +196,7 @@ class MainWindow(QMainWindow):
         self.exam_page.use_selection.connect(self.use_exam_selection)
         self.exam_status = QLabel("Chọn câu trong Xem CSDL rồi lấy vào đề, hoặc thêm hàng ma trận.")
         self.exam_status.setWordWrap(True)
-        self.exam_page.layout().addWidget(self.exam_status)
+        self.exam_page.bank_layout.addWidget(self.exam_status)
         self.exam_page.toolbar.addSeparator()
         self.exam_cancel=self.exam_page.toolbar.addAction(icon('close','#4ba3eb'),'Hủy tạo đề')
         self.exam_cancel.setToolTip('Hủy tác vụ tạo đề đang chạy');self.exam_cancel.setEnabled(False);self.exam_cancel.triggered.connect(self.cancel_exam)
@@ -214,6 +217,12 @@ class MainWindow(QMainWindow):
         layout.addLayout(form)
         button = QPushButton("Lưu cấu hình"); button.clicked.connect(self.save_compiler_settings); layout.addWidget(button)
         button = QPushButton("Đổi giao diện sáng / tối"); button.clicked.connect(self.toggle_theme); layout.addWidget(button)
+        asset_group=QGroupBox('Quản lý tài nguyên');asset_layout=QVBoxLayout(asset_group)
+        self.asset_report=QLabel('Chưa quét kho tài nguyên.');self.asset_report.setWordWrap(True);asset_layout.addWidget(self.asset_report)
+        scan_assets=QPushButton('Quét integrity kho tài nguyên');scan_assets.clicked.connect(self.scan_assets);asset_layout.addWidget(scan_assets)
+        gc_assets=QPushButton('Xem asset không còn liên kết');gc_assets.clicked.connect(self.preview_asset_gc);asset_layout.addWidget(gc_assets)
+        remove_assets=QPushButton('Dọn asset sau khi xác nhận');remove_assets.clicked.connect(self.remove_unlinked_assets);asset_layout.addWidget(remove_assets)
+        layout.addWidget(asset_group)
         self.settings_status = QLabel(); layout.addWidget(self.settings_status); layout.addStretch()
         self.pages.addWidget(self.settings_page)
         from latex_question_studio.ui.lesson_page import LessonPage
@@ -223,9 +232,19 @@ class MainWindow(QMainWindow):
     def show_page(self, index):
         if not 0 <= index < self.pages.count(): return
         self.pages.setCurrentIndex(index)
+        self.shell.home.setChecked(index==getattr(self,'dashboard_index',-1))
         if index==0 and hasattr(self,"library_ui"):self.ensure_library_tree()
-        self.statusBar().showMessage(["CSDL", "Nhập câu hỏi", "Ra đề thi", "Cài đặt", "Bài giảng"][index]+f" · {len(self.all_jobs)} tác vụ đang chạy")
-        if self.navigation.currentRow() != index: self.navigation.setCurrentRow(index)
+        self.statusBar().showMessage(["CSDL", "Nhập câu hỏi", "Ra đề thi", "Cài đặt", "Bài giảng", "Dashboard"][index]+f" · {len(self.all_jobs)} tác vụ đang chạy")
+        if index < self.navigation.count() and self.navigation.currentRow() != index: self.navigation.setCurrentRow(index)
+        if hasattr(self.shell, 'set_navigation_icons'): self.shell.set_navigation_icons(self.theme, index, False)
+
+    def open_dashboard(self):
+        self.dashboard_index=self.pages.indexOf(self.dashboard_page)
+        self.pages.setCurrentIndex(self.dashboard_index)
+        self.navigation.blockSignals(True);self.navigation.clearSelection();self.navigation.blockSignals(False)
+        self.shell.home.setChecked(True);self.dashboard_page.refresh()
+        if hasattr(self.shell, 'set_navigation_icons'): self.shell.set_navigation_icons(self.theme, None, True)
+        self.statusBar().showMessage(f"Dashboard · {len(self.all_jobs)} tác vụ đang chạy")
 
     def ensure_library_tree(self):
         self.explorer_dock.show()
@@ -272,6 +291,7 @@ class MainWindow(QMainWindow):
             self.table_model.replace_rows(self.library_page())
             if hasattr(self,"library_ui"):
                 self.library_ui.update_table_details();self.library_ui.sync_cards();self.library_ui.update_scope(count)
+            if hasattr(self,'dashboard_page'):self.dashboard_page.refresh()
             if refresh_tree:self.refresh_taxonomy()
             self.database_status.setText(f"Cơ sở dữ liệu đã sẵn sàng • {count} câu hỏi • Trang {self.offset // 100 + 1}")
             from latex_question_studio.application.search import SearchService
@@ -328,6 +348,28 @@ class MainWindow(QMainWindow):
             LibraryService(self.services).save_metadata(q.id,{'taxonomy_id':self.selected_taxonomy})
         self.refresh_status()
         self.open_question(q.id)
+
+    def scan_assets(self):
+        from latex_question_studio.application.library import LibraryService
+        report=LibraryService(self.services).asset_report()
+        self.asset_report.setText(f"{report['asset_count']} asset · {report['bytes']} bytes · thiếu {report['missing']} · hỏng {report['corrupt']} · không liên kết {report['unlinked']}")
+        self.logs.appendPlainText(json.dumps(report,ensure_ascii=False,indent=2))
+        return report
+
+    def preview_asset_gc(self):
+        from latex_question_studio.application.library import LibraryService
+        report=LibraryService(self.services).asset_gc(dry_run=True)
+        self.asset_report.setText(f"Có thể dọn {len(report['removable'])} asset không còn liên kết (dry-run, chưa xóa).")
+        self.logs.appendPlainText(json.dumps(report,ensure_ascii=False,indent=2))
+        return report
+
+    def remove_unlinked_assets(self):
+        from PySide6.QtWidgets import QMessageBox
+        report=self.preview_asset_gc()
+        if not report['removable']:return report
+        if QMessageBox.question(self,'Xác nhận dọn kho',f"Xóa {len(report['removable'])} asset không còn liên kết?\nBản ghi câu hỏi và revision còn tham chiếu sẽ không bị xóa.")!=QMessageBox.StandardButton.Yes:return report
+        result=__import__('latex_question_studio.application.library',fromlist=['LibraryService']).LibraryService(self.services).asset_gc(dry_run=False)
+        self.scan_assets();return result
 
     def dirty_changed(self, editor, modified):
         index = self.tabs.indexOf(editor)
@@ -395,9 +437,12 @@ class MainWindow(QMainWindow):
         from latex_question_studio.ui.themes.design import apply,TOKENS
         from latex_question_studio.ui.icons import icon
         apply(self.theme)
-        for i,name in enumerate(('bank','import','exam','settings','lesson')):self.navigation.item(i).setIcon(icon(name,TOKENS[self.theme]['fg']))
+        if hasattr(self.shell, 'set_navigation_icons'):
+            active_index = self.navigation.currentRow() if self.pages.currentIndex() != getattr(self, 'dashboard_index', -1) else None
+            self.shell.set_navigation_icons(self.theme, active_index, self.pages.currentIndex() == getattr(self, 'dashboard_index', -1))
         for editor in self.editors:editor.set_theme(self.theme)
         self.lesson_page.editor.set_theme(self.theme)
+        if hasattr(self,'dashboard_page'):self.dashboard_page.refresh()
 
     def toggle_theme(self):
         self.theme = "light" if self.theme == "dark" else "dark"
@@ -424,6 +469,7 @@ class MainWindow(QMainWindow):
                 if lesson:
                     self.lesson_page.reload_list(lesson['id']);self.lesson_page.load(lesson)
             self.show_page(state.get("page", 0))
+            self.exam_page.modes.setCurrentIndex(min(1,max(0,state.get('exam_mode',0))))
             for split in self.findChildren(QSplitter):
                 name=split.objectName()
                 if name and hasattr(split,'restore'):split.restore(state.get('panels',{}).get(name,{}))
@@ -440,7 +486,7 @@ class MainWindow(QMainWindow):
             item=iterator.value()
             if item.isExpanded() and item.data(0,Qt.ItemDataRole.UserRole):expanded.append(item.data(0,Qt.ItemDataRole.UserRole))
             iterator+=1
-        state = {"version": 3, "panels":{**getattr(self,"restored_panels",{}),**{split.objectName():split.state() for split in self.findChildren(QSplitter) if split.objectName() and hasattr(split,"state")}}, "library_vertical":self.library_vertical.sizes(), "preview_visible":not self.preview_dock.isHidden(),"logs_visible":not self.log_dock.isHidden(), "taxonomy_id":getattr(self,'selected_taxonomy',None),"taxonomy_expanded":expanded, "page": self.pages.currentIndex(), "drawer_collapsed": self.sidebar_collapsed, "lesson_id": self.lesson_page.doc["id"] if self.lesson_page.doc else None, "geometry": base64.b64encode(bytes(self.saveGeometry())).decode(),
+        state = {"version": 3, "exam_mode":self.exam_page.modes.currentIndex(), "panels":{**getattr(self,"restored_panels",{}),**{split.objectName():split.state() for split in self.findChildren(QSplitter) if split.objectName() and hasattr(split,"state")}}, "library_vertical":self.library_vertical.sizes(), "preview_visible":not self.preview_dock.isHidden(),"logs_visible":not self.log_dock.isHidden(), "taxonomy_id":getattr(self,'selected_taxonomy',None),"taxonomy_expanded":expanded, "page": self.pages.currentIndex(), "drawer_collapsed": self.sidebar_collapsed, "lesson_id": self.lesson_page.doc["id"] if self.lesson_page.doc else None, "geometry": base64.b64encode(bytes(self.saveGeometry())).decode(),
                  "layout": base64.b64encode(bytes(self.library_control.saveState())).decode(), "tabs": [q.id for q in self.editors.values()]}
         temp = self.layout_path.with_suffix(".tmp")
         temp.write_text(json.dumps(state), encoding="utf-8")
@@ -452,7 +498,9 @@ class MainWindow(QMainWindow):
         self.library_ui.preview_timer.stop();self.library_ui.timer.stop()
         self.exam_page.cancel_statistics()
         self.exam_page.preview.cancel()
+        self.exam_page.tex_page.cancel_all()
         self.lesson_page.cancel_preview()
+        self.lesson_page.close_visual()
         if hasattr(getattr(self,'import_review',None),'cancel_preview'):self.import_review.cancel_preview()
         open_ids = [q.id for q in self.editors.values()]
         # Resolve every dirty document before changing any tab or persisted workspace.
@@ -490,9 +538,11 @@ class MainWindow(QMainWindow):
         importer = ImportService(self.services)
         self.import_job = Job(lambda cancelled, progress: importer.stage(paths,cancelled,progress))
         self.show_page(1)
+        self.import_workflow.set_step(1)
+        self.import_workflow.source_path.setText('Nguồn: '+', '.join(str(path) for path in paths[:3]) + (' …' if len(paths)>3 else ''))
         self.import_progress.setRange(0, len(paths))
         self.import_progress.setValue(0)
-        self.import_steps.setText("Chọn tệp ✓  →  PHÂN TÍCH  →  Duyệt / phân loại  →  Xác nhận")
+        self.import_workflow.stats_strip.set_values(0,0,0,0)
         self.import_status.setText("Đang phân tích LaTeX…")
         self.import_cancel.setEnabled(True)
         self.import_job.signals.progress.connect(lambda done,total:self.import_progress.setValue(done))
@@ -505,10 +555,22 @@ class MainWindow(QMainWindow):
             job=getattr(self,name,None)
             if job:job.cancelled.set()
 
+    def update_import_controls(self,*args):
+        busy=bool(getattr(self,'import_job',None) or getattr(self,'commit_job',None))
+        reviewing=self.import_workflow.pages.currentIndex()==3
+        actions=getattr(self,'import_review_actions',[])
+        for action in actions:action.setVisible(reviewing)
+        self.import_cancel.setVisible(busy)
+        self.import_toolbar.setVisible(busy or (reviewing and bool(actions)))
+        self.import_workflow.steps.setEnabled(not busy)
+        for button in (self.import_workflow.file_button,self.import_workflow.folder_button,self.import_workflow.pending_button):
+            button.setEnabled(not busy)
+
     def import_failed(self, error):
         self.import_job = None
         self.import_cancel.setEnabled(False)
         self.import_status.setText("Nhập dữ liệu đã dừng: " + error)
+        self.import_workflow.set_step(0)
         self.logs.appendPlainText("Nhập dữ liệu đã dừng: " + error)
 
     def import_ready(self, result):
@@ -516,12 +578,19 @@ class MainWindow(QMainWindow):
         self.import_job = None
         self.import_cancel.setEnabled(False)
         batch, results = result
-        self.import_steps.setText("Chọn tệp ✓  →  Phân tích ✓  →  DUYỆT / PHÂN LOẠI  →  Xác nhận")
+        self.import_workflow.set_step(3)
+        self.import_workflow.resource_status.setText(f"Đã phân tích {len(results)} mục; kiểm tra trạng thái và tài nguyên trong bước Xem trước.")
+        errors=sum(bool(row.get('errors')) for row in results);missing=sum('MISSING_ASSET' in error.get('message','') or 'AMBIGUOUS_ASSET' in error.get('message','') for row in results for error in row.get('errors',[]));self.import_workflow.stats_strip.set_values(len(results),len(results)-errors,missing,errors-missing)
         self.import_status.setText(f"Đã phân tích {len(results)} mục. Xem và xác nhận bên dưới.")
         review = ImportReview(results, self.import_page,services=self.services)
+        review.batch_id = batch
         review.accepted.connect(lambda: self.commit_import(batch, review))
-        review.rejected.connect(lambda: self.import_status.setText("Đã giữ batch trong hàng chờ."))
+        review.rejected.connect(self.leave_import_review)
         self.replace_import_content(review)
+
+    def leave_import_review(self):
+        self.import_status.setText('Đã giữ batch trong hàng chờ.')
+        self.import_workflow.set_step(0)
 
     def commit_import(self, batch, review):
         from latex_question_studio.application.importing import ImportService
@@ -529,10 +598,10 @@ class MainWindow(QMainWindow):
         if getattr(self, 'commit_job', None): return
         review.cancel_preview();review.setEnabled(False)
         for action in self.import_review_actions:action.setEnabled(False)
-        self.import_cancel.setEnabled(True)
         selected_ids=review.selected_ids() if hasattr(review,"selected_ids") else None
         job = Job(lambda cancelled,progress:ImportService(self.services).commit(batch,selected_ids=selected_ids,cancelled=cancelled))
         self.commit_job = job
+        self.import_cancel.setEnabled(True)
         job.signals.completed.connect(self.commit_ready)
         def failed(error):
             self.commit_job = None
@@ -540,6 +609,7 @@ class MainWindow(QMainWindow):
             for action in self.import_review_actions:action.setEnabled(True)
             self.import_cancel.setEnabled(False)
             self.import_status.setText('Ghi batch lỗi: ' + error)
+            self.import_workflow.set_step(3)
         job.signals.failed.connect(failed)
         self.start_job(job)
 
@@ -560,7 +630,6 @@ class MainWindow(QMainWindow):
             widget.workspace.restore(getattr(self,'restored_panels',{}).get(widget.workspace.objectName(),{}))
         if self.sidebar_collapsed and hasattr(widget,"workspace"):widget.workspace.widget(0).hide()
         if hasattr(widget,'toolbar'):
-            self.import_review_actions.append(self.import_toolbar.addSeparator())
             for action in list(widget.toolbar.actions()):
                 widget.toolbar.removeAction(action)
                 self.import_toolbar.addAction(action)
@@ -570,10 +639,12 @@ class MainWindow(QMainWindow):
                     button.setProperty('primary',bool(action.property('primary')))
                     button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon if button.property("primary") else Qt.ToolButtonStyle.ToolButtonIconOnly)
             widget.toolbar.hide()
+        self.import_workflow.set_step(3)
+        self.update_import_controls()
 
     def show_pending(self):
         from latex_question_studio.ui.pending_dialog import PendingDialog
-        if getattr(self, 'commit_job', None): return
+        if getattr(self, 'commit_job', None) or getattr(self,'import_job',None): return
         self.show_page(1)
         pending = PendingDialog(self.services, self.import_page)
         pending.committed.connect(self.refresh_status)
@@ -701,12 +772,14 @@ class MainWindow(QMainWindow):
 
     def editor_find(self):
         if self.pages.currentIndex()==4:
+            self.lesson_page.edit_mode.setCurrentIndex(1)
             self.lesson_page.editor.find_text();return
         editor=self.tabs.currentWidget()
         if editor in self.editors:editor.find_text()
 
     def editor_replace(self):
         if self.pages.currentIndex()==4:
+            self.lesson_page.edit_mode.setCurrentIndex(1)
             self.lesson_page.editor.replace_text();return
         editor=self.tabs.currentWidget()
         if editor in self.editors:editor.replace_text()
@@ -812,7 +885,8 @@ class MainWindow(QMainWindow):
 
     def selected_exam_ids(self):
         if hasattr(self,'library_ui') and self.tabs.currentIndex()==0 and self.library_ui.mode.currentIndex()==1:
-            return [item.data(Qt.ItemDataRole.UserRole) for item in self.library_ui.cards.selectedItems()]
+            card_ids=[item.data(Qt.ItemDataRole.UserRole) for item in self.library_ui.cards.selectedItems()]
+            if card_ids:return card_ids
         editor = self.tabs.currentWidget()
         return ([self.editors[editor].id] if editor in self.editors else
                 [self.table_model.rows[i.row()].id for i in self.table.selectionModel().selectedRows()])
@@ -821,12 +895,14 @@ class MainWindow(QMainWindow):
         self.show_page(2)
 
     def use_exam_selection(self):
+        self.exam_page.modes.setCurrentIndex(0)
         self.exam_page.set_manual_ids(self.selected_exam_ids())
 
     def generate_exam(self):
         from latex_question_studio.application.exams import ExamService
         from latex_question_studio.ui.jobs import Job
         if getattr(self,'exam_job',None):return
+        self.exam_page.set_exam_step(2)
         try:values=self.exam_page.values()
         except Exception as error:self.exam_status.setText('Không thể tạo đề: '+str(error));return
         self.exam_page.generate_action.setEnabled(False);self.exam_export.setEnabled(False);self.exam_cancel.setEnabled(True)
@@ -840,6 +916,7 @@ class MainWindow(QMainWindow):
             self.exam_status.setText(f"Đã tạo đề {version[:8]} gồm {len(snapshot['questions'])} câu • {len(warnings)} cặp trùng/gần trùng cần kiểm tra.")
             self.exam_status.setToolTip('\n'.join(f"{w['kind']}: {' / '.join(w['question_ids'])}" for w in warnings))
             self.exam_page.show_snapshot(snapshot)
+            self.exam_page.set_exam_step(3)
             self.exam_export.setEnabled(True);self.logs.appendPlainText(self.exam_status.text())
         def failed(message):finished();self.exam_status.setText('Tạo đề đã dừng: '+message)
         job.signals.completed.connect(ready);job.signals.failed.connect(failed);self.start_job(job)
@@ -861,10 +938,14 @@ class MainWindow(QMainWindow):
         from latex_question_studio.ui.jobs import Job
         mode,ok=QInputDialog.getItem(self,"Xuất đề","Nội dung:",["Đề học sinh","Đề kèm lời giải","Đáp án"],0,False)
         if not ok:return
-        path,selected=QFileDialog.getSaveFileName(self,"Xuất đề","de-kiem-tra.tex","LaTeX (*.tex);;PDF (*.pdf)")
+        self.exam_page.set_exam_step(4)
+        path,selected=QFileDialog.getSaveFileName(self,"Xuất đề","de-kiem-tra.tex","LaTeX (*.tex);;PDF (*.pdf);;Gói portable (*.zip)")
         if not path:return
         service=ExamService(self.services);solutions=mode=='Đề kèm lời giải';answer_only=mode=='Đáp án';config=self.compiler_config()
-        if path.lower().endswith('.pdf'):
+        if path.lower().endswith('.zip'):
+            preamble=Path(config['preamble_file']).read_text(encoding='utf-8-sig') if config.get('preamble_file') else None
+            service.export_zip(snapshot,path,solutions,preamble=preamble);self.logs.appendPlainText('Đã xuất gói đề portable cùng manifest/checksum.')
+        elif path.lower().endswith('.pdf'):
             job=Job(lambda cancelled,progress:service.export_pdf(snapshot,path,solutions,answer_only,engine=config.get('engine','pdflatex'),preamble_file=config.get('preamble_file') or None,cancelled=cancelled))
             self.export_job=job
             job.signals.completed.connect(self.exam_export_ready)
@@ -896,7 +977,8 @@ class MainWindow(QMainWindow):
 
     def commit_ready(self,count):
         self.commit_job=None
-        self.import_steps.setText("Chọn tệp ✓  →  Phân tích ✓  →  Duyệt ✓  →  NHẬP HOÀN TẤT")
+        self.import_workflow.set_step(4)
+        self.import_workflow.confirm_status.setText(f"Đã nhập {count} câu; mục lỗi vẫn giữ trong hàng chờ.")
         self.import_cancel.setEnabled(False)
         for action in self.import_review_actions:action.setEnabled(False)
         self.import_status.setText(f"Đã nhập {count} câu; mục lỗi vẫn giữ trong hàng chờ.")

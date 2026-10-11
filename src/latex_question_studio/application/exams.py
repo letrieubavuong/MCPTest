@@ -3,7 +3,9 @@ from datetime import datetime,timezone
 import json
 import random
 import shutil
+import tempfile
 import uuid
+import zipfile
 from latex_question_studio.parsing.latex import parse_questions,commands,group,skip_space
 from latex_question_studio.application.search import SearchService
 from latex_question_studio.preview.compiler import Compiler,BUILTIN_PREAMBLE
@@ -14,6 +16,28 @@ HIDE_ANSWERS = r"""\renewcommand{\True}{}
 \renewcommand{\shortans}[2][]{}
 \ifcsname hideansEX\endcsname\AtBeginDocument{\hideansEX{ex}}\fi
 """
+
+def shuffled_question(item, rng, shuffle_options=True):
+    source = item.source
+    permutation = []
+    if item.question_type in ('mcq', 'true_false'):
+        options = item.answer['options']
+        permutation = list(range(len(options)))
+        if shuffle_options and item.question_type == 'mcq':
+            rng.shuffle(permutation)
+        if item.question_type == 'mcq':
+            answer = {'correct_letter': next(chr(65+i) for i, old in enumerate(permutation) if options[old]['correct'])}
+        else:
+            answer = {'truth': [option['correct'] for option in options]}
+        if permutation != list(range(len(options))):
+            for index in reversed(range(len(options))):
+                option = options[index]
+                source = source[:option['start']+1] + options[permutation[index]]['source'] + source[option['end']-1:]
+    elif item.question_type == 'short_answer':
+        answer = {'value': item.answer['value']}
+    else:
+        answer = {'essay': True}
+    return {'source': source, 'permutation': permutation, 'answer': answer}
 
 class ExamService:
     def __init__(self,services):self.services=services
@@ -81,17 +105,9 @@ class ExamService:
             from latex_question_studio.persistence.analysis import parsed
             items=parsed(self.services.database,qid,q.latex_source)
             if len(items)!=1 or items[0].diagnostics:raise ValueError('Câu chưa phân tích hợp lệ: '+qid[:8])
-            item=items[0];source=q.latex_source;permutation=[];answer={}
-            if item.question_type in ('mcq','true_false'):
-                options=item.answer['options'];permutation=list(range(len(options)))
-                if shuffle_options and item.question_type=='mcq':rng.shuffle(permutation)
-                if item.question_type=='mcq':answer={'correct_letter':next(chr(65+i) for i,old in enumerate(permutation) if options[old]['correct'])}
-                else:answer={'truth':[o['correct'] for o in options]}
-                if permutation:
-                    start=item.start+options[0]['start'];end=item.start+options[-1]['end']
-                    source=source[:start]+'\n'.join('{'+options[i]['source']+'}' for i in permutation)+source[end:]
-            elif item.question_type=='short_answer':answer={'value':item.answer['value']}
-            else:answer={'essay':True}
+            item=items[0];shuffled=shuffled_question(item,rng,shuffle_options)
+            source=q.latex_source[:item.start]+shuffled['source']+q.latex_source[item.end:]
+            permutation=shuffled['permutation'];answer=shuffled['answer']
             replacements=[]
             with self.services.database.connect() as c:
                 assets={r['original_reference']:self.services.config.data_dir/r['relative_path'] for r in c.execute('SELECT qa.original_reference,a.relative_path FROM question_assets qa JOIN assets a ON qa.asset_id=a.id WHERE qa.question_id=?',(qid,))}
@@ -175,3 +191,19 @@ class ExamService:
         result=compiler.compile(self.content(snapshot,solutions,answer_only),snapshot['assets'],cancelled)
         if result.ok:shutil.copyfile(result.pdf,path)
         return result
+
+    def export_zip(self,snapshot,path,solutions=False,preamble=None,cancelled=lambda:False):
+        """Create a self-contained TeX bundle with a checksum manifest."""
+        path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='.exam-bundle-',dir=path.parent) as temporary:
+            folder=Path(temporary);tex=self.export_tex(snapshot,folder/'main.tex',solutions,False,preamble)
+            if cancelled():raise InterruptedError('Đã hủy xuất gói đề')
+            files={file.relative_to(folder).as_posix():__import__('hashlib').sha256(file.read_bytes()).hexdigest() for file in folder.rglob('*') if file.is_file()}
+            manifest={'format':1,'title':snapshot['title'],'audience':'teacher' if solutions else 'student','source_questions':[{'id':q['question_id'],'revision':q['revision']} for q in snapshot['questions']],'sha256':files}
+            (folder/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding='utf-8')
+            temporary_zip=path.with_suffix(path.suffix+'.tmp')
+            with zipfile.ZipFile(temporary_zip,'w',zipfile.ZIP_DEFLATED) as archive:
+                for file in folder.rglob('*'):
+                    if file.is_file():archive.write(file,file.relative_to(folder).as_posix())
+            temporary_zip.replace(path)
+        return path
