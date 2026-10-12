@@ -3,7 +3,9 @@ from datetime import datetime,timezone
 import json
 import random
 import shutil
+import tempfile
 import uuid
+import zipfile
 from latex_question_studio.parsing.latex import parse_questions,commands,group,skip_space
 from latex_question_studio.application.search import SearchService
 from latex_question_studio.preview.compiler import Compiler,BUILTIN_PREAMBLE
@@ -14,6 +16,28 @@ HIDE_ANSWERS = r"""\renewcommand{\True}{}
 \renewcommand{\shortans}[2][]{}
 \ifcsname hideansEX\endcsname\AtBeginDocument{\hideansEX{ex}}\fi
 """
+
+def shuffled_question(item, rng, shuffle_options=True):
+    source = item.source
+    permutation = []
+    if item.question_type in ('mcq', 'true_false'):
+        options = item.answer['options']
+        permutation = list(range(len(options)))
+        if shuffle_options and item.question_type == 'mcq':
+            rng.shuffle(permutation)
+        if item.question_type == 'mcq':
+            answer = {'correct_letter': next(chr(65+i) for i, old in enumerate(permutation) if options[old]['correct'])}
+        else:
+            answer = {'truth': [option['correct'] for option in options]}
+        if permutation != list(range(len(options))):
+            for index in reversed(range(len(options))):
+                option = options[index]
+                source = source[:option['start']+1] + options[permutation[index]]['source'] + source[option['end']-1:]
+    elif item.question_type == 'short_answer':
+        answer = {'value': item.answer['value']}
+    else:
+        answer = {'essay': True}
+    return {'source': source, 'permutation': permutation, 'answer': answer}
 
 class ExamService:
     def __init__(self,services):self.services=services
@@ -47,7 +71,40 @@ class ExamService:
                 else:counts[level if level in counts else 'unclassified']+=count
         return {'counts':counts,'invalid':invalid,'total':sum(counts.values())}
 
-    def generate(self,title,manual_ids=None,matrix=None,seed=0,shuffle_questions=True,shuffle_options=True,cancelled=lambda:False):
+    def matrix_statistics(self, taxonomy_id=None, exclude_ids=None, cancelled=lambda: False):
+        """Return counts for all 4 question types (mcq, true_false, short_answer, essay) across 4 cognitive levels."""
+        from latex_question_studio.persistence.analysis import ensure, PARSER_VERSION
+        join, where, params = SearchService(self.services).query_parts(filters={}, taxonomy_id=taxonomy_id)
+        excluded = list(set(exclude_ids or []))
+        if excluded:
+            where.append('q.id NOT IN (' + ','.join('?' for _ in excluded) + ')')
+            params += excluded
+        ensure(self.services.database, join, where, params, cancelled)
+        sql = (
+            'SELECT q.question_type, q.cognitive_level, a.valid, count(*) '
+            'FROM questions q '
+            'LEFT JOIN question_metadata m ON m.question_id=q.id '
+            'JOIN question_analysis a ON a.question_id=q.id' + join + ' '
+            'WHERE ' + ' AND '.join(where + ['a.parser_version=?']) + ' '
+            'GROUP BY q.question_type, q.cognitive_level, a.valid'
+        )
+        types = ('mcq', 'true_false', 'short_answer', 'essay')
+        matrix = {t: {lvl: 0 for lvl in ('NB', 'TH', 'VD', 'VDC', 'unclassified', 'total')} for t in types}
+        invalid = 0
+        with self.services.database.connect() as c:
+            for q_type, level, valid, count in c.execute(sql, params + [PARSER_VERSION]):
+                if not valid:
+                    invalid += count
+                else:
+                    target_type = q_type if q_type in matrix else 'mcq'
+                    target_lvl = level if level in ('NB', 'TH', 'VD', 'VDC') else 'unclassified'
+                    matrix[target_type][target_lvl] += count
+                    matrix[target_type]['total'] += count
+        total = sum(matrix[t]['total'] for t in types)
+        return {'matrix': matrix, 'invalid': invalid, 'total': total}
+
+    def generate(self, title, manual_ids=None, matrix=None, seed=0, shuffle_questions=True, shuffle_options=True,
+                 subject='TOÁN', grade='', duration='90 phút', school='', exam_code='101', cancelled=lambda: False, **extra):
         if not title.strip():raise ValueError('Tên đề không được rỗng')
         rng=random.Random(seed);manual=list(dict.fromkeys(manual_ids or []));matrix=matrix or []
         if len(manual)!=len(manual_ids or []):raise ValueError('Câu chọn thủ công bị lặp')
@@ -57,7 +114,12 @@ class ExamService:
             if not 0<=count<=500:raise ValueError('Số câu mỗi hàng phải từ 0 đến 500')
             candidates=[q for q in self.candidates(row.get('filters',{}),row.get('taxonomy_id'),valid_only=True,cancelled=cancelled) if q not in manual]
             rng.shuffle(candidates)
-            if len(candidates)<count:raise ValueError(f"Thiếu nguồn: cần {count}, có {len(candidates)}")
+            if len(candidates)<count:
+                scope_desc = row.get('scope_name') or row.get('taxonomy_id') or 'ma trận'
+                qtype_desc = row.get('filters', {}).get('question_type', '')
+                level_desc = row.get('filters', {}).get('cognitive_level', '')
+                detail = f" ({qtype_desc} {level_desc})".strip() if (qtype_desc or level_desc) else ""
+                raise ValueError(f"Thiếu nguồn cho '{scope_desc}{(' ' + detail) if detail else ''}': cần {count}, có {len(candidates)}")
             slots.extend([candidates[:] for _ in range(count)])
         # Bipartite matching handles overlapping matrix cells without duplicate IDs.
         if len(slots)+len(manual)>500:raise ValueError("Mỗi đề tối đa 500 câu")
@@ -81,17 +143,9 @@ class ExamService:
             from latex_question_studio.persistence.analysis import parsed
             items=parsed(self.services.database,qid,q.latex_source)
             if len(items)!=1 or items[0].diagnostics:raise ValueError('Câu chưa phân tích hợp lệ: '+qid[:8])
-            item=items[0];source=q.latex_source;permutation=[];answer={}
-            if item.question_type in ('mcq','true_false'):
-                options=item.answer['options'];permutation=list(range(len(options)))
-                if shuffle_options and item.question_type=='mcq':rng.shuffle(permutation)
-                if item.question_type=='mcq':answer={'correct_letter':next(chr(65+i) for i,old in enumerate(permutation) if options[old]['correct'])}
-                else:answer={'truth':[o['correct'] for o in options]}
-                if permutation:
-                    start=item.start+options[0]['start'];end=item.start+options[-1]['end']
-                    source=source[:start]+'\n'.join('{'+options[i]['source']+'}' for i in permutation)+source[end:]
-            elif item.question_type=='short_answer':answer={'value':item.answer['value']}
-            else:answer={'essay':True}
+            item=items[0];shuffled=shuffled_question(item,rng,shuffle_options)
+            source=q.latex_source[:item.start]+shuffled['source']+q.latex_source[item.end:]
+            permutation=shuffled['permutation'];answer=shuffled['answer']
             replacements=[]
             with self.services.database.connect() as c:
                 assets={r['original_reference']:self.services.config.data_dir/r['relative_path'] for r in c.execute('SELECT qa.original_reference,a.relative_path FROM question_assets qa JOIN assets a ON qa.asset_id=a.id WHERE qa.question_id=?',(qid,))}
@@ -119,7 +173,17 @@ class ExamService:
                 score=1.0 if exact else SequenceMatcher(None,left,right,autojunk=False).ratio()
                 if exact or score>=0.95:
                     warnings.append({'kind':'exact' if exact else 'near','question_ids':[snapshots[i]['question_id'],snapshots[j]['question_id']],'score':round(score,4)})
-        snapshot={'title':title,'questions':snapshots,'assets':global_assets,'duplicate_warnings':warnings}
+        snapshot={
+            'title': title,
+            'subject': subject or 'TOÁN',
+            'grade': grade or '',
+            'duration': duration or '90 phút',
+            'school': school or '',
+            'exam_code': exam_code or '101',
+            'questions': snapshots,
+            'assets': global_assets,
+            'duplicate_warnings': warnings
+        }
         if cancelled():raise InterruptedError('Đã hủy tạo đề')
         with self.services.database.transaction() as c:
             c.execute('INSERT INTO exam_papers VALUES (?,?,?)',(paper,title,now))
@@ -133,8 +197,30 @@ class ExamService:
     @staticmethod
     def content(snapshot,solutions=False,answer_only=False):
         escape={'\\':r'\textbackslash{}','&':r'\&','%':r'\%','$':r'\$','#':r'\#','_':r'\_','{':r'\{','}':r'\}','~':r'\textasciitilde{}','^':r'\textasciicircum{}'}
-        title=''.join(escape.get(ch,ch) for ch in snapshot['title'])
-        lines=[r'\section*{'+title+'}']
+        title=''.join(escape.get(ch,ch) for ch in snapshot.get('title', 'Đề kiểm tra'))
+        subject=''.join(escape.get(ch,ch) for ch in snapshot.get('subject', 'TOÁN'))
+        school=''.join(escape.get(ch,ch) for ch in snapshot.get('school', 'TRƯỜNG THPT'))
+        duration=''.join(escape.get(ch,ch) for ch in snapshot.get('duration', '90 phút'))
+        exam_code=''.join(escape.get(ch,ch) for ch in snapshot.get('exam_code', '101'))
+
+        # Header theo phong cách lệnh \TieudeT trong MAPClass (kèm fallback 2 cột tương thích)
+        header_tex = (
+            r"\ifcsname TieudeT\endcsname" "\n"
+            rf"  \def\subject{{{subject}}}" "\n"
+            rf"  \TieudeT{{{title}}}" "\n"
+            r"\else" "\n"
+            r"  \noindent" "\n"
+            r"  \begin{center}" "\n"
+            r"  \begin{tabular}{p{0.36\textwidth}|p{0.58\textwidth}}" "\n"
+            rf"    \centering \textbf{{{school or 'TRƯỜNG THPT'}}} & \centering \textbf{{\large {title}}} \tabularnewline" "\n"
+            rf"    \centering \textbf{{MÃ ĐỀ: {exam_code}}} & \centering Môn: \textbf{{{subject}}} \tabularnewline" "\n"
+            rf"    & \centering \textit{{Thời gian làm bài: {duration} (không tính thời gian giao đề)}}" "\n"
+            r"  \end{tabular}" "\n"
+            r"  \end{center}" "\n"
+            r"  \vspace{1em}" "\n"
+            r"\fi"
+        )
+        lines = [header_tex]
         for i,q in enumerate(snapshot['questions'],1):
             if answer_only:
                 answer=q['answer'];value=answer.get('correct_letter',answer.get('value',str(answer.get('truth','Tự luận'))))
@@ -175,3 +261,19 @@ class ExamService:
         result=compiler.compile(self.content(snapshot,solutions,answer_only),snapshot['assets'],cancelled)
         if result.ok:shutil.copyfile(result.pdf,path)
         return result
+
+    def export_zip(self,snapshot,path,solutions=False,preamble=None,cancelled=lambda:False):
+        """Create a self-contained TeX bundle with a checksum manifest."""
+        path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='.exam-bundle-',dir=path.parent) as temporary:
+            folder=Path(temporary);tex=self.export_tex(snapshot,folder/'main.tex',solutions,False,preamble)
+            if cancelled():raise InterruptedError('Đã hủy xuất gói đề')
+            files={file.relative_to(folder).as_posix():__import__('hashlib').sha256(file.read_bytes()).hexdigest() for file in folder.rglob('*') if file.is_file()}
+            manifest={'format':1,'title':snapshot['title'],'audience':'teacher' if solutions else 'student','source_questions':[{'id':q['question_id'],'revision':q['revision']} for q in snapshot['questions']],'sha256':files}
+            (folder/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding='utf-8')
+            temporary_zip=path.with_suffix(path.suffix+'.tmp')
+            with zipfile.ZipFile(temporary_zip,'w',zipfile.ZIP_DEFLATED) as archive:
+                for file in folder.rglob('*'):
+                    if file.is_file():archive.write(file,file.relative_to(folder).as_posix())
+            temporary_zip.replace(path)
+        return path

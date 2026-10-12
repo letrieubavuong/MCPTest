@@ -1,4 +1,5 @@
 from PySide6.QtCore import QTimer
+from threading import Event, get_ident
 from latex_question_studio.app.config import AppConfig
 from latex_question_studio.application.services import create_services
 from latex_question_studio.application.importing import ImportService
@@ -24,10 +25,30 @@ def test_pending_repair_keeps_original_and_commits(tmp_path):
 def test_ui_timer_runs_during_import_and_commit(qtbot,tmp_path):
     services=create_services(AppConfig.load(tmp_path/'app'));window=MainWindow(services);qtbot.addWidget(window)
     file=tmp_path/'batch.tex';file.write_text('\n'.join(r'\begin{ex}Question '+str(i)+r'\end{ex}' for i in range(500)))
-    importer=ImportService(services);ticks=[];timer=QTimer();timer.timeout.connect(lambda:ticks.append(1));timer.start(5)
-    done=[]
-    job=Job(lambda cancelled,progress:importer.commit(importer.stage([file],cancelled,progress)[0]))
-    job.signals.completed.connect(done.append);window.start_job(job)
-    qtbot.waitUntil(lambda:bool(done),timeout=30000)
-    timer.stop();assert done==[500];assert len(ticks)>2
+    importer=ImportService(services);main_thread=get_ident()
+    entered={phase:Event() for phase in ('stage','commit')}
+    responsive={phase:Event() for phase in entered};ticks={phase:0 for phase in entered}
+    def heartbeat():
+        for phase in entered:
+            if entered[phase].is_set() and not responsive[phase].is_set():
+                ticks[phase]+=1
+                if ticks[phase]>=3:responsive[phase].set()
+    def checkpoint(phase):
+        assert get_ident()!=main_thread,'Import must run outside the UI thread'
+        if not entered[phase].is_set():
+            entered[phase].set()
+            assert responsive[phase].wait(5),'UI did not respond during '+phase
+        return False
+    def work(cancelled,progress):
+        batch,_=importer.stage([file],lambda:cancelled() or checkpoint('stage'),progress)
+        return importer.commit(batch,cancelled=lambda:cancelled() or checkpoint('commit'))
+    timer=QTimer();timer.timeout.connect(heartbeat);timer.start(5)
+    done=[];errors=[];job=Job(work)
+    job.signals.completed.connect(done.append);job.signals.failed.connect(errors.append);window.start_job(job)
+    try:qtbot.waitUntil(lambda:bool(done or errors),timeout=30000)
+    finally:
+        timer.stop()
+        for gate in responsive.values():gate.set()
+    assert not errors and done==[500]
+    assert all(ticks[phase]>=3 for phase in ticks)
     window.close()

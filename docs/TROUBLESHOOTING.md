@@ -1,6 +1,7 @@
 # Khắc phục lỗi
 
 - EXE không mở: giải nén cả thư mục, giữ _internal. Xem logs/studio.log trong thư mục dữ liệu. Không dùng DB cũ đặt tên studio.db: schema lạ sẽ bị từ chối để bảo vệ nguồn.
+- EXE mở kèm CMD: kiểm tra đang chạy bản mới tại `dist/0.5.2/LaTeXQuestionStudio/LaTeXQuestionStudio.exe`. Bản mới dùng Windows GUI; build lại bằng `scripts/build.ps1` nếu đang dùng bản console cũ. Log ứng dụng vẫn ghi trong `logs/studio.log`.
 - Preview không có engine: cấu hình đường dẫn pdflatex.exe. Thiếu package: bổ sung qua TeX distribution ngoài app. Không cài package qua mạng tự động.
 - Undefined control sequence: macro không có trong profile article. Chọn preamble thật cùng cls/sty; MAPClass/ex_test chưa có trong máy khảo sát nên chưa được nghiệm thu tương thích.
 - Thiếu ảnh: giữ đường dẫn nguồn tương đối đúng và file ảnh cạnh file nhập, sửa trong Hàng chờ rồi kiểm tra lại. Assets nhập thành công được quản lý theo hash.

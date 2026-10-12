@@ -1,166 +1,1293 @@
-from PySide6.QtCore import Signal,Qt
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QFormLayout,QLineEdit,QSpinBox,QCheckBox,QTableWidget,QTableWidgetItem,QPushButton,QDialogButtonBox,QLabel,QSplitter,QTreeWidget,QTreeWidgetItem,QHBoxLayout,QComboBox,QToolBar
+"""Wizard-based exam generation workflow with five explicit steps and Mapclass TieudeT header."""
+import random
+from PySide6.QtCore import Signal, Qt
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QFormLayout, QLineEdit, QSpinBox, QCheckBox,
+    QTableWidget, QTableWidgetItem, QPushButton, QLabel, QSplitter,
+    QTreeWidget, QTreeWidgetItem, QHBoxLayout, QComboBox, QTabBar,
+    QStackedWidget, QListWidget, QListWidgetItem, QHeaderView, QGroupBox, QFrame
+)
+from latex_question_studio.ui.icons import icon
+
+# Mapping helper dictionaries
+QTYPE_CODE_MAP = {
+    'mcq': 'mcq', 'Trắc nghiệm': 'mcq', 'trắc nghiệm': 'mcq', 'Trắc nghiệm (4 PA)': 'mcq',
+    'true_false': 'true_false', 'Đúng / Sai': 'true_false', 'Đúng / sai': 'true_false', 'đúng sai': 'true_false',
+    'short_answer': 'short_answer', 'Trả lời ngắn': 'short_answer', 'trả lời ngắn': 'short_answer',
+    'essay': 'essay', 'Tự luận': 'essay', 'tự luận': 'essay',
+    '': ''
+}
+
+QTYPE_LABEL_MAP = {
+    'mcq': 'Trắc nghiệm',
+    'true_false': 'Đúng / sai',
+    'short_answer': 'Trả lời ngắn',
+    'essay': 'Tự luận'
+}
+
+LEVEL_LABEL_MAP = {
+    'NB': 'Nhận biết',
+    'TH': 'Thông hiểu',
+    'VD': 'Vận dụng',
+    'VDC': 'Vận dụng cao'
+}
+
+LEVEL_CODE_MAP = {
+    'NB': 'NB', 'Nhận biết': 'NB',
+    'TH': 'TH', 'Thông hiểu': 'TH',
+    'VD': 'VD', 'Vận dụng': 'VD',
+    'VDC': 'VDC', 'Vận dụng cao': 'VDC',
+    '': ''
+}
+
+
+class TieudeTPreviewCard(QFrame):
+    r"""Visual preview replicating the \TieudeT side-by-side header from MAPClass."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("tieudeTPreviewCard")
+        self.setStyleSheet("""
+            QFrame#tieudeTPreviewCard {
+                background: #0f172a;
+                border: 2px solid #3b82f6;
+                border-radius: 8px;
+                padding: 8px;
+            }
+        """)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(14)
+
+        # Cột trái: Đơn vị / Trường, Đề luyện tập số ..., Mã đề
+        left_box = QVBoxLayout()
+        left_box.setSpacing(3)
+        self.lbl_school = QLabel("TRƯỜNG THPT CHUYÊN")
+        self.lbl_school.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_school.setStyleSheet("font-weight: bold; font-size: 11px; color: #94a3b8;")
+        left_box.addWidget(self.lbl_school)
+
+        self.lbl_subtitle = QLabel("ĐỀ LUYỆN TẬP SỐ ①")
+        self.lbl_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_subtitle.setStyleSheet("font-weight: bold; font-size: 13px; color: #f8fafc;")
+        left_box.addWidget(self.lbl_subtitle)
+
+        self.lbl_code = QLabel("(Mã đề thi: 101)")
+        self.lbl_code.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_code.setStyleSheet("font-size: 11px; color: #38bdf8;")
+        left_box.addWidget(self.lbl_code)
+        layout.addLayout(left_box, 38)
+
+        # Đường phân cách dọc
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.VLine)
+        line.setStyleSheet("color: #334155;")
+        layout.addWidget(line)
+
+        # Cột phải: Tiêu đề đề thi, Môn học, Thời gian
+        right_box = QVBoxLayout()
+        right_box.setSpacing(3)
+        self.lbl_title = QLabel("ĐỀ KIỂM TRA ĐỊNH KỲ")
+        self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #38bdf8;")
+        self.lbl_title.setWordWrap(True)
+        right_box.addWidget(self.lbl_title)
+
+        self.lbl_subject = QLabel("Môn: TOÁN 12")
+        self.lbl_subject.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_subject.setStyleSheet("font-weight: bold; font-size: 12px; color: #f1f5f9;")
+        right_box.addWidget(self.lbl_subject)
+
+        self.lbl_duration = QLabel("Thời gian làm bài: 90 phút (không tính thời gian giao đề)")
+        self.lbl_duration.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_duration.setStyleSheet("font-style: italic; font-size: 11px; color: #94a3b8;")
+        right_box.addWidget(self.lbl_duration)
+        layout.addLayout(right_box, 62)
+
+    def update_header(self, title, subject, grade, duration, school, exam_code):
+        title_str = (title or "ĐỀ KIỂM TRA").strip().upper()
+        self.lbl_title.setText(title_str)
+
+        school_str = (school or "TRƯỜNG THPT").strip().upper()
+        self.lbl_school.setText(school_str)
+
+        code_str = (exam_code or "101").strip()
+        self.lbl_code.setText(f"(Mã đề thi: {code_str})")
+        self.lbl_subtitle.setText("ĐỀ THI / KIỂM TRA")
+
+        subj_display = (subject or "TOÁN").strip().upper()
+        if grade and grade not in subj_display:
+            subj_display += f" - {grade}"
+        self.lbl_subject.setText(f"Môn: {subj_display}")
+
+        dur_str = (duration or "90 phút").strip()
+        self.lbl_duration.setText(f"Thời gian làm bài: {dur_str} (không tính thời gian giao đề)")
+
 
 class ExamDialog(QWidget):
     submitted = Signal()
     use_selection = Signal()
-    def __init__(self,manual_ids,parent=None,services=None,run_job=None):
-        super().__init__(parent);self.manual_ids=list(manual_ids);self.services=services;self.scope=None;self.run_job=run_job;self.stats_generation=0;self.stats_job=None;self.available=None;self.snapshot=None
-        from latex_question_studio.ui.components.workspace import Workspace,CommandToolbar
+    export_requested = Signal()
+
+    def __init__(self, manual_ids, parent=None, services=None, run_job=None):
+        super().__init__(parent)
+        self.manual_ids = list(manual_ids)
+        self.services = services
+        self.scope = None
+        self.run_job = run_job
+        self.stats_generation = 0
+        self.stats_job = None
+        self.available = None
+        self.matrix_available = None
+        self.snapshot = None
+
+        from latex_question_studio.ui.components.workspace import Workspace, CommandToolbar
         from latex_question_studio.ui.panels.question_preview import QuestionPreview
-        from PySide6.QtWidgets import QListWidget,QHeaderView
-        layout=QVBoxLayout(self);layout.setContentsMargins(8,8,8,8);layout.setSpacing(6);layout.addWidget(QLabel('RA ĐỀ THI'))
-        self.toolbar=CommandToolbar('Ra đề thi',self);layout.addWidget(self.toolbar)
-        self.generate_action=self.toolbar.command('exam','Tạo đề',self.submitted.emit,True)
-        self.select_action=self.toolbar.command('bank','Lấy câu đang chọn từ CSDL',self.use_selection.emit)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(6)
+        main_layout.addWidget(QLabel('RA ĐỀ THI'))
+
+        # Header Modes: Từ CSDL hoặc Trộn TeX
+        self.modes = QTabBar()
+        self.modes.addTab('Từ ngân hàng câu hỏi')
+        self.modes.addTab('Trộn từ file TeX')
+        main_layout.addWidget(self.modes)
+
+        # Body: Cột trái (5 bước wizard) + Stack trang bên phải
+        body = QHBoxLayout()
+        body.setSpacing(10)
+        self.exam_steps = QListWidget()
+        self.exam_steps.setObjectName('examSteps')
+        self.exam_steps.setFixedWidth(190)
+        labels = [
+            ('Thông tin đề', 'Tên, seed, tiêu đề \\TieudeT'),
+            ('Chọn câu hỏi', 'Cây CSDL & ma trận đặc tả'),
+            ('Cấu hình', 'Xáo câu, đáp án & sinh đề'),
+            ('Xem trước', 'Kiểm tra đề đã tạo'),
+            ('Xuất đề', 'TeX, PDF, đáp án')
+        ]
+        for index, (title, detail) in enumerate(labels):
+            item = QListWidgetItem(f'{index+1}  {title}\n     {detail}')
+            item.setData(Qt.ItemDataRole.UserRole, index)
+            self.exam_steps.addItem(item)
+        body.addWidget(self.exam_steps)
+
+        self.mode_stack = QStackedWidget()
+        body.addWidget(self.mode_stack, 1)
+        main_layout.addLayout(body, 1)
+
+        # Trang chế độ ngân hàng (bank_page)
+        bank_page = QWidget()
+        self.mode_stack.addWidget(bank_page)
+        self.bank_layout = QVBoxLayout(bank_page)
+        self.bank_layout.setContentsMargins(0, 0, 0, 0)
+        self.bank_layout.setSpacing(6)
+
+        # Stack quản lý 5 bước của quy trình ra đề
+        self.bank_step_stack = QStackedWidget()
+        self.bank_layout.addWidget(self.bank_step_stack, 1)
+
+        # =========================================================================
+        # ------------------ BƯỚC 1: THÔNG TIN ĐỀ & TIÊU ĐỀ \TieudeT --------------
+        # =========================================================================
+        page_info = QWidget()
+        p0_box = QVBoxLayout(page_info)
+        p0_box.setContentsMargins(14, 14, 14, 14)
+        p0_box.setSpacing(12)
+
+        info_header = QLabel('BƯỚC 1: THIẾT LẬP THÔNG TIN ĐỀ THI (HỌC LỆNH \\TieudeT MAPCLASS)')
+        info_header.setStyleSheet('font-weight: bold; font-size: 14px; color: #4ba3eb;')
+        p0_box.addWidget(info_header)
+        p0_hint = QLabel('Đặt tên đề bài kiểm tra, cấu hình tiêu đề 2 cột side-by-side chuẩn Mapclass (lệnh \\TieudeT) và chọn mã seed ngẫu nhiên.')
+        p0_hint.setWordWrap(True)
+        p0_box.addWidget(p0_hint)
+
+        info_split = QHBoxLayout()
+        info_split.setSpacing(16)
+
+        # Cột nhập thông tin bên trái
+        inputs_container = QWidget()
+        in_box = QVBoxLayout(inputs_container)
+        in_box.setContentsMargins(0, 0, 0, 0)
+        in_box.setSpacing(10)
+
+        info_group = QGroupBox('Thông tin cơ bản của đề thi')
+        info_form = QFormLayout(info_group)
+        info_form.setSpacing(8)
+
+        self.title = QLineEdit('Đề kiểm tra')
+        self.title.setPlaceholderText('Nhập tên đề kiểm tra (ví dụ: Đề kiểm tra 1 tiết Toán 12...)')
+        info_form.addRow('Tên đề thi:', self.title)
+
+        quick_titles = QHBoxLayout()
+        for tname in ('Kiểm tra 15 phút', 'Kiểm tra 1 tiết', 'Thi giữa học kỳ', 'Thi cuối học kỳ', 'Thi thử tốt nghiệp'):
+            btn = QPushButton(tname)
+            btn.clicked.connect(lambda checked=False, text=tname: self.title.setText(text))
+            quick_titles.addWidget(btn)
+        quick_titles.addStretch()
+        info_form.addRow('Gợi ý tên:', quick_titles)
+
+        # Các trường bổ sung theo chuẩn lệnh \TieudeT trong Mapclass
+        tieude_sub_box = QHBoxLayout()
+        self.school_input = QLineEdit('TRƯỜNG THPT CHUYÊN')
+        self.school_input.setPlaceholderText('Tên trường / Sở GD&ĐT / Trung tâm')
+        tieude_sub_box.addWidget(self.school_input, 2)
+
+        self.exam_code_input = QLineEdit('101')
+        self.exam_code_input.setPlaceholderText('Mã đề (101, 102...)')
+        tieude_sub_box.addWidget(self.exam_code_input, 1)
+        info_form.addRow('Trường / Mã đề:', tieude_sub_box)
+
+        subj_grade_box = QHBoxLayout()
+        self.subject_input = QComboBox()
+        self.subject_input.setEditable(True)
+        for s in ('TOÁN', 'KHOA HỌC TỰ NHIÊN', 'VẬT LÍ', 'HÓA HỌC', 'SINH HỌC', 'TIN HỌC', 'LỊCH SỬ', 'ĐỊA LÍ', 'TIẾNG ANH'):
+            self.subject_input.addItem(s)
+        subj_grade_box.addWidget(self.subject_input, 2)
+
+        self.grade_input = QComboBox()
+        self.grade_input.setEditable(True)
+        for g in ('Lớp 12', 'Lớp 11', 'Lớp 10', 'Lớp 9', 'Lớp 8', 'Lớp 7', 'Lớp 6'):
+            self.grade_input.addItem(g)
+        subj_grade_box.addWidget(self.grade_input, 1)
+
+        self.duration_input = QComboBox()
+        self.duration_input.setEditable(True)
+        for d in ('90 phút', '45 phút', '50 phút', '60 phút', '120 phút', '15 phút'):
+            self.duration_input.addItem(d)
+        subj_grade_box.addWidget(self.duration_input, 1)
+        info_form.addRow('Môn / Lớp / Thời gian:', subj_grade_box)
+
+        seed_box = QHBoxLayout()
+        self.seed = QSpinBox()
+        self.seed.setRange(0, 2_000_000_000)
+        self.seed.setValue(2027)
+        self.seed.setToolTip('Seed để tái lập lựa chọn')
+        seed_box.addWidget(self.seed)
+        btn_rand_seed = QPushButton('🎲 Tạo seed ngẫu nhiên')
+        btn_rand_seed.clicked.connect(lambda: self.seed.setValue(random.randint(1000, 999999)))
+        seed_box.addWidget(btn_rand_seed)
+        seed_box.addStretch()
+        info_form.addRow('Mã seed tái lập:', seed_box)
+
+        in_box.addWidget(info_group)
+        info_split.addWidget(inputs_container, 3)
+
+        # Cột xem trước tiêu đề bên phải
+        preview_container = QWidget()
+        pv_box = QVBoxLayout(preview_container)
+        pv_box.setContentsMargins(0, 0, 0, 0)
+        pv_box.setSpacing(6)
+
+        pv_lbl = QLabel('XEM TRƯỚC TIÊU ĐỀ (CHUẨN LỆNH \\TieudeT MAPCLASS)')
+        pv_lbl.setStyleSheet('font-weight: bold; font-size: 11px; color: #38bdf8;')
+        pv_box.addWidget(pv_lbl)
+
+        self.tieudet_preview = TieudeTPreviewCard()
+        pv_box.addWidget(self.tieudet_preview)
+
+        pv_note = QLabel('Tiêu đề này sẽ được chèn ở đầu đề thi khi xuất TeX/PDF. Trong MAPClass, lệnh \\TieudeT tự động tạo khung 2 cột viền màu với logo và số đề.')
+        pv_note.setStyleSheet('font-size: 11px; color: #94a3b8;')
+        pv_note.setWordWrap(True)
+        pv_box.addWidget(pv_note)
+        pv_box.addStretch()
+
+        info_split.addWidget(preview_container, 2)
+        p0_box.addLayout(info_split)
+        p0_box.addStretch()
+
+        # Kết nối sự kiện cập nhật trực tiếp khung xem trước tiêu đề
+        self.title.textChanged.connect(self._sync_header_preview)
+        self.school_input.textChanged.connect(self._sync_header_preview)
+        self.exam_code_input.textChanged.connect(self._sync_header_preview)
+        self.subject_input.currentTextChanged.connect(self._sync_header_preview)
+        self.grade_input.currentTextChanged.connect(self._sync_header_preview)
+        self.duration_input.currentTextChanged.connect(self._sync_header_preview)
+        self._sync_header_preview()
+
+        nav_box_0 = QHBoxLayout()
+        nav_box_0.addStretch()
+        btn_to_step1 = QPushButton('Tiếp tục: Chọn câu hỏi & Ma trận ›')
+        btn_to_step1.setProperty('primary', True)
+        btn_to_step1.clicked.connect(lambda: self.set_exam_step(1))
+        nav_box_0.addWidget(btn_to_step1)
+        p0_box.addLayout(nav_box_0)
+
+        self.bank_step_stack.addWidget(page_info)
+
+        # =========================================================================
+        # ------------------ BƯỚC 2: CHỌN CÂU HỎI & MA TRẬN ĐỀ THI -----------------
+        # =========================================================================
+        page_select = QWidget()
+        p1_box = QVBoxLayout(page_select)
+        p1_box.setContentsMargins(0, 0, 0, 0)
+        p1_box.setSpacing(6)
+
+        self.toolbar = CommandToolbar('Ra đề thi', self)
+        p1_box.addWidget(self.toolbar)
+        self.generate_action = self.toolbar.command('exam', 'Tạo đề', self.submitted.emit, True)
+        self.select_action = self.toolbar.command('bank', 'Lấy câu đang chọn từ CSDL', self.use_selection.emit)
         self.toolbar.addSeparator()
-        self.scope_action=self.toolbar.command('chapter','Thêm phạm vi và số câu vào ma trận',self.add_scope_rows);self.scope_action.setEnabled(bool(services))
-        self.add_action=self.toolbar.command('topic','Thêm hàng ma trận',self.add_row)
-        self.remove_action=self.toolbar.command('close','Xóa hàng ma trận đang chọn',self.remove_row)
-        self.refresh_action=self.toolbar.command('preview','Cập nhật thống kê nguồn',self.refresh_statistics);self.refresh_action.setEnabled(bool(services))
-        self.options=QWidget();form=QHBoxLayout(self.options);form.setContentsMargins(0,0,0,0)
-        self.title=QLineEdit('Đề kiểm tra');self.title.setPlaceholderText('Tên đề');form.addWidget(self.title,2)
-        self.seed=QSpinBox();self.seed.setRange(0,2_000_000_000);self.seed.setValue(2027);self.seed.setToolTip('Seed để tái lập lựa chọn');form.addWidget(QLabel('Seed'));form.addWidget(self.seed)
-        self.shuffle_questions=QCheckBox('Xáo câu');self.shuffle_questions.setChecked(True);form.addWidget(self.shuffle_questions)
-        self.shuffle_options=QCheckBox('Xáo phương án');self.shuffle_options.setToolTip('Giữ đúng đáp án khi xáo');self.shuffle_options.setChecked(True);form.addWidget(self.shuffle_options);layout.addWidget(self.options)
-        self.selection_label=QLabel();layout.addWidget(self.selection_label)
-        self.workspace=Workspace('examSplit');layout.addWidget(self.workspace,1)
-        left=QWidget();lb=QVBoxLayout(left);lb.setContentsMargins(0,0,0,0)
-        self.tree=QTreeWidget();self.tree.setHeaderLabel('PHẠM VI NGUỒN CÂU');self.tree.setExpandsOnDoubleClick(True);lb.addWidget(self.tree);self.workspace.addWidget(left)
-        center=QWidget();box=QVBoxLayout(center);box.setContentsMargins(0,0,0,0);self.workspace.addWidget(center)
-        self.scope_label=QLabel('Toàn ngân hàng');self.scope_label.setWordWrap(True);box.addWidget(self.scope_label)
-        self.question_type=QComboBox()
-        for text,value in [('Tất cả loại',''),('Trắc nghiệm','mcq'),('Đúng / sai','true_false'),('Trả lời ngắn','short_answer'),('Tự luận','essay')]:self.question_type.addItem(text,value)
-        box.addWidget(self.question_type)
-        self.stats=QTableWidget(4,3);self.stats.setHorizontalHeaderLabels(['Mức độ','Có thể lấy','Cần lấy']);self.targets={}
-        for i,(level,label) in enumerate([('NB','Nhận biết'),('TH','Thông hiểu'),('VD','Vận dụng'),('VDC','Vận dụng cao')]):
-            self.stats.setItem(i,0,QTableWidgetItem(label));spin=QSpinBox();spin.setRange(0,500);self.targets[level]=spin;self.stats.setCellWidget(i,2,spin);spin.valueChanged.connect(self.update_shortage)
-        self.stats.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers);self.stats.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);self.stats.setMaximumHeight(185);box.addWidget(self.stats)
-        self.stats_note=QLabel();self.stats_note.setWordWrap(True);box.addWidget(self.stats_note)
-        self.shortage=QLabel();self.shortage.setWordWrap(True);box.addWidget(self.shortage)
-        self.matrix=QTableWidget(0,7);self.matrix.setHorizontalHeaderLabels(['Môn','Khối','Loại','Mức độ','Số câu','Phạm vi CSDL','Nguồn']);self.matrix.horizontalHeader().setMinimumSectionSize(45);self.matrix.setColumnWidth(5,150)
-        for i in (0,1,2,3,4,6):self.matrix.setColumnWidth(i,65)
-        self.matrix.horizontalHeader().setStretchLastSection(True);box.addWidget(self.matrix,1)
-        self.matrix_summary=QLabel('Ma trận: 0 câu');self.matrix_summary.setWordWrap(True);box.addWidget(self.matrix_summary);self.matrix.itemChanged.connect(self.update_matrix_summary)
-        right=QWidget();rb=QVBoxLayout(right);rb.setContentsMargins(0,0,0,0);rb.addWidget(QLabel('CÂU ĐÃ CHỌN / CẤU TRÚC ĐỀ'))
-        self.chosen=QListWidget();self.chosen.setMaximumHeight(180);rb.addWidget(self.chosen)
-        self.preview=QuestionPreview(services,run_job);rb.addWidget(self.preview,1);self.workspace.addWidget(right);self.workspace.setSizes([260,620,420]);self.chosen.currentRowChanged.connect(self.preview_selected)
-        self.nodes=[];self.tree_items={}
+        self.tree_toggle_action = self.toolbar.command('subject', 'Hiện / ẩn Cây CSDL', self.toggle_tree_panel)
+        self.scope_action = self.toolbar.command('chapter', 'Thêm phạm vi và số câu vào ma trận', self.add_scope_rows)
+        self.scope_action.setEnabled(bool(services))
+        self.add_action = self.toolbar.command('topic', 'Thêm hàng ma trận', self.add_row)
+        self.remove_action = self.toolbar.command('close', 'Xóa hàng ma trận đang chọn', self.remove_row)
+        self.refresh_action = self.toolbar.command('preview', 'Cập nhật thống kê nguồn', self.refresh_statistics)
+        self.refresh_action.setEnabled(bool(services))
+
+        self.selection_label = QLabel()
+        self.selection_label.setWordWrap(True)
+        p1_box.addWidget(self.selection_label)
+
+        # Workspace 3 cột
+        self.workspace = Workspace('examSplit')
+        p1_box.addWidget(self.workspace, 1)
+
+        # ------------------ CỘT TRÁI: CÂY CSDL THEO MÔN ------------------
+        left = QWidget()
+        left.setObjectName('examTreePanel')
+        left.setMinimumWidth(240)
+        self.tree_panel = left
+        lb = QVBoxLayout(left)
+        lb.setContentsMargins(0, 0, 0, 0)
+        lb.setSpacing(6)
+
+        left_hdr_box = QHBoxLayout()
+        left_hdr = QLabel('CÂY CSDL THEO MÔN HỌC')
+        left_hdr.setStyleSheet('font-weight: bold; font-size: 11px; color: #4ba3eb;')
+        left_hdr_box.addWidget(left_hdr)
+        left_hdr_box.addStretch()
+
+        btn_collapse_all = QPushButton('Thu gọn')
+        btn_collapse_all.setFixedHeight(22)
+        btn_collapse_all.setStyleSheet('font-size: 10px; padding: 2px 6px;')
+        btn_collapse_all.clicked.connect(self._collapse_tree_all)
+        left_hdr_box.addWidget(btn_collapse_all)
+
+        btn_expand_all = QPushButton('Mở rộng')
+        btn_expand_all.setFixedHeight(22)
+        btn_expand_all.setStyleSheet('font-size: 10px; padding: 2px 6px;')
+        btn_expand_all.clicked.connect(self._expand_tree_all)
+        left_hdr_box.addWidget(btn_expand_all)
+
+        lb.addLayout(left_hdr_box)
+
+        # Bộ lọc theo Môn học trên đỉnh cây
+        self.subject_filter = QComboBox()
+        self.subject_filter.addItem('Tất cả môn học', '')
+        for sname in ('TOÁN', 'KHTN', 'VẬT LÍ', 'HÓA HỌC', 'SINH HỌC', 'TIN HỌC', 'LỊCH SỬ', 'ĐỊA LÍ'):
+            self.subject_filter.addItem(sname, sname)
+        self.subject_filter.currentIndexChanged.connect(self._filter_tree_by_subject)
+        lb.addWidget(self.subject_filter)
+
+        # Ô tìm kiếm nhanh trên cây CSDL
+        self.tree_search = QLineEdit()
+        self.tree_search.setPlaceholderText('🔍 Tìm bài, dạng...')
+        self.tree_search.textChanged.connect(self._filter_tree_search)
+        lb.addWidget(self.tree_search)
+
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabel('MÔN › BÀI › DẠNG TOÁN')
+        self.tree.setExpandsOnDoubleClick(True)
+        self.tree.itemClicked.connect(self.select_scope)
+        lb.addWidget(self.tree, 1)
+        self.workspace.addWidget(left)
+
+        # ------------------ CỘT GIỮA: KHUNG THỐNG KÊ 4x4 & MA TRẬN ĐỀ -----
+        center = QWidget()
+        box = QVBoxLayout(center)
+        box.setContentsMargins(0, 0, 0, 0)
+        box.setSpacing(6)
+        self.workspace.addWidget(center)
+
+        # Breadcrumb phạm vi đang chọn
+        self.scope_label = QLabel('📍 Toàn ngân hàng')
+        self.scope_label.setStyleSheet('font-weight: bold; font-size: 12px; color: #38bdf8;')
+        self.scope_label.setWordWrap(True)
+        box.addWidget(self.scope_label)
+
+        # Hộp thống kê & chọn câu (Ma trận đặc tả 4 loại x 4 mức độ)
+        grid_box = QGroupBox('Khung thống kê sẵn có & Chọn số câu theo 4 mức độ')
+        grid_layout = QVBoxLayout(grid_box)
+        grid_layout.setContentsMargins(6, 6, 6, 6)
+        grid_layout.setSpacing(4)
+
+        self.matrix_grid = QTableWidget(4, 6)
+        self.matrix_grid.setHorizontalHeaderLabels([
+            'Định dạng câu hỏi', 'Nhận biết (NB)', 'Thông hiểu (TH)', 'Vận dụng (VD)', 'Vận dụng cao (VDC)', 'Tổng chọn'
+        ])
+        self.matrix_grid.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        for c in range(1, 5):
+            self.matrix_grid.horizontalHeader().setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch)
+        self.matrix_grid.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        self.matrix_grid.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.matrix_grid.setMaximumHeight(165)
+
+        self.grid_spins = {}       # (qtype, level) -> QSpinBox
+        self.grid_avail_lbls = {}  # (qtype, level) -> QLabel
+        self.grid_row_totals = {}  # qtype -> QLabel
+
+        types_list = [
+            ('mcq', 'Trắc nghiệm (4 PA)'),
+            ('true_false', 'Đúng / sai'),
+            ('short_answer', 'Trả lời ngắn'),
+            ('essay', 'Tự luận')
+        ]
+        levels_list = [('NB', 'Nhận biết'), ('TH', 'Thông hiểu'), ('VD', 'Vận dụng'), ('VDC', 'Vận dụng cao')]
+
+        for row_idx, (qtype, qname) in enumerate(types_list):
+            item_name = QTableWidgetItem(qname)
+            item_name.setFlags(item_name.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.matrix_grid.setItem(row_idx, 0, item_name)
+
+            for col_idx, (lvl, _) in enumerate(levels_list, 1):
+                cell_widget = QWidget()
+                c_lay = QHBoxLayout(cell_widget)
+                c_lay.setContentsMargins(4, 1, 4, 1)
+                c_lay.setSpacing(4)
+
+                avail_lbl = QLabel('có: 0')
+                avail_lbl.setStyleSheet('font-size: 10px; color: #94a3b8;')
+                self.grid_avail_lbls[(qtype, lvl)] = avail_lbl
+                c_lay.addWidget(avail_lbl)
+
+                spin = QSpinBox()
+                spin.setRange(0, 500)
+                spin.setValue(0)
+                spin.valueChanged.connect(self._update_grid_selection_summary)
+                self.grid_spins[(qtype, lvl)] = spin
+                c_lay.addWidget(spin, 1)
+
+                self.matrix_grid.setCellWidget(row_idx, col_idx, cell_widget)
+
+            row_total = QLabel('0 câu')
+            row_total.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            row_total.setStyleSheet('font-weight: bold; font-size: 11px; color: #94a3b8;')
+            self.grid_row_totals[qtype] = row_total
+            self.matrix_grid.setCellWidget(row_idx, 5, row_total)
+
+        grid_layout.addWidget(self.matrix_grid)
+
+        # Thanh hành động lưu vào ma trận đề
+        grid_action_bar = QHBoxLayout()
+        self.grid_summary_lbl = QLabel('🎯 Đang chọn: 0 câu cho phạm vi này')
+        self.grid_summary_lbl.setStyleSheet('font-weight: bold; color: #f1f5f9;')
+        grid_action_bar.addWidget(self.grid_summary_lbl, 1)
+
+        self.btn_save_grid = QPushButton('➕ Lưu vào bảng ma trận đề')
+        self.btn_save_grid.setProperty('primary', True)
+        self.btn_save_grid.setIcon(icon('chapter', '#ffffff'))
+        self.btn_save_grid.clicked.connect(self.save_grid_to_matrix)
+        grid_action_bar.addWidget(self.btn_save_grid)
+
+        btn_reset_grid = QPushButton('🧹 Đặt lại (0)')
+        btn_reset_grid.clicked.connect(self.reset_grid_spins)
+        grid_action_bar.addWidget(btn_reset_grid)
+        grid_layout.addLayout(grid_action_bar)
+
+        box.addWidget(grid_box)
+
+        # Backward compatibility widgets for existing tests
+        self.question_type = QComboBox()
+        for text, value in [('Tất cả loại', ''), ('Trắc nghiệm', 'mcq'), ('Đúng / sai', 'true_false'), ('Trả lời ngắn', 'short_answer'), ('Tự luận', 'essay')]:
+            self.question_type.addItem(text, value)
+        self.question_type.hide()
+
+        self.stats = QTableWidget(4, 3)
+        self.stats.setHorizontalHeaderLabels(['Mức độ', 'Có thể lấy', 'Cần lấy'])
+        self.targets = {}
+        for i, (level, label) in enumerate(levels_list):
+            self.stats.setItem(i, 0, QTableWidgetItem(label))
+            spin = QSpinBox()
+            spin.setRange(0, 500)
+            self.targets[level] = spin
+            self.stats.setCellWidget(i, 2, spin)
+            spin.valueChanged.connect(self.update_shortage)
+        self.stats.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.stats.hide()
+
+        self.stats_note = QLabel()
+        self.stats_note.setWordWrap(True)
+        box.addWidget(self.stats_note)
+
+        self.shortage = QLabel()
+        self.shortage.setWordWrap(True)
+        box.addWidget(self.shortage)
+
+        # Bảng ma trận đề thi chính
+        matrix_header_box = QHBoxLayout()
+        matrix_title = QLabel('BẢNG MA TRẬN ĐẶC TẢ ĐỀ THI')
+        matrix_title.setStyleSheet('font-weight: bold; font-size: 11px; color: #4ba3eb;')
+        matrix_header_box.addWidget(matrix_title, 1)
+
+        btn_clear_matrix = QPushButton('🧹 Xóa toàn bộ ma trận')
+        btn_clear_matrix.clicked.connect(self.clear_matrix)
+        matrix_header_box.addWidget(btn_clear_matrix)
+        box.addLayout(matrix_header_box)
+
+        self.matrix = QTableWidget(0, 7)
+        self.matrix.setHorizontalHeaderLabels(['Môn', 'Khối', 'Loại', 'Mức độ', 'Số câu', 'Phạm vi CSDL (Bài/Dạng)', 'Sẵn có'])
+        self.matrix.horizontalHeader().setMinimumSectionSize(45)
+        self.matrix.setColumnWidth(5, 180)
+        for i in (0, 1, 2, 3, 4, 6):
+            self.matrix.setColumnWidth(i, 75)
+        self.matrix.horizontalHeader().setStretchLastSection(True)
+        box.addWidget(self.matrix, 1)
+
+        self.matrix_summary = QLabel('Ma trận: 0 câu')
+        self.matrix_summary.setWordWrap(True)
+        box.addWidget(self.matrix_summary)
+        self.matrix.itemChanged.connect(self.update_matrix_summary)
+
+        # ------------------ CỘT PHẢI: CÂU ĐÃ CHỌN & XEM TRƯỚC ------------
+        right = QWidget()
+        rb = QVBoxLayout(right)
+        rb.setContentsMargins(0, 0, 0, 0)
+        rb.addWidget(QLabel('CÂU ĐÃ CHỌN THỦ CÔNG'))
+        self.chosen = QListWidget()
+        self.chosen.setMinimumWidth(220)
+        self.chosen.setMaximumHeight(240)
+        rb.addWidget(self.chosen)
+
+        self.preview = QuestionPreview(services, run_job)
+        rb.addWidget(self.preview, 1)
+        self.workspace.addWidget(right)
+        self.workspace.setSizes([260, 640, 400])
+        self.chosen.currentRowChanged.connect(self.preview_selected)
+
+        nav_box_1 = QHBoxLayout()
+        btn_back_step0 = QPushButton('‹ Quay lại: Thông tin đề')
+        btn_back_step0.clicked.connect(lambda: self.set_exam_step(0))
+        nav_box_1.addWidget(btn_back_step0)
+        nav_box_1.addStretch()
+        btn_to_step2 = QPushButton('Tiếp tục: Cấu hình xáo đề ›')
+        btn_to_step2.setProperty('primary', True)
+        btn_to_step2.clicked.connect(lambda: self.set_exam_step(2))
+        nav_box_1.addWidget(btn_to_step2)
+        p1_box.addLayout(nav_box_1)
+
+        self.bank_step_stack.addWidget(page_select)
+
+        # =========================================================================
+        # ------------------ BƯỚC 3: CẤU HÌNH & TẠO ĐỀ THI -----------------------
+        # =========================================================================
+        page_config = QWidget()
+        p2_box = QVBoxLayout(page_config)
+        p2_box.setContentsMargins(16, 16, 16, 16)
+        p2_box.setSpacing(14)
+
+        config_header = QLabel('BƯỚC 3: CẤU HÌNH XÁO TRỘN & BẮT ĐẦU TẠO ĐỀ (RÚT NGẪU NHIÊN THEO MA TRẬN)')
+        config_header.setStyleSheet('font-weight: bold; font-size: 14px; color: #4ba3eb;')
+        p2_box.addWidget(config_header)
+
+        shuffle_group = QGroupBox('Tùy chọn xáo trộn đề thi')
+        shuffle_layout = QVBoxLayout(shuffle_group)
+        self.shuffle_questions = QCheckBox('Xáo trộn thứ tự các câu hỏi trong đề thi')
+        self.shuffle_questions.setChecked(True)
+        shuffle_layout.addWidget(self.shuffle_questions)
+        self.shuffle_options = QCheckBox('Xáo trộn các phương án A, B, C, D (tự động giữ đúng đáp án chính xác)')
+        self.shuffle_options.setToolTip('Giữ đúng đáp án khi xáo')
+        self.shuffle_options.setChecked(True)
+        shuffle_layout.addWidget(self.shuffle_options)
+        p2_box.addWidget(shuffle_group)
+
+        summary_group = QGroupBox('Tóm tắt cấu trúc đề thi sẽ tạo')
+        sum_form = QFormLayout(summary_group)
+        self.sum_title_lbl = QLabel()
+        sum_form.addRow('Tên đề:', self.sum_title_lbl)
+        self.sum_header_lbl = QLabel()
+        sum_form.addRow('Tiêu đề \\TieudeT:', self.sum_header_lbl)
+        self.sum_seed_lbl = QLabel()
+        sum_form.addRow('Mã seed tái lập:', self.sum_seed_lbl)
+        self.sum_count_lbl = QLabel()
+        sum_form.addRow('Số lượng câu hỏi:', self.sum_count_lbl)
+        self.sum_matrix_detail_lbl = QLabel()
+        self.sum_matrix_detail_lbl.setWordWrap(True)
+        sum_form.addRow('Chi tiết ma trận:', self.sum_matrix_detail_lbl)
+        p2_box.addWidget(summary_group)
+
+        generate_card = QFrame()
+        generate_card.setObjectName('generateCard')
+        generate_card.setStyleSheet('background-color: rgba(75, 163, 235, 0.08); border-radius: 8px; padding: 14px;')
+        gc_layout = QVBoxLayout(generate_card)
+        self.big_generate_btn = QPushButton('🚀 BẮT ĐẦU TẠO ĐỀ THI (RÚT NGẪU NHIÊN THEO MA TRẬN)')
+        self.big_generate_btn.setStyleSheet('font-size: 14px; font-weight: bold; padding: 12px 24px;')
+        self.big_generate_btn.setProperty('primary', True)
+        self.big_generate_btn.clicked.connect(self.submitted.emit)
+        gc_layout.addWidget(self.big_generate_btn)
+        self.generate_status_lbl = QLabel('Hệ thống sẽ dựa vào bảng ma trận đề để lấy ngẫu nhiên số câu hỏi tương ứng theo từng bài, dạng, định dạng câu và mức độ.')
+        self.generate_status_lbl.setWordWrap(True)
+        gc_layout.addWidget(self.generate_status_lbl)
+        p2_box.addWidget(generate_card)
+        p2_box.addStretch()
+
+        nav_box_2 = QHBoxLayout()
+        btn_back_step1 = QPushButton('‹ Quay lại: Chọn câu hỏi & Ma trận')
+        btn_back_step1.clicked.connect(lambda: self.set_exam_step(1))
+        nav_box_2.addWidget(btn_back_step1)
+        nav_box_2.addStretch()
+        self.btn_to_step3 = QPushButton('Tiếp tục: Xem trước đề thi ›')
+        self.btn_to_step3.setProperty('primary', True)
+        self.btn_to_step3.clicked.connect(lambda: self.set_exam_step(3))
+        nav_box_2.addWidget(self.btn_to_step3)
+        p2_box.addLayout(nav_box_2)
+
+        self.bank_step_stack.addWidget(page_config)
+
+        # =========================================================================
+        # ------------------ BƯỚC 4: XEM TRƯỚC ĐỀ THI ----------------------------
+        # =========================================================================
+        page_preview = QWidget()
+        p3_box = QVBoxLayout(page_preview)
+        p3_box.setContentsMargins(10, 10, 10, 10)
+        p3_box.setSpacing(8)
+
+        prev_header = QLabel('BƯỚC 4: XEM TRƯỚC VÀ KIỂM TRA ĐỀ THI ĐÃ TẠO')
+        prev_header.setStyleSheet('font-weight: bold; font-size: 14px; color: #4ba3eb;')
+        p3_box.addWidget(prev_header)
+
+        self.preview_desc_lbl = QLabel('Chưa có đề thi nào được tạo. Vui lòng bấm Bắt đầu tạo đề thi ở Bước 3.')
+        self.preview_desc_lbl.setWordWrap(True)
+        p3_box.addWidget(self.preview_desc_lbl)
+
+        preview_split = QSplitter(Qt.Orientation.Horizontal)
+        p3_left = QWidget()
+        p3l_box = QVBoxLayout(p3_left)
+        p3l_box.setContentsMargins(0, 0, 0, 0)
+        p3l_box.addWidget(QLabel('Danh sách câu hỏi đã rút từ ma trận:'))
+        self.snapshot_chosen = QListWidget()
+        self.snapshot_chosen.currentRowChanged.connect(self._preview_snapshot_item)
+        p3l_box.addWidget(self.snapshot_chosen, 1)
+        self.duplicate_warning_lbl = QLabel()
+        self.duplicate_warning_lbl.setWordWrap(True)
+        p3l_box.addWidget(self.duplicate_warning_lbl)
+        preview_split.addWidget(p3_left)
+
+        p3_right = QWidget()
+        p3r_box = QVBoxLayout(p3_right)
+        p3r_box.setContentsMargins(0, 0, 0, 0)
+        p3r_box.addWidget(QLabel('Xem trước chi tiết câu:'))
+        self.snapshot_preview = QuestionPreview(services, run_job)
+        p3r_box.addWidget(self.snapshot_preview, 1)
+        preview_split.addWidget(p3_right)
+        preview_split.setSizes([400, 600])
+        p3_box.addWidget(preview_split, 1)
+
+        nav_box_3 = QHBoxLayout()
+        btn_back_step2 = QPushButton('‹ Quay lại: Cấu hình xáo đề')
+        btn_back_step2.clicked.connect(lambda: self.set_exam_step(2))
+        nav_box_3.addWidget(btn_back_step2)
+        nav_box_3.addStretch()
+        btn_to_step4 = QPushButton('Tiếp tục: Xuất đề thi ›')
+        btn_to_step4.setProperty('primary', True)
+        btn_to_step4.clicked.connect(lambda: self.set_exam_step(4))
+        nav_box_3.addWidget(btn_to_step4)
+        p3_box.addLayout(nav_box_3)
+
+        self.bank_step_stack.addWidget(page_preview)
+
+        # =========================================================================
+        # ------------------ BƯỚC 5: XUẤT ĐỀ THI ---------------------------------
+        # =========================================================================
+        page_export = QWidget()
+        p4_box = QVBoxLayout(page_export)
+        p4_box.setContentsMargins(16, 16, 16, 16)
+        p4_box.setSpacing(14)
+
+        exp_header = QLabel('BƯỚC 5: XUẤT BẢN ĐỀ THI, ĐÁP ÁN VÀ LỜI GIẢI (TIÊU ĐỀ \\TieudeT MAPCLASS)')
+        exp_header.setStyleSheet('font-weight: bold; font-size: 14px; color: #4ba3eb;')
+        p4_box.addWidget(exp_header)
+
+        exp_group = QGroupBox('Thông tin đề thi đã sẵn sàng xuất')
+        exp_form = QFormLayout(exp_group)
+        self.export_info_title = QLabel()
+        exp_form.addRow('Tên đề thi:', self.export_info_title)
+        self.export_info_count = QLabel()
+        exp_form.addRow('Tổng số câu:', self.export_info_count)
+        self.export_info_seed = QLabel()
+        exp_form.addRow('Mã seed tái lập:', self.export_info_seed)
+        self.export_info_header = QLabel()
+        exp_form.addRow('Tiêu đề chuẩn:', self.export_info_header)
+        p4_box.addWidget(exp_group)
+
+        exp_card = QFrame()
+        exp_card.setStyleSheet('background-color: rgba(85, 188, 163, 0.08); border-radius: 8px; padding: 14px;')
+        ec_layout = QVBoxLayout(exp_card)
+        self.big_export_btn = QPushButton('💾 XUẤT ĐỀ / ĐÁP ÁN / LỜI GIẢI')
+        self.big_export_btn.setStyleSheet('font-size: 14px; font-weight: bold; padding: 12px 24px;')
+        self.big_export_btn.setProperty('primary', True)
+        self.big_export_btn.clicked.connect(self.export_requested.emit)
+        ec_layout.addWidget(self.big_export_btn)
+        ec_desc = QLabel('Hỗ trợ xuất file TeX học sinh (không đáp án), TeX giáo viên (kèm lời giải), file PDF và bảng ma trận. Tiêu đề sẽ sử dụng lệnh \\TieudeT tương thích Mapclass.')
+        ec_desc.setWordWrap(True)
+        ec_layout.addWidget(ec_desc)
+        p4_box.addWidget(exp_card)
+
+        btn_restart = QPushButton('🔄 Tạo đề thi mới từ đầu')
+        btn_restart.clicked.connect(lambda: self.set_exam_step(0))
+        p4_box.addWidget(btn_restart)
+        p4_box.addStretch()
+
+        nav_box_4 = QHBoxLayout()
+        btn_back_step3 = QPushButton('‹ Quay lại: Xem trước đề thi')
+        btn_back_step3.clicked.connect(lambda: self.set_exam_step(3))
+        nav_box_4.addWidget(btn_back_step3)
+        nav_box_4.addStretch()
+        p4_box.addLayout(nav_box_4)
+
+        self.bank_step_stack.addWidget(page_export)
+
+        # ------------------ KHỞI TẠO DỮ LIỆU CÂY CSDL ---------------------------
+        self.nodes = []
+        self.tree_items = {}
         if services:
             from latex_question_studio.application.library import LibraryService
-            from latex_question_studio.ui.icons import icon
-            self.nodes=LibraryService(services).taxonomy();items={n['id']:QTreeWidgetItem([n['name']+f" ({n.get('question_count',0)})"]) for n in self.nodes}
-            all_item=QTreeWidgetItem(['Toàn ngân hàng']);self.tree.addTopLevelItem(all_item)
-            for n in self.nodes:
-                item=items[n['id']];item.setData(0,Qt.ItemDataRole.UserRole,n['id']);item.setIcon(0,icon('subject' if n['kind'] in ('subject','grade') else 'chapter' if n['kind']=='chapter' else 'topic','#579bd4'));items.get(n['parent_id'],all_item).addChild(item)
-            all_item.setExpanded(True);self.tree_items=items;self.tree.itemClicked.connect(self.select_scope)
-        self.question_type.currentIndexChanged.connect(self.refresh_statistics)
-        self.set_manual_ids(manual_ids)
-        if services:self.refresh_statistics()
+            self.nodes = LibraryService(services).taxonomy()
+            self._build_tree()
 
-    def update_shortage(self,*args):
-        if not self.available:return
-        missing=[f'{level}: thiếu {spin.value()-self.available["counts"][level]}' for level,spin in self.targets.items() if spin.value()>self.available['counts'][level]]
+        self.set_manual_ids(manual_ids)
+        if services:
+            self.refresh_statistics()
+
+        from latex_question_studio.ui.tex_exam_page import TexExamPage
+        self.tex_page = TexExamPage(services, run_job, self)
+        self.mode_stack.addWidget(self.tex_page)
+        self.modes.currentChanged.connect(self._handle_mode_change)
+
+        self.exam_steps.currentRowChanged.connect(self.set_exam_step)
+        self.set_exam_step(0)
+
+    # -------------------------------------------------------------------------
+    # HÀM XÂY DỰNG VÀ LỌC CÂY CSDL
+    # -------------------------------------------------------------------------
+    def _build_tree(self):
+        self.tree.clear()
+        self.tree_items = {}
+        items = {n['id']: QTreeWidgetItem([n['name'] + (f" ({n.get('count', n.get('question_count', 0))})" if n.get('count', n.get('question_count', 0)) else '')]) for n in self.nodes}
+        all_item = QTreeWidgetItem(['Toàn ngân hàng'])
+        self.tree.addTopLevelItem(all_item)
+
+        kind_icons = {
+            'subject': ('subject', '#4ba3eb'),
+            'grade': ('subject', '#4ba3eb'),
+            'chapter': ('chapter', '#e7ad4b'),
+            'lesson': ('topic', '#55bca3'),
+            'topic': ('topic', '#55bca3'),
+            'method': ('topic', '#55bca3')
+        }
+
+        for n in self.nodes:
+            item = items[n['id']]
+            item.setData(0, Qt.ItemDataRole.UserRole, n['id'])
+            ic_name, ic_color = kind_icons.get(n['kind'], ('topic', '#579bd4'))
+            item.setIcon(0, icon(ic_name, ic_color))
+            items.get(n['parent_id'], all_item).addChild(item)
+            if n.get('count', n.get('question_count', 0)) > 0 and n.get('kind') in ('subject', 'grade', 'chapter'):
+                item.setExpanded(True)
+
+        all_item.setExpanded(True)
+        self.tree_items = items
+
+    def toggle_tree_panel(self):
+        if not hasattr(self, 'tree_panel'):
+            return
+        if self.tree_panel.isVisible():
+            self.tree_panel.setVisible(False)
+        else:
+            self.ensure_tree_visible()
+
+    def ensure_tree_visible(self):
+        if hasattr(self, 'tree_panel'):
+            self.tree_panel.setVisible(True)
+            sizes = self.workspace.sizes()
+            if len(sizes) == 3 and sizes[0] < 200:
+                total = sum(sizes) if sum(sizes) > 600 else 1280
+                self.workspace.setSizes([280, max(500, total - 680), 400])
+
+    def _collapse_tree_all(self):
+        all_item = self.tree.topLevelItem(0)
+        if all_item:
+            for i in range(all_item.childCount()):
+                all_item.child(i).setExpanded(False)
+
+    def _expand_tree_all(self):
+        all_item = self.tree.topLevelItem(0)
+        if all_item:
+            all_item.setExpanded(True)
+            for i in range(all_item.childCount()):
+                child = all_item.child(i)
+                child.setExpanded(True)
+                for j in range(child.childCount()):
+                    child.child(j).setExpanded(True)
+
+    def _sync_tree_to_current_subject(self):
+        if not hasattr(self, 'subject_input') or not hasattr(self, 'tree'):
+            return
+        subj = self.subject_input.currentText().strip()
+        all_item = self.tree.topLevelItem(0)
+        if not all_item:
+            return
+        all_item.setExpanded(True)
+        if subj:
+            for i in range(all_item.childCount()):
+                child = all_item.child(i)
+                txt = child.text(0).upper()
+                if subj.upper() in txt:
+                    child.setExpanded(True)
+                    for j in range(child.childCount()):
+                        grandchild = child.child(j)
+                        if grandchild.childCount() > 0:
+                            grandchild.setExpanded(True)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.ensure_tree_visible()
+
+    def _filter_tree_by_subject(self, index):
+        subj = self.subject_filter.currentData()
+        all_item = self.tree.topLevelItem(0)
+        if not all_item:
+            return
+        for i in range(all_item.childCount()):
+            child = all_item.child(i)
+            if not subj:
+                child.setHidden(False)
+            else:
+                txt = child.text(0).upper()
+                child.setHidden(subj.upper() not in txt)
+
+    def _filter_tree_search(self, text):
+        query = text.strip().lower()
+        all_item = self.tree.topLevelItem(0)
+        if not all_item:
+            return
+
+        def filter_item(item):
+            match = query in item.text(0).lower() if query else True
+            child_matches = False
+            for i in range(item.childCount()):
+                if filter_item(item.child(i)):
+                    child_matches = True
+            is_visible = match or child_matches
+            item.setHidden(not is_visible)
+            if query and child_matches:
+                item.setExpanded(True)
+            return is_visible
+
+        for i in range(all_item.childCount()):
+            filter_item(all_item.child(i))
+
+    def _sync_header_preview(self):
+        self.tieudet_preview.update_header(
+            self.title.text(),
+            self.subject_input.currentText(),
+            self.grade_input.currentText(),
+            self.duration_input.currentText(),
+            self.school_input.text(),
+            self.exam_code_input.text()
+        )
+        self.update_step_summaries()
+
+    def _handle_mode_change(self, index):
+        self.mode_stack.setCurrentIndex(index)
+        self.exam_steps.setVisible(index == 0)
+
+    def set_exam_step(self, index):
+        index = max(0, min(index, self.bank_step_stack.count() - 1))
+        self.exam_steps.blockSignals(True)
+        self.exam_steps.setCurrentRow(index)
+        self.exam_steps.blockSignals(False)
+        self.bank_step_stack.setCurrentIndex(index)
+        self.update_step_summaries()
+        if index == 1:
+            self.ensure_tree_visible()
+            self._sync_tree_to_current_subject()
+
+    def update_step_summaries(self):
+        title = self.title.text() or 'Đề kiểm tra'
+        seed_val = str(self.seed.value())
+        manual_count = len(self.manual_ids)
+        matrix_count = 0
+        if hasattr(self, 'matrix'):
+            matrix_count = sum(int(self.matrix.item(i, 4).text() or 0) for i in range(self.matrix.rowCount()) if self.matrix.item(i, 4))
+        total_count = manual_count + matrix_count
+
+        subj = self.subject_input.currentText() if hasattr(self, 'subject_input') else 'TOÁN'
+        grd = self.grade_input.currentText() if hasattr(self, 'grade_input') else ''
+        dur = self.duration_input.currentText() if hasattr(self, 'duration_input') else '90 phút'
+        sch = self.school_input.text() if hasattr(self, 'school_input') else ''
+        code = self.exam_code_input.text() if hasattr(self, 'exam_code_input') else '101'
+
+        if hasattr(self, 'sum_title_lbl'):
+            self.sum_title_lbl.setText(title)
+            self.sum_header_lbl.setText(f"{sch} • Môn: {subj} ({grd}) • Thời gian: {dur} • Mã đề: {code}")
+            self.sum_seed_lbl.setText(seed_val)
+            self.sum_count_lbl.setText(f'{total_count} câu ({manual_count} câu chọn thủ công + {matrix_count} câu theo ma trận)')
+            self.sum_matrix_detail_lbl.setText(self.matrix_summary.text() if hasattr(self, 'matrix_summary') else '')
+
+        if hasattr(self, 'export_info_title'):
+            self.export_info_title.setText(title)
+            self.export_info_count.setText(f'{len(self.snapshot["questions"]) if self.snapshot else total_count} câu hỏi')
+            self.export_info_seed.setText(seed_val)
+            self.export_info_header.setText(f"{sch} • {subj} • Mã đề: {code}")
+
+    # -------------------------------------------------------------------------
+    # KHUNG THỐNG KÊ 4x4 VÀ LƯU VÀO MA TRẬN
+    # -------------------------------------------------------------------------
+    def _update_grid_selection_summary(self):
+        types = ('mcq', 'true_false', 'short_answer', 'essay')
+        levels = ('NB', 'TH', 'VD', 'VDC')
+        counts_by_type = {}
+        total = 0
+
+        for t in types:
+            t_sum = sum(self.grid_spins.get((t, lvl), QSpinBox()).value() for lvl in levels)
+            counts_by_type[t] = t_sum
+            total += t_sum
+            if t in self.grid_row_totals:
+                self.grid_row_totals[t].setText(f'{t_sum} câu')
+                self.grid_row_totals[t].setStyleSheet('font-weight: bold; font-size: 11px; color: #38bdf8;' if t_sum else 'font-size: 11px; color: #94a3b8;')
+
+        details = [f"{QTYPE_LABEL_MAP[t]}: {counts_by_type[t]}" for t in types if counts_by_type[t]]
+        desc = f"🎯 Đang chọn: {total} câu" + (f" ({' · '.join(details)})" if details else "")
+        self.grid_summary_lbl.setText(desc)
+        self.btn_save_grid.setText(f"➕ Lưu {total} câu vào bảng ma trận đề" if total else "➕ Lưu vào bảng ma trận đề")
+
+    def reset_grid_spins(self):
+        for spin in self.grid_spins.values():
+            spin.blockSignals(True)
+            spin.setValue(0)
+            spin.blockSignals(False)
+        self._update_grid_selection_summary()
+
+    def save_grid_to_matrix(self):
+        """Lưu toàn bộ các ô đã chọn trong lưới 4x4 vào Bảng ma trận đề."""
+        from latex_question_studio.domain.curriculum import classification, breadcrumb
+        values = classification(self.nodes, self.scope)
+        subj = values.get('subject', self.subject_input.currentText())
+        grd = values.get('grade', self.grade_input.currentText())
+        scope_title = breadcrumb(self.nodes, self.scope) or 'Toàn ngân hàng'
+
+        added = 0
+        types = [('mcq', 'Trắc nghiệm'), ('true_false', 'Đúng / sai'), ('short_answer', 'Trả lời ngắn'), ('essay', 'Tự luận')]
+        levels = [('NB', 'NB'), ('TH', 'TH'), ('VD', 'VD'), ('VDC', 'VDC')]
+
+        for qtype, qname in types:
+            for lvl, lvl_name in levels:
+                spin = self.grid_spins.get((qtype, lvl))
+                if not spin or spin.value() <= 0:
+                    continue
+                count = spin.value()
+                avail = 0
+                if self.matrix_available and qtype in self.matrix_available.get('matrix', {}):
+                    avail = self.matrix_available['matrix'][qtype].get(lvl, 0)
+
+                # Kiểm tra hàng trùng cùng scope + qtype + lvl trong matrix để cập nhật
+                found_row = None
+                for r in range(self.matrix.rowCount()):
+                    r_scope_id = self.matrix.item(r, 5).data(Qt.ItemDataRole.UserRole) if self.matrix.item(r, 5) else None
+                    r_type = self.matrix.item(r, 2).text() if self.matrix.item(r, 2) else ''
+                    r_lvl = self.matrix.item(r, 3).text() if self.matrix.item(r, 3) else ''
+                    if r_scope_id == self.scope and r_type == qname and r_lvl == lvl:
+                        found_row = r
+                        break
+
+                if found_row is not None:
+                    # Cộng dồn
+                    cur = int(self.matrix.item(found_row, 4).text() or 0)
+                    self.matrix.item(found_row, 4).setText(str(cur + count))
+                else:
+                    self.add_row()
+                    row_idx = self.matrix.rowCount() - 1
+                    texts = [subj, grd, qname, lvl, str(count), scope_title, str(avail)]
+                    for col_idx, txt in enumerate(texts):
+                        self.matrix.item(row_idx, col_idx).setText(txt)
+                        self.matrix.item(row_idx, col_idx).setToolTip(txt)
+                    self.matrix.item(row_idx, 5).setData(Qt.ItemDataRole.UserRole, self.scope)
+                    self.matrix.item(row_idx, 5).setFlags(self.matrix.item(row_idx, 5).flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+                added += count
+
+        self.reset_grid_spins()
+        self.update_matrix_summary()
+
+    def clear_matrix(self):
+        self.matrix.setRowCount(0)
+        self.update_matrix_summary()
+
+    def update_shortage(self, *args):
+        if not self.available:
+            return
+        missing = [f'{level}: thiếu {spin.value() - self.available["counts"][level]}' for level, spin in self.targets.items() if spin.value() > self.available['counts'][level]]
         self.shortage.setText(' · '.join(missing) if missing else 'Nguồn đáp ứng số lượng đang chọn trong phạm vi này.')
         self.shortage.setStyleSheet('color:#d88a37' if missing else '')
 
-    def show_snapshot(self,snapshot):
+    def show_snapshot(self, snapshot):
         from latex_question_studio.ui.pages.library import readable
-        self.snapshot=snapshot;self.chosen.blockSignals(True);self.chosen.clear()
-        for i,q in enumerate(snapshot['questions'],1):self.chosen.addItem(f'{i}. '+readable(q['source'])[:100])
+        self.snapshot = snapshot
+        self.chosen.blockSignals(True)
+        self.chosen.clear()
+        self.snapshot_chosen.blockSignals(True)
+        self.snapshot_chosen.clear()
+        for i, q in enumerate(snapshot['questions'], 1):
+            text = f'{i}. ' + readable(q['source'])[:100]
+            self.chosen.addItem(text)
+            self.snapshot_chosen.addItem(text)
         self.chosen.blockSignals(False)
-        if self.chosen.count():self.chosen.setCurrentRow(0)
+        self.snapshot_chosen.blockSignals(False)
 
-    def preview_selected(self,index):
-        if index<0:self.preview.set_source('');return
+        warnings = snapshot.get('duplicate_warnings', [])
+        if warnings:
+            self.duplicate_warning_lbl.setText(f"⚠️ Phát hiện {len(warnings)} cặp câu hỏi trùng/gần trùng cần kiểm tra.")
+            self.duplicate_warning_lbl.setStyleSheet('color: #d88a37; font-weight: bold;')
+        else:
+            self.duplicate_warning_lbl.setText('✓ Không có cảnh báo trùng lặp nào.')
+            self.duplicate_warning_lbl.setStyleSheet('color: #55bca3;')
+
+        self.preview_desc_lbl.setText(f"Đề thi: {snapshot.get('title', 'Đề kiểm tra')} • Tổng {len(snapshot['questions'])} câu hỏi.")
+        if self.chosen.count():
+            self.chosen.setCurrentRow(0)
+        if self.snapshot_chosen.count():
+            self.snapshot_chosen.setCurrentRow(0)
+        self.update_step_summaries()
+
+    def _preview_snapshot_item(self, index):
+        if index < 0 or not self.snapshot or index >= len(self.snapshot['questions']):
+            self.snapshot_preview.set_source('')
+            return
+        q = self.snapshot['questions'][index]
+        self.snapshot_preview.set_source(q['source'], self.snapshot.get('assets', {}))
+
+    def preview_selected(self, index):
+        if index < 0:
+            self.preview.set_source('')
+            return
         if self.snapshot:
-            q=self.snapshot['questions'][index];self.preview.set_source(q['source'],self.snapshot.get('assets',{}));return
-        if not self.services or index>=len(self.manual_ids):return
-        q=self.services.questions.get(self.manual_ids[index])
-        if not q:return
+            q = self.snapshot['questions'][index]
+            self.preview.set_source(q['source'], self.snapshot.get('assets', {}))
+            return
+        if not self.services or index >= len(self.manual_ids):
+            return
+        q = self.services.questions.get(self.manual_ids[index])
+        if not q:
+            return
         with self.services.database.connect() as c:
-            assets={r['original_reference']:self.services.config.data_dir/r['relative_path'] for r in c.execute('SELECT qa.original_reference,a.relative_path FROM question_assets qa JOIN assets a ON a.id=qa.asset_id WHERE qa.question_id=?',(q.id,))}
-        self.preview.set_source(q.latex_source,assets)
+            assets = {r['original_reference']: self.services.config.data_dir / r['relative_path'] for r in c.execute('SELECT qa.original_reference, a.relative_path FROM question_assets qa JOIN assets a ON a.id=qa.asset_id WHERE qa.question_id=?', (q.id,))}
+        self.preview.set_source(q.latex_source, assets)
 
     def set_manual_ids(self, ids):
-        self.manual_ids=list(ids);self.snapshot=None
-        if hasattr(self,'chosen'):
+        self.manual_ids = list(ids)
+        self.snapshot = None
+        if hasattr(self, 'chosen'):
             from latex_question_studio.ui.pages.library import readable
-            self.chosen.blockSignals(True);self.chosen.clear()
+            self.chosen.blockSignals(True)
+            self.chosen.clear()
             if self.services:
-                for i,qid in enumerate(ids,1):
-                    q=self.services.questions.get(qid)
-                    if q:self.chosen.addItem(f'{i}. '+readable(q.latex_source)[:100])
-            self.chosen.blockSignals(False);self.preview.set_source('')
-        self.selection_label.setText(f'Đã chọn {len(ids)} câu thủ công; các hàng bên dưới lấy thêm câu không trùng.')
-        if hasattr(self,'stats'):self.refresh_statistics()
-    def add_row(self):
-        i=self.matrix.rowCount();self.matrix.insertRow(i)
-        for j in range(7):self.matrix.setItem(i,j,QTableWidgetItem('1' if j==4 else ''))
-    def values(self):
-        rows=[]
-        for i in range(self.matrix.rowCount()):
-            values=[self.matrix.item(i,j).text().strip() for j in range(5)]
-            rows.append({'filters':dict(zip(['subject','grade','question_type','cognitive_level'],values[:4])),'count':int(values[4]),'taxonomy_id':self.matrix.item(i,5).data(Qt.ItemDataRole.UserRole)})
-        return dict(title=self.title.text(),manual_ids=self.manual_ids,matrix=rows,seed=self.seed.value(),shuffle_questions=self.shuffle_questions.isChecked(),shuffle_options=self.shuffle_options.isChecked())
+                for i, qid in enumerate(ids, 1):
+                    q = self.services.questions.get(qid)
+                    if q:
+                        self.chosen.addItem(f'{i}. ' + readable(q.latex_source)[:100])
+            self.chosen.blockSignals(False)
+            self.preview.set_source('')
+        self.selection_label.setText(f'Đã chọn {len(ids)} câu thủ công; các hàng ma trận bên dưới sẽ rút thêm câu không trùng.')
+        if hasattr(self, 'stats'):
+            self.refresh_statistics()
+        self.update_step_summaries()
 
-    def select_scope(self,item,*args):
-        self.scope=item.data(0,Qt.ItemDataRole.UserRole)
+    def add_row(self):
+        i = self.matrix.rowCount()
+        self.matrix.insertRow(i)
+        for j in range(7):
+            self.matrix.setItem(i, j, QTableWidgetItem('1' if j == 4 else ''))
+        self.update_matrix_summary()
+
+    def values(self):
+        rows = []
+        for i in range(self.matrix.rowCount()):
+            raw_vals = [self.matrix.item(i, j).text().strip() if self.matrix.item(i, j) else '' for j in range(5)]
+            tax_item = self.matrix.item(i, 5)
+            tax_id = tax_item.data(Qt.ItemDataRole.UserRole) if tax_item else None
+            count_val = int(raw_vals[4]) if raw_vals[4].isdigit() else 1
+
+            # Chuẩn hóa mã câu hỏi & mức độ nhận biết
+            qtype_code = QTYPE_CODE_MAP.get(raw_vals[2], raw_vals[2])
+            level_code = LEVEL_CODE_MAP.get(raw_vals[3], raw_vals[3])
+
+            rows.append({
+                'filters': {
+                    'subject': raw_vals[0],
+                    'grade': raw_vals[1],
+                    'question_type': qtype_code,
+                    'cognitive_level': level_code
+                },
+                'count': count_val,
+                'taxonomy_id': tax_id,
+                'scope_name': tax_item.text() if tax_item else ''
+            })
+
+        return dict(
+            title=self.title.text(),
+            subject=self.subject_input.currentText(),
+            grade=self.grade_input.currentText(),
+            duration=self.duration_input.currentText(),
+            school=self.school_input.text(),
+            exam_code=self.exam_code_input.text(),
+            manual_ids=self.manual_ids,
+            matrix=rows,
+            seed=self.seed.value(),
+            shuffle_questions=self.shuffle_questions.isChecked(),
+            shuffle_options=self.shuffle_options.isChecked()
+        )
+
+    def select_scope(self, item, *args):
+        self.scope = item.data(0, Qt.ItemDataRole.UserRole)
         from latex_question_studio.domain.curriculum import breadcrumb
-        self.scope_label.setText(breadcrumb(self.nodes,self.scope) or 'Toàn ngân hàng');self.refresh_statistics()
+        bc = breadcrumb(self.nodes, self.scope)
+        self.scope_label.setText('📍 ' + (bc or 'Toàn ngân hàng'))
+        self.refresh_statistics()
 
     def cancel_statistics(self):
-        self.stats_generation+=1
-        if self.stats_job:self.stats_job.cancelled.set()
-        self.stats_job=None
+        self.stats_generation += 1
+        if self.stats_job:
+            self.stats_job.cancelled.set()
+        self.stats_job = None
 
-    def refresh_statistics(self,*args):
-        if not self.services:return
+    def refresh_statistics(self, *args):
+        if not self.services:
+            return
         from latex_question_studio.application.exams import ExamService
-        self.cancel_statistics();generation=self.stats_generation
-        scope=self.scope;kind=self.question_type.currentData();manual=list(self.manual_ids)
-        def apply(result):
-            if generation!=self.stats_generation:return
-            self.stats_job=None;self.available=result;self.scope_action.setEnabled(True)
-            for i,level in enumerate(('NB','TH','VD','VDC')):self.stats.setItem(i,1,QTableWidgetItem(str(result['counts'][level])))
-            self.update_shortage()
-            self.stats_note.setText(f"Tổng {result['total']} câu hợp lệ • {result['counts']['unclassified']} chưa gán mức độ • {result['invalid']} source lỗi không tính. Đã loại câu chọn thủ công; các phạm vi chồng nhau có thể dùng chung nguồn.")
-        if not self.run_job:apply(ExamService(self.services).statistics(scope,kind,manual));return
-        self.available=None;self.scope_action.setEnabled(False);self.stats_note.setText('Đang thống kê nguồn câu…')
-        from latex_question_studio.ui.jobs import Job
-        job=Job(lambda cancelled,progress:ExamService(self.services).statistics(scope,kind,manual,cancelled));self.stats_job=job
-        job.signals.completed.connect(apply)
-        def failed(message):
-            if generation!=self.stats_generation:return
-            self.stats_job=None;self.stats_note.setText('Thống kê đã dừng: '+message)
-        job.signals.failed.connect(failed);self.run_job(job)
+        self.cancel_statistics()
+        generation = self.stats_generation
+        scope = self.scope
+        kind = self.question_type.currentData()
+        manual = list(self.manual_ids)
 
-    def closeEvent(self,event):
-        self.cancel_statistics();self.preview.cancel();super().closeEvent(event)
+        def fetch_data(cancelled):
+            exam_svc = ExamService(self.services)
+            stat_res = exam_svc.statistics(scope, kind, manual, cancelled)
+            mat_res = None
+            try:
+                mat_res = exam_svc.matrix_statistics(scope, manual, cancelled)
+            except Exception:
+                pass
+            return stat_res, mat_res
+
+        def apply(payload):
+            if generation != self.stats_generation:
+                return
+            self.stats_job = None
+            stat_res, mat_res = payload
+            self.available = stat_res
+            self.scope_action.setEnabled(True)
+            for i, level in enumerate(('NB', 'TH', 'VD', 'VDC')):
+                self.stats.setItem(i, 1, QTableWidgetItem(str(stat_res['counts'][level])))
+            self.update_shortage()
+            self.stats_note.setText(f"Tổng {stat_res['total']} câu hợp lệ • {stat_res['counts']['unclassified']} chưa gán mức độ • {stat_res['invalid']} source lỗi không tính. Đã loại câu chọn thủ công.")
+
+            if mat_res:
+                self.matrix_available = mat_res
+                mat = mat_res.get('matrix', {})
+                types = ('mcq', 'true_false', 'short_answer', 'essay')
+                levels = ('NB', 'TH', 'VD', 'VDC')
+                for t in types:
+                    t_data = mat.get(t, {})
+                    for lvl in levels:
+                        cnt = t_data.get(lvl, 0)
+                        lbl = self.grid_avail_lbls.get((t, lvl))
+                        if lbl:
+                            lbl.setText(f"có: {cnt}")
+                            lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #38bdf8;" if cnt > 0 else "font-size: 10px; color: #64748b;")
+            else:
+                for t in ('mcq', 'true_false', 'short_answer', 'essay'):
+                    for lvl in ('NB', 'TH', 'VD', 'VDC'):
+                        cnt = stat_res['counts'].get(lvl, 0) if t == (kind or 'mcq') else 0
+                        lbl = self.grid_avail_lbls.get((t, lvl))
+                        if lbl:
+                            lbl.setText(f"có: {cnt}")
+                            lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #38bdf8;" if cnt > 0 else "font-size: 10px; color: #64748b;")
+
+        if not self.run_job:
+            apply(fetch_data(lambda: False))
+            return
+
+        self.available = None
+        self.matrix_available = None
+        self.scope_action.setEnabled(False)
+        self.stats_note.setText('Đang thống kê nguồn câu hỏi…')
+        from latex_question_studio.ui.jobs import Job
+        job = Job(lambda cancelled, progress: fetch_data(cancelled))
+        self.stats_job = job
+        job.signals.completed.connect(apply)
+
+        def failed(message):
+            if generation != self.stats_generation:
+                return
+            self.stats_job = None
+            self.stats_note.setText('Thống kê đã dừng: ' + message)
+
+        job.signals.failed.connect(failed)
+        self.run_job(job)
+
+    def closeEvent(self, event):
+        self.cancel_statistics()
+        self.preview.cancel()
+        if hasattr(self, 'snapshot_preview'):
+            self.snapshot_preview.cancel()
+        self.tex_page.cancel_all()
+        super().closeEvent(event)
 
     def add_scope_rows(self):
-        from latex_question_studio.domain.curriculum import classification,breadcrumb
-        values=classification(self.nodes,self.scope)
-        if not self.run_job:self.refresh_statistics()
-        if self.available is None:return
-        for level,count in ((level,spin.value()) for level,spin in self.targets.items()):
-            if not count:continue
-            self.add_row();i=self.matrix.rowCount()-1
-            texts=[values.get('subject',''),values.get('grade',''),self.question_type.currentData(),level,str(count),breadcrumb(self.nodes,self.scope) or 'Toàn ngân hàng',str(self.available['counts'][level])]
-            for j,text in enumerate(texts):self.matrix.item(i,j).setText(text);self.matrix.item(i,j).setToolTip(text)
-            self.matrix.item(i,5).setData(Qt.ItemDataRole.UserRole,self.scope);self.matrix.item(i,5).setFlags(self.matrix.item(i,5).flags() & ~Qt.ItemFlag.ItemIsEditable)
-        for spin in self.targets.values():spin.setValue(0)
+        from latex_question_studio.domain.curriculum import classification, breadcrumb
+        values = classification(self.nodes, self.scope)
+        if not self.run_job:
+            self.refresh_statistics()
+        if self.available is None:
+            return
+        for level, count in ((level, spin.value()) for level, spin in self.targets.items()):
+            if not count:
+                continue
+            self.add_row()
+            i = self.matrix.rowCount() - 1
+            texts = [values.get('subject', ''), values.get('grade', ''), self.question_type.currentData(), level, str(count), breadcrumb(self.nodes, self.scope) or 'Toàn ngân hàng', str(self.available['counts'][level])]
+            for j, text in enumerate(texts):
+                self.matrix.item(i, j).setText(text)
+                self.matrix.item(i, j).setToolTip(text)
+            self.matrix.item(i, 5).setData(Qt.ItemDataRole.UserRole, self.scope)
+            self.matrix.item(i, 5).setFlags(self.matrix.item(i, 5).flags() & ~Qt.ItemFlag.ItemIsEditable)
+        for spin in self.targets.values():
+            spin.setValue(0)
+        self.update_matrix_summary()
 
-    def update_matrix_summary(self,*args):
-        totals={level:0 for level in ('NB','TH','VD','VDC')};total=0
+    def update_matrix_summary(self, *args):
+        totals = {level: 0 for level in ('NB', 'TH', 'VD', 'VDC')}
+        type_totals = {'mcq': 0, 'true_false': 0, 'short_answer': 0, 'essay': 0}
+        total = 0
         for i in range(self.matrix.rowCount()):
-            count_item=self.matrix.item(i,4);level_item=self.matrix.item(i,3)
-            try:count=int(count_item.text()) if count_item else 0
-            except ValueError:count=0
-            total+=count
-            if level_item and level_item.text() in totals:totals[level_item.text()]+=count
-        self.matrix_summary.setText('Ma trận: '+str(total)+' câu • '+' • '.join(f'{level}: {count}' for level,count in totals.items()))
+            count_item = self.matrix.item(i, 4)
+            level_item = self.matrix.item(i, 3)
+            type_item = self.matrix.item(i, 2)
+            try:
+                count = int(count_item.text()) if count_item else 0
+            except ValueError:
+                count = 0
+            total += count
+
+            lvl = LEVEL_CODE_MAP.get(level_item.text(), level_item.text()) if level_item else ''
+            if lvl in totals:
+                totals[lvl] += count
+
+            tcode = QTYPE_CODE_MAP.get(type_item.text(), type_item.text()) if type_item else ''
+            if tcode in type_totals:
+                type_totals[tcode] += count
+
+        type_str = f"TN: {type_totals['mcq']} · Đ/S: {type_totals['true_false']} · TLN: {type_totals['short_answer']} · TL: {type_totals['essay']}"
+        lvl_str = f"NB: {totals['NB']} · TH: {totals['TH']} · VD: {totals['VD']} · VDC: {totals['VDC']}"
+        self.matrix_summary.setText(f'Ma trận: {total} câu ({type_str} | {lvl_str})')
+        self.update_step_summaries()
 
     def remove_row(self):
-        if self.matrix.currentRow()>=0:
-            self.matrix.removeRow(self.matrix.currentRow());self.update_matrix_summary()
+        if self.matrix.currentRow() >= 0:
+            self.matrix.removeRow(self.matrix.currentRow())
+            self.update_matrix_summary()

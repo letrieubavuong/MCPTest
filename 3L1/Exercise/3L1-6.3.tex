@@ -1,0 +1,367 @@
+\loai{Loại 1: Chỉ hóa hơi}
+
+
+\begin{ex}
+	\immini[thm]{Một học sinh làm thí nghiệm đo nhiệt hoá hơi riêng của nước. Ấm đun nước học sinh sử dụng có công suất $1500 \ W$. Từ kết quả thí nghiệm, học sinh vẽ được đồ thị quan hệ giữa khối lượng nước trong ấm và thời gian của quá trình hoá hơi của nước như hình bên. Nhiệt hoá hơi riêng của nước mà học sinh này đo được gần đúng bằng
+			\motcot 
+			{\True $2,34 . 10^{6} \ J / kg$}
+			{$1,17 . 10^{6}\ J / kg$}
+			{$2340\ J / kg$}
+			{$1170\ J / kg$}}{
+			\begin{tikzpicture}[scale=0.7,transform shape,thick,>=stealth']
+					\tkzDefPoints{0/0/o, 8.75/0/x, 0/8.25/y, 0/7.5/a, 0/5/b, 3.9/5/m, 3.9/0/b', 1.9/6.25/c, 5.85/3.75/d}
+					\draw  [help  lines, xstep=0.25cm,ystep=0.25cm]  (0,0)  grid  (8.75,8.25);
+					\tkzDrawSegments[very thick, Mapcolor,->](o,x o,y)
+					\tkzLabelPoint[left](o){$O$}
+					\tkzLabelPoint[above](x){$\tau\ (s)$}
+					\tkzLabelPoint[above](y){$m\ (g)$}
+					\tkzLabelPoint[left](a){$300$}
+					\tkzLabelPoint[left](b){$200$}
+					\tkzLabelPoint[below](b'){$156$}
+					\tkzDrawSegments[dashed](b,m m,b')
+					\tkzLabelPoint[above right](m){$M$}
+					\draw[very thick,blue] (0,7.5) -- (7.83,2.5);
+					\tkzDrawPoints[size=4.5,fill=red](a,m,c,d)
+					
+			\end{tikzpicture}}
+	\loigiai{
+			$Q=Lm_{hh}=L(m_o-m)=\mathcal{P}\tau \Rightarrow L.(0,3-0,2)=1500.156\Rightarrow L\approx 2,34 . 10^{6} \ J / kg$
+		}
+	\haidong{6}\end{ex}
+
+
+
+
+\begin{ex} \nguon{3}
+Biết nhiệt hóa hơi riêng của nước là $L=2,3 . 10^{6} \ J /kg$. Bỏ qua sự trao đổi nhiệt với môi trường. Thí nghiệm được thực hiện ở áp suất $1\ atm$. Nhiệt lượng cần cung cấp để làm bay hơi hoàn toàn $100 \ g$ nước ở $100^\circ C$ là
+\choice
+{$23.10^{6} \ J$}
+{\True $2,3 . 10^{5} \ J$}
+{$2,3 . 10^{6} \ J$}
+{$0,23 . 10^{4} \ J$}
+\loigiai{
+	Áp dụng công thức: $Q=mL=0,1 . 2,3 . 10^{6}=2,3 . 10^{5} \ J$
+}
+\end{ex}
+
+
+\begin{ex} \nguon{4}
+	Biết nhiệt hóa hơi riêng của rượu là $L=8,57.10^{5} \ J/kg$ và khối lượng riêng của rượu là  $789 \ g / dm^3$. Nhiệt lượng cần thiết để làm hóa hơi 2 lít rượu khi nó đang sôi là bao nhiêu kJ (làm tròn kết quả đến chữ số hàng đơn vị)?
+	\shortans[oly]{1352 } 
+	\loigiai{
+		\item Khối lượng của rượu là: $m=\rho . V=1,578 \ kg$
+		\item Nhiệt lượng cần thiết đề hóa hơi lượng rượu trên là:
+		$$
+		Q=L . m=8,57 . 10^{5} . 1,578=1352346 \ J\approx 1352\ kJ
+		$$
+		TLN: 1352
+	}
+\end{ex}
+\begin{ex} \nguon{4}
+Một máy làm mát có thể ngưng tụ $10 \ kg$ hơi nước ở $100^\circ C$ thành nước ở $100^\circ C$ trong thời gian 2,0 giờ. Biết rằng nhiệt nóng chảy của nước đá là $\lambda=3,34.10^{5} \ J/kg$ và nhiệt hóa hơi riêng của nước là $L=2,26.10^{6} \ J/kg$. Thí nghiệm được thực hiện ở  áp suất $1\ atm$. Nếu sử dụng cùng bộ làm mát này, khối lượng nước ở $0^\circ C$ có thể đóng thành băng ở $0^\circ C$ trong 2,0 giờ là bao nhiêu kg (làm tròn kết quả đến chữ só hầng phần mười)?
+\shortans[oly]{67,7 }
+\loigiai{
+	\begin{itemize}
+		\item Nhiệt lượng mà máy làm mát thu nhận khi ngưng tụ $10 \ kg$ hơi nước ở $100^\circ C$ trong 2 giờ là: $$Q=mL=10.2,26.10^{6}=2,26.10^{7} \ J$$
+		\item Nhiệt lượng mà máy làm mát thu nhận khi làm đóng băng nước ở $0^\circ C$ trong 2 giờ là: $$Q^{\prime}=m^{\prime} \lambda$$
+		\item Ta có: $Q=Q^{\prime}$. Tính được $$m^{\prime}=67,7 \ kg$$
+	\end{itemize}
+}
+\end{ex}
+
+\begin{ex}%[3P6-7.2T][Loai4]
+	Người ta dùng một loại laze $CO_2$ có công suất $\mathcal{P} = 10$ W để làm dao mổ.  Tia laze chiếu vào chỗ mổ sẽ làm cho nước ở phần mô chỗ đó bốc hơi và mô bị cắt. Biết nhiệt dung riêng của nước là $c = 4,18$ $kJ/kg.K$, nhiệt độ sôi của nước là $100^\circ C$, khối lượng riêng của nước là $\rho =1000\ kg/m^3$, nhiệt hoá hơi riêng của nước ở $100^\circ C$ là $L = 2,26.10^6\ J/kg$, nhiệt độ cơ thể là $37^\circ C$. Coi rằng toàn bộ năng lượng của tia laze được dùng để làm chỗ mô này nóng lên và hóa hơi. Thể tích nước mà tia laze làm bốc hơi trong 1 s là
+	\choice
+	{$2,892\ mm^3$}
+	{\True $3,963\ mm^3$}
+	{$4,01\ mm^3$}
+	{$2,55\ mm^3$}
+	\loigiai{
+		\begin{align*}
+			&Q = m.c.(100 - 37) + m.L = \mathcal{P}t\\
+			\Rightarrow&\rho.V.(63.c+L)=\mathcal{P}t\\
+			\Rightarrow&1000.V.(63.4180+2260.10^3)=10.1\\
+			\Rightarrow & V\approx 3,963\ mm^3
+		\end{align*}
+	}
+	\haidong{10}\end{ex}
+	
+
+\loai{Loại 2: Có sự chuyển nhiệt độ và hóa hơi}
+
+
+
+
+
+
+
+
+
+\begin{ex}%[1P7-4.2G][Loai3]
+Người ta đun sôi 0,5 lít nước có nhiệt độ ban đầu $27^\circ C$ chứa trong chiếc ấm bằng đồng khối lượng $m_2=0,4\ kg$. Sau khi sôi được một lúc đã có 0,1 lít nước biến thành hơi.  Biết nhiệt hóa hơi riêng của nước là $2,3.10^6\ J/kg$, nhiệt dung riêng của nước và của đồng tương ứng là $c_1=4180\ J/kg.K;\ c_2=380\ J/kg.K$. Nhiệt lượng đã cung cấp cho ấm nước là
+\choice
+{\True 393666 J}
+{453256 J}
+{542632 J}
+{623532 J}
+\loigiai{
+	\begin{itemize}
+		\item Nhiệt lượng cần thiết để đưa ấm từ nhiệt độ $27^\circ C$ đến nhiệt độ sôi $100^\circ C$:
+		\begin{align*}
+			Q_1&=m_1c_1\Delta t+m_2c_2\Delta t=(m_1c_1+m_2c_2)(t_2-t_1)\\
+		&=(0,5.4180+0,4.380).(100-27)=163666\ J
+		\end{align*}
+		\item Nhiệt lượng cần cung cấp cho 0,1 lít nước hóa hơi là: $$Q_2=\lambda m=0,1.2,3.10^6=2,3.10^5\ J$$
+		\item Tổng nhiệt lượng đã cung cấp cho ấm nước: $$Q=Q_1+Q_2=163666+230000=393666\ J$$
+	\end{itemize}
+}
+\haidong{6}\end{ex}
+
+
+
+
+\begin{ex} \nguon{3}
+Một học sinh làm thí nghiệm đo nhiệt hóa hơi riêng của nước (dụng cụ gồm cân điện tử, ấm siêu tốc, đồng hồ đo thời gian, chai nước). Biết ấm đun có công suất $\mathcal{P}=1500 \ W$. Khối lượng nước trong ấm ban đầu đo được bằng cân điện tử là $m_0=300 \ g$. Quan sát nhiệt kế học sinh thấy khi nước bắt đầu sôi thì ngay lập tức mở nắp ấm để nước bay hơi, sau khoảng thời gian 77 giây thì thấy số chỉ trên cân điện tử còn $m=250 \ g$. Nếu bỏ qua sự trao đổi nhiệt với môi trường thì học sinh xác định được nhiệt hóa hơi riêng của nước bằng bao nhiêu $MJ / kg$ (làm tròn kết quả đến chữ số hàng phần trăm)?
+\shortans[oly]{2,31}
+\loigiai{
+	Nhiệt lượng mà ấm cung cấp cho nước trong quá trình sôi là: $Q=\mathcal{P}. \Delta t$à 
+	$$
+	L=\dfrac{Q}{\Delta m}=\dfrac{\mathcal{P} . \Delta t}{m_0-m}=\dfrac{1500 . 77}{(300-250) . 10^{-3}}=2,31 . 10^{6}\ J / kg.
+	$$
+}
+\end{ex}
+\begin{ex} \nguon{2}
+	Để xác định nhiệt hóa hơi riêng của nước, người ta làm thí nghiệm sau: đưa $10 \ g$ hơi nước ở nhiệt độ $100^\circ C$ vào một nhiệt lượng kế chứa $290 \ g$ nước ở $20^\circ C$. Nhiệt độ cuối của hệ là $40^\circ C$. Biết nhiệt dung của nhiệt lượng kế là $46 \ J / K$, nhiệt dung riêng của nước là $4,18 \ J /g.K$. Bỏ qua sự trao đổi nhiệt với môi trường. Nhiệt hóa hơi riêng của nước là
+	\choice
+	{$2010,2 \ J /g$}
+	{\True $2265,6 \ J /g$}
+	{$2115,6 \ J /g$}
+	{$2065,6 \ J /g$}
+	\loigiai{
+		\begin{itemize}
+			\item Nhiệt lượng do $10 \ g$ hơi nước tỏa ra khi nguội đến $t=40^\circ C$
+			\begin{align*}
+				Q_1=L m_1+c m_1(100-40)=L m_1+60 c .m_1
+				`\end{align*}
+			\item Nhiệt lượng do nước trong nhiệt lượng kế hấp thụ: 
+			\begin{align*}
+				Q_2=c .m_2(40-20)=20 \ c.m_2
+			\end{align*}
+			\item Nhiệt lượng do nhiệt lượng kế hấp thụ: $Q_3=q.(40-20)=20 q$
+			\item Theo định luật bảo toàn năng lượng ta có: $Q_1=Q_2+Q_3$
+			\begin{align*}
+				& L\ m_1+60\ c .m_1=20\ c .m_2+20 q \\
+				\Rightarrow \ & L=\dfrac{20 \ c.m_2-60 \ c.m_1+20 q}{m_1} \\
+				\Rightarrow \ & L=\dfrac{20\ c\left(m_2-3 m_1\right)+20 q}{m_1}=\dfrac{20.4,18.260+4,6.20}{10}=2265,6 \ J / g 
+			\end{align*}
+		\end{itemize}
+	}
+\end{ex}
+
+\begin{ex} \nguon{2}
+	Một khối đồng nặng $1 \ kg$ ở nhiệt độ $20^\circ C$ được thả vào một bể chứa lớn chứa nitrogen lỏng ở nhiệt độ $77,3 \ K$. Biết nhiệt dung riêng của đồng là $380 \ J /kg$.K; nhiệt hóa hơi riêng của nitrogen là $2 . 10^{5} \ J /kg$; nhiệt độ sôi của nitrogen là $77,3\ K$. Bỏ qua sự trao đổi nhiệt với môi trường bên ngoài. Khối lượng nitrogen bị bay hơi cho đến khi khối đồng đạt đến nhiệt độ $77,3 \ K$ là
+	\choice
+	{\True $0,41 \ kg$}
+	{$0,51 \ kg$}
+	{$0,31 \ kg$}
+	{$0,75 \ kg$}
+	\loigiai{
+		\begin{itemize}
+			\item Điểm sôi của nitrogen là $77,3 \ K$
+			\begin{align*}
+				& Q_{\text{tỏa}}=Q_{thu} \\
+				\Rightarrow\ & m_1 c \Delta t=m_2 L
+			\end{align*}
+			\item Thay các giá trị số vào công thức:
+			\begin{align*}
+				1 . 380 .(293-77,3)=m . 2 . 10^{5}
+			\end{align*}
+			\item Giải phương trình ta được:
+			$m\approx 0,41 \ kg$
+		\end{itemize}
+	}
+\end{ex}
+\begin{ex} \nguon{4}
+Người ta dùng một ấm bằng nhôm có khối lượng $600 \ g$ để đun sôi $1 \ kg$ nuớc ở $25^\circ C$ bằng bếp điện. Sau 18 phút đã có $20 \%$ khối lượng nước đã hóa hơi ở nhiệt độ $100^\circ C$. Biết rằng $75\%$ nhiệt lượng mà bếp cung cấp được dùng vào việc đun nước. Biết nhiệt dung riêng của nước là $c_1=$ $4180 \ J/kg. K$, nhiệt dung riêng của nhôm là $c_2=880 \ J / kg . K$, nhiệt hóa hơi riêng của nước ở $100^\circ C$ là $L=2,26.10^{6} \ J/kg$. Công suất của bếp điện là bao nhiêu oát (làm tròn kết quả đến chữ số hàng đơn vị)?
+\shortans[oly]{994 } 
+\loigiai{
+	\item Gọi $m_1$ và $m_2$ lần lượt là khối lượng của nước và của ấm nhôm.
+	\item Nhiệt lượng mà bếp điện đã cung cấp cho ấm nước là:
+	$$Q=m_1 c_1 \Delta t+0,2 m_1 L+m_2 c_2 \Delta t=1.4180.75+0,2 . 1.2,26.10^{6}+0,6.880.75=805100 \ J$$
+	\item Công suất của bếp: $$\mathcal{P}=\dfrac{Q}{H. \tau}=\dfrac{805100}{0,75.18.60}=994 \ W$$
+}
+\end{ex}
+
+\begin{ex} \nguon{2}
+Dùng bếp điện để đun một ấm nhôm khối lượng $600 \ g$ đựng 1,5 lít nước ở nhiệt độ $20^\circ C$. Sau 35 phút đã có $20\%$ lượng nước trong ấm hoá hơi ở nhiệt độ sôi $100^\circ C$. Biết chỉ có $75\%$ nhiệt lượng mà bếp tỏa ra được dùng vào việc đun ấm nước. Biết nhiệt dung riêng của nhôm là $880 \ J /kg$.K, của nước là $4200 \ J /kg.K$; nhiệt hoá hơi riêng của nước ở nhiệt độ sôi $100^\circ C$ là $2,26 . 10^{6} \ J /kg$. Khối lượng riêng của nước là $1 \ kg /\ct{lít}$. Nhiệt lượng trung bình mà bếp điện cung cấp cho ấm nước trong mỗi giây là
+\choice
+{\True $777,3 \ J$}
+{$700,3 \ J$}
+{$650,7 \ J$}
+{$800,0 \ J$}
+\loigiai{
+	\begin{itemize}
+		\item Gọi $Q_0$ là nhiệt lượng trung bình mà bếp tỏa ra trong 35 phút; $H$ là hiệu suất của bếp điện
+		\begin{align*}
+			&H=\dfrac{\left(m_1 c_1+m_2 c_2\right) \Delta t+m L}{Q_0}\\
+			 \Rightarrow &0,75=\dfrac{(0,6 . 880+1,5 . 4200).80+1,5 . 0,2 . 2,26 . 10^{6}}{Q_0}\\ \Rightarrow &Q_0=1632320\ J
+		\end{align*}
+		\item Nhiệt lượng trung bình mà bếp tỏa ra trong $1 \ s$ chính là công suất tỏa nhiệt của bếp:
+		\begin{align*}
+			\mathcal{P}_0=\dfrac{Q_0}{t}=\dfrac{1632320}{35.60} \approx 777,3\ W
+		\end{align*}
+	\end{itemize}
+}
+\end{ex}
+
+
+\loai{Loại 3: Có nóng chảy và hóa hơi}
+
+\begin{ex} \nguon{2}
+ Biết nhiệt dung riêng của băng là $2090 \ J /kg$.K; nhiệt nóng chảy riêng của khối băng $3,33 . 10^{5} \ J /kg$; nhiệt dung riêng của nước $4200 \ J /kg$.K; nhiệt hóa hơi riêng của nước ở nhiệt độ sôi $100^\circ C$ là $2,26 . 10^{6}\ J /kg$; nhiệt dung riêng của hơi nước là $2010\ J/kg.K$. Để làm $40 \ g$ khối băng hình lập phương ở nhiệt độ $-10^\circ C$ bốc hơi ở nhiệt độ $110^\circ C$ thì cần cung cấp một nhiệt lượng xấp xỉ bằng
+\choice
+{$1,7 . 10^{5} \ J$}
+{$0,8 . 10^{6} \ J$}
+{\True $1,22 . 10^{5} \ J$}
+{$1,5 . 10^{6} \ J$}
+\loigiai{
+	Tổng nhiệt lượng cần cung cấp = nhiệt lượng cần để đạt đến điểm tan chảy + nhiệt lượng cần để tan chảy + nhiệt lượng để đạt đến điểm sôi $100^\circ C+$ nhiệt lượng để hóa hơi toàn bộ + nhiệt lượng để đạt đến 110 ${}^\circ C$
+	\begin{align*}
+		& Q=m c_1(0-(-10))+\lambda m+m c_2(100-0)+L m+m c_3(110-100)\\
+		\Rightarrow\ & Q=0,04 . 2090 . 10+3,33 . 10^{5} . 0,04+4200 . 0,04 . 100+2,26 . 10^{6} . 0,04+0,04 . 2010 . 10 \\
+		\Rightarrow\ & Q=1,22 . 10^{5}\ J
+	\end{align*}
+}
+\end{ex}
+
+
+
+\loai{Loại 4: Có trao đổi nhiệt, chuyển nhiệt và hóa hơi}
+\begin{ex} \nguon{2}
+	Lấy $0,01 \ kg$ hơi nước ở $100^\circ C$ cho ngưng tụ trong bình nhiệt lượng kế chứa $0,2 \ kg$ nước ở $9,5^\circ C$. Nhiệt độ cuối cùng đo được là $40^\circ C$. Cho nhiệt dung riêng của nước là $c=4180 \ J /kg$.K. Bỏ qua sự trao đổi nhiệt với môi trường bên ngoài. Nhiệt hóa hơi riêng của nước là
+	\choice
+	{\True $2,3 . 10^{6} \ J /kg$}
+	{$2,4 . 10^{6} \ J /kg$}
+	{$2,3.10^{5} \ J /kg$}
+	{$2,0.10^{6} \ J /kg$}
+	\loigiai{
+		\begin{itemize}
+			\item Nhiệt lượng tỏa ra khi ngưng tụ hơi nước ở $100^\circ C$ thành nước ở $100^\circ C$ \begin{align*}
+				Q_1=L . m_1=0,01 . L
+			\end{align*} 
+			\item Nhiệt lượng tỏa ra khi nước ở $100^\circ C$ trở thành nước ở $42^\circ C$:
+			\begin{align*}
+				Q_1=m c\left(t_1-t_2\right)=0,01.4180(100-40)=2508 \ J
+			\end{align*}
+			\item Nhiệt lượng tỏa ra khi hơi nước ở $100^\circ C$ biến thành nước ở $40^\circ C$ là:
+			\begin{align*}
+				Q=Q_1+Q_1=0,01 L+2508 \qquad \text{(1)}
+			\end{align*}
+			\item Nhiệt lượng cần cung cấp để $0,35 \ kg$ nước từ $10^\circ C$ trở thành nước ở $40^\circ C$.
+			\begin{align*}
+				Q_2=m c\left(t_2-t_1\right)=0,2.4180 .(40-9,5)=25498 \ J \qquad \text{(2)}
+			\end{align*}
+			\item Theo quá trình đẳng nhiệt: $0,01. L+2508=25498 \Rightarrow L=2,3 . 10^{6} \ J /kg$
+		\end{itemize}
+	}
+\end{ex}
+\begin{ex}
+Cần bao nhiêu gam hơi nước ở nhiệt độ $130^\circ C$ để làm nóng $200 \ g$ nước đựng trong bình thuỷ tinh $100 \ g$ từ $20^\circ C$ đến $50^\circ C$. Biết nhiệt dung riêng của thuỷ tinh là $c_{t}=837 \ J / kg . K$; nhiệt dung riêng của nước là $c_{H_2 O}=4190 \ J / kg . K$; nhiệt dung riêng của hơi nước ở $100{}^\circ C$ là $c_{\text {hơi}}=2010 \ J / kg . K$ và nhiệt hoá hơi riêng của nước là $L=2,26.10^{6} \ J /kg$. Bỏ qua sự trao đổi nhiệt với môi trường bên ngoài (làm tròn kết quả đến chữ số hàng phần mười).
+\shortans[oly]{10,9 }
+\loigiai{
+	\begin{itemize}
+		\item Nhiệt lượng mà hơi nước tỏa ra để làm lạnh từ $130{}^\circ C$ đến $100^\circ C$ là:
+		\begin{align*}
+			Q_1=m_{\text {hơi}} . c_{\text{hơi}} . \Delta t=m_{\text {hơi}} . 2010 .(100-130)=60300m_{\text{hơi}}
+		\end{align*}
+		\item Nhiệt lượng hơi nước ở $100^\circ C$ tỏa ra để chuyển hoàn toàn thành nước là:
+		\begin{align*}
+			Q_2=m_{\text {hơi}} . L=m_{\text {hơi}} . 2,26.10^{6}
+		\end{align*}
+		\item Nhiệt lượng nước tỏa ra để giảm nhiệt độ từ $100^\circ C$ xuống $50^\circ C$ là:
+		\begin{align*}
+			Q_3=m_{\text {hơi}} . c_{H_2 O} . \Delta t=m_{\text {hơi}} . 4190 .(50-100)m_{\text{hơi}}
+		\end{align*}
+		\item  Nhiệt lượng tỏa ra: $Q_{\text {tỏa}}=Q_1+Q_2+Q_3$
+		\item Nhiệt lượng $200 \ g$ nước và bình thuỷ tinh $100 \ g$ nhận vào để tăng nhiệt độ từ $20^\circ C$ lên $50^\circ C$ là
+		\begin{align*}
+			Q_{\text {thu}}=m_{H_2 O} . c_{H_2 O} . \Delta t+m_{t} . c_{t} . \Delta t=0,2 . 4190 .(50-20)+0,1 . 837 .(50-20)=27651 \ J
+		\end{align*}
+		\item Bỏ qua sự trao đổi nhiệt với môi trường bên ngoài
+		\item 
+		\begin{align*}
+			Q_{\text {tỏa}}+Q_{\text {thu}}=0\Rightarrow m_{\text{hơi}}=0,0109\ kg=10,9\ g
+		\end{align*}
+	\end{itemize}
+}
+\haidong{6}\end{ex}
+
+\begin{ex}
+Một bát bằng đồng nặng $150 \ g$ đựng $220 \ g$ nước đều ở nhiệt độ $20^\circ C$. Thả nhẹ một miếng đồng hình trụ khối lượng $300 \ g$ ở nhiệt độ cao vào bát nước làm nước sôi và chuyển 5,00 g nước thành hơi. Nhiệt độ cuối của hệ là $100^\circ C$. Biết nhiệt dung riêng của đồng là $c_{\text{đồng}}=380 \ J / kg . K$; nhiệt dung riêng của nước $c_{H_2 O}=4200 \ J / kg . K$ và nhiệt hoá hơi riêng của nước $L=2,26.10^{6} \ J / kg . K$. 
+\choiceTF[t]
+{\True Bát đồng và nước nhận nhiệt lượng từ miếng đồng}
+{Nhiệt lượng mà nước nhận được để tăng nhiệt độ từ $20^\circ C$ đến $100^\circ C$ là $124320 \ J$}
+{\True Nhiệt lượng bát đồng nhận được để tăng nhiệt độ từ $20^\circ C$ đến $100^\circ C$ là $4560 \ J$}
+{\True Nhiệt độ ban đầu của miếng đồng là $887,5^\circ C$}
+\loigiai{
+	\begin{itemchoice}
+		\itemch Đúng
+		\itemch SAI. Nhiệt lượng mà nước nhận để tăng nhiệt độ từ $20^\circ C$ đến $100^\circ C$ là $$Q_{\text{nước}}=m_{\text{nước}}.c_{\text{nước}}.\Delta t=0,22.4200.80=73920\ J$$
+		\itemch ĐÚNG. Nhiệt lượng mà bát đồng nhận để tăng nhiệt độ từ $20^\circ C$ đến $100^\circ C$ là $$Q_{\text{bát}}=m_{\text{bát}}.c_{\text{bát}}.\Delta t=0,15.380.80=4560\ J$$
+		\itemch  ĐÚNG. Ta có: $Q_{Cu}=Q_{\text{nước}}+Q_{\text{bát}}+Q_{\text{hóa hơi}}\\\Leftrightarrow 0,3.380.(t-100)=73920+4560+2,26.10^6.0,005\Rightarrow t=887,5^\circ C$
+	\end{itemchoice}
+}
+\haidong{9}\end{ex}
+
+
+
+\begin{ex}
+	Để đun sôi 2 kg nước ở nhiệt độ $20^\circ C$ đựng trong ấm bằng nhôm có khối lượng $200 \ g$, người ta dùng bếp dầu. Biết nhiệt dung riêng của nước và nhôm lần lượt là $4200 \ J / kg . K;\ 880 \ J / kg . K$, năng suất tỏa nhiệt của dầu là $q=44 . 10^{6} \ J /kg$ và hiệu suất của bếp là $30 \%$.
+	\choiceTF[t]
+	{Nhiệt lượng dầu cần cung cấp để nước sôi là 686080 J}
+	{Khối lượng dầu cần dùng để đun sôi lượng nước trên xấp xỉ 15,59 g}
+	{\True Cho biết nhiệt hoá hơi riêng của nước là $L=2,3 . 10^{6} \ J /kg$. Nhiệt lượng cần cung cấp để nước hoá hơi hoàn toàn ở $100^\circ C$ là $4600 \ kJ$}
+	{\True Nếu bỏ qua sự mất mát nhiệt, bếp dầu cung cấp nhiệt lượng đều đặn thì mất thời gian 15 phút để nước trong ấm sôi. Tiếp tục đun thêm 1 giờ 41 phút nữa thì toàn bộ lượng nước sẽ hoá hơi hoàn toàn}
+	\loigiai{
+		\begin{itemchoice}
+			\itemch SAI
+			Nhiệt lượng cần cung cấp để nước tăng nhiệt độ từ $20^\circ C$ đến $100^\circ C$ là: $$
+			Q_1=m_1 . c_1 .\left(T_2-T_1\right)=2 . 4200 .(100-20)=672000\ J
+			$$
+			Nhiệt lượng cần cung cấp để ấm nhôm tăng nhiệt độ từ $20^\circ C$ đến $100^\circ C$ là
+			$$
+			Q_2=m_2 . C_2 .\left(T_2-T_1\right)=0,2 . 880 .(100-20)=14080\ J
+			$$
+			Nhiệt lượng tổng cộng cần cung cấp cho ấm và nước sôi
+			$$
+			Q=Q_1+Q_2=686080\ J
+			$$
+			Do hiệu suất của bếp dầu là 30\% nên thực tế nhiệt cung cấp do dầu hoả tỏa ra là
+			$$
+			H=\dfrac{Q}{Q^{\prime}} . 100 \% \Leftrightarrow Q^{\prime}=2286933,3\ J
+			$$
+			\itemch  SAI
+			Khối lượng dầu cần dùng là: $Q^{\prime}=m . q \Leftrightarrow m=\dfrac{2286933,3}{44.10^{6}}=51,98 . 10^{-3}\ kg \approx 51,98 \ g$	
+			
+			\itemch ĐÚng. Nhiệt lượng cần cung cấp để hoá hơi hoàn toàn lượng nước trên ở nhiệt độ $100^\circ C$ là:
+			$$
+			Q_3=L . m_1=2,3 . 10^{6} . 2=4,6 . 10^{6}\ J
+			$$
+			\itemch  Nếu bỏ qua sự mất mát nhiệt, nhiệt lượng bếp cần cung cấp để nước sôi là:
+			$$
+			Q=q . \tau=686080\ J \text {; với q là nhiệt lượng bếp tỏa ra trong}\  1\  \text {giây}\ (1)
+			$$
+			Vậy để hoá hơi hoàn toàn lượng nước trên bếp cần cung cấp nhiệt lượng:
+			$$
+			Q_3=q . \tau^{\prime}=4,6 . 10^{6}\ J \text {; với q là nhiệt lượng bếp tỏa ra trong}\  1\  \text {giây}(2)
+			$$
+			Từ (1) và (2) suy ra: $\dfrac{Q}{Q_3}=\dfrac{\tau}{\tau^{\prime}} \Leftrightarrow \dfrac{6860800}{4,6 . 10^{6}}=\dfrac{15}{\tau^{\prime}} \Leftrightarrow \tau^{\prime}=100,57$ phút $\approx 1h41$ phút	
+		\end{itemchoice}
+		
+		
+		
+	}
+	\haidong{24}\end{ex}
+
+
+

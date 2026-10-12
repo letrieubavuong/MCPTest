@@ -9,7 +9,7 @@ from latex_question_studio.preview.compiler import Compiler
 
 class QuestionPreview(QWidget):
     def __init__(self,services,run_job=None,parent=None):
-        super().__init__(parent);self.services=services;self.run_job=run_job;self.generation=0;self.job=None;self.jobs=[];self.source='';self.assets={};self.pdf=None;self.page=0;self.total=0;self.original=None
+        super().__init__(parent);self.services=services;self.run_job=run_job;self.generation=0;self.job=None;self.jobs=[];self.source='';self.assets={};self.pdf=None;self.page=0;self.total=0;self.original=None;self.preamble_override=None
         layout=QVBoxLayout(self);layout.setContentsMargins(0,0,0,0)
         bar=CommandToolbar('Preview',self);bar.command('preview','Biên dịch bản đang xem',self.compile,True);bar.command('close','Hủy preview',self.cancel);bar.command('chapter','Trang trước',lambda:self.turn(-1));bar.command('subject','Trang sau',lambda:self.turn(1));layout.addWidget(bar)
         self.status=QLabel('Chọn câu để xem trước');self.status.setWordWrap(True);layout.addWidget(self.status)
@@ -17,8 +17,8 @@ class QuestionPreview(QWidget):
         self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.scroll.viewport().installEventFilter(self);self.image=QLabel();self.image.setAlignment(Qt.AlignmentFlag.AlignTop);self.scroll.setWidget(self.image);self.tabs.addTab(self.scroll,'Xem trước')
         self.code=QPlainTextEdit();self.code.setReadOnly(True);self.tabs.addTab(self.code,'Mã LaTeX');self.errors=QPlainTextEdit();self.errors.setReadOnly(True);self.tabs.addTab(self.errors,'Lỗi')
         self.timer=QTimer(self);self.timer.setSingleShot(True);self.timer.setInterval(250);self.timer.timeout.connect(self.compile)
-    def set_source(self,source,assets=None):
-        self.cancel();self.source=source;self.assets=dict(assets or {});self.code.setPlainText(source);self.original=None;self.image.clear();self.errors.clear()
+    def set_source(self,source,assets=None,preamble_file=None,display_source=None):
+        self.cancel();self.source=source;self.assets=dict(assets or {});self.preamble_override=preamble_file;self.code.setPlainText(source if display_source is None else display_source);self.original=None;self.image.clear();self.errors.clear()
         self.status.setText('Đang chuẩn bị xem trước…' if source else 'Chọn câu để xem trước')
         if source:self.timer.start()
     def cancel(self):
@@ -31,7 +31,7 @@ class QuestionPreview(QWidget):
         path=self.services.config.data_dir/'compiler.json'
         try:config=json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
         except (ValueError,OSError):config={}
-        compiler=Compiler(self.services.config.data_dir,engine=config.get('engine','pdflatex'),preamble_file=config.get('preamble_file') or None)
+        compiler=Compiler(self.services.config.data_dir,engine=config.get('engine','pdflatex'),preamble_file=self.preamble_override or config.get('preamble_file') or None)
         def work(cancelled,progress):
             result=compiler.compile(source,assets,cancelled)
             image,pages=Compiler.render(result.pdf) if result.ok and not cancelled() else (None,0)

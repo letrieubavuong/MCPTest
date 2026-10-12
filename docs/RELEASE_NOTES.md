@@ -1,8 +1,25 @@
 # 0.5.2
 
+- Build mặc định chỉ kiểm thử và tạo EXE; ZIP là tùy chọn `-PackageRelease`, không tự đóng gói trong lúc phát triển.
+- Bỏ nút chức năng trùng ở tab Nhập câu hỏi: chọn nguồn tại bước 1, toolbar duyệt chỉ hiện khi cần, Hủy chỉ hiện lúc chạy; chọn/bỏ câu dùng checkbox hoặc menu chuột phải cho nhiều dòng.
+- Icon MCPTest gốc cho EXE, cửa sổ và thanh tác vụ; ICO đa kích thước 16–256 px. Build kiểm tra EXE/ZIP trong staging trước khi thay bản hiện tại và tự dọn các bản cũ cùng tệp build tạm đã nhận diện.
+- Build EXE bằng chế độ Windows GUI (`--windowed`), không mở cửa sổ CMD. Kiểm tra subsystem trước smoke/release; smoke chạy bình thường để không che lỗi console. pdfLaTeX tiếp tục chạy nền.
+- Soạn bài giảng có WYSIWYG: sửa văn bản và định dạng trực tiếp, render công thức/ảnh/TikZ, đồng bộ nguồn LaTeX, tự lưu và undo/redo. TeX ngoài tập hỗ trợ giữ nguyên thành đối tượng, bố cục in kiểm tra bằng PDF.
+- Sửa công thức/lệnh định dạng nhập hoặc dán vào WYSIWYG bị in nguyên mã; thêm khôi phục nội dung đã escape có undo/revision. Chèn công thức nhận biểu thức không cần dấu `$`; phân thức hiển thị lớn hơn. Preview mặc định là mục đang soạn, có lựa chọn toàn bài giảng.
+- Thêm Dashboard trang chủ theo dữ liệu SQLite: chỉ số ngân hàng, biểu đồ mức độ theo môn, tình trạng tài nguyên, hoạt động gần đây và thao tác nhanh.
+- Hoàn thiện Dashboard: KPI có icon, biểu đồ có trục và legend theo từng môn, donut tài nguyên có empty state/tỷ lệ, hoạt động đọc được, thao tác nhanh có icon và bố cục responsive cho cửa sổ hẹp/theme tối.
+- Sửa mô hình bài giảng: schema 19 lưu bảng file nguồn và bảng bài tập ghim revision/index; lý thuyết, từng dạng toán + ví dụ và bài tập vận dụng có file riêng. Export tạo từng file `.tex` và `main.tex` ghép bằng `\input`; bài tập chưa chốt file/index sẽ bị chặn xuất. Bài cũ tự nhận manifest khi mở, giữ nguyên block/source/revision.
+- Schema 19 có migration backup trước khi nâng cấp; database cũ được mở và dựng manifest tương thích trước khi sử dụng.
+- Tab Ngân hàng câu hỏi mặc định dùng lưới thẻ preview với nhãn loại/mức độ; vẫn có chế độ danh sách gọn và giữ nguyên cây CSDL, editor, preview, phân loại.
+- Tab Bài giảng sắp xếp lại thành outline trái, Soạn thảo/Xem trước giữa và Thư viện câu hỏi phải; thêm toolbar định dạng và nút chèn chính.
+- Tab Nhập câu hỏi chuyển sang wizard 5 bước với thẻ thống kê, đối chiếu tài nguyên, preview và xác nhận nhập trong cùng cửa sổ.
+- Ra đề thi có hai hình thức: xây từ CSDL và trộn nhiều mã đề từ file TeX. Trộn trong từng phần, giữ mẫu gốc, đáp án, tài nguyên và bảng đối chiếu; có preview và xuất TeX/PDF theo đối tượng.
 - Preview mặc định dùng nguyên bản MAPClass + ex_test do người dùng cung cấp.
 - Đóng gói class/package trong EXE, cache nhận biết thay đổi mẫu.
 - Gói bài giảng kèm dependency để biên dịch TeX lại.
+- Cập nhật bộ công cụ đã kiểm thử trên máy hiện tại: PySide6 6.11.2, PyInstaller 6.22.3; thêm nhóm dependency `build`.
+- Build dùng bootloader đang cài, đóng gói đầy đủ PyMuPDF và kiểm tra EXE cùng mã UI; không tải lại bootloader cũ. Đồng bộ phiên bản trong package Python thành 0.5.2.
+- Asset Resolver/kho tài nguyên content-addressed: giữ source độc lập đường dẫn gốc, review trạng thái thiếu/ambiguous, integrity/GC dry-run, export portable manifest và migration schema 18.
 
 # 0.5.1 — Khôi phục hướng sử dụng thư viện
 

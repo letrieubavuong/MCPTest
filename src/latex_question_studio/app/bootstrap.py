@@ -21,6 +21,8 @@ def main(argv=None) -> int:
     app = QApplication.instance() or QApplication([sys.argv[0]])
     app.setApplicationName("LaTeX Question Studio")
     app.setOrganizationName("LaTeXQuestionStudio")
+    from latex_question_studio.ui.icons import application_icon
+    app.setWindowIcon(application_icon())
     try:
         config = AppConfig.load(args.data_dir)
         logger = configure_logging(config.log_dir)

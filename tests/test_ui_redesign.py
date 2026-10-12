@@ -120,9 +120,24 @@ def test_library_tree_recovers_hidden_layout_and_selecting_lesson_shows_list(qtb
 def test_library_main_commands_have_labels_and_tree_survives_page_switch(qtbot,tmp_path):
     w=MainWindow(create_services(AppConfig.load(tmp_path)));qtbot.addWidget(w);w.show()
     labels={a.text() for a in w.library_ui.toolbar.actions()}
-    assert {'Nhập TeX','Sửa câu','Phân loại','Xem trước','Cây CSDL'}<=labels
+    assert {'Sửa câu','Phân loại','Di chuyển dạng','Xem trước'}<=labels
+    assert 'Cây CSDL' not in labels
+    assert 'Nhập TeX' not in labels and 'Câu mới' not in labels
     w.show_page(2);w.toggle_drawer();w.show_page(0)
     assert not w.explorer_dock.isHidden()
     w.library_ui.show_all();assert w.library_ui.scope_label.text()=='Phạm vi: Toàn bộ CSDL'
     assert w.library_ui.empty_hint.isVisible() and w.library_ui.all_button.isVisible()
+
+    # Kiểm tra toolbar của LatexEditor khi mở sửa câu
+    q=w.services.questions.create('\\begin{ex}\nNội dung câu test\n\\choice\n{A}\n{B}\n{C}\n{D}\n\\end{ex}')
+    ed=w.open_question(q.id)
+    assert hasattr(ed,'edit_toolbar')
+    tb_texts=[b.text() for b in ed.edit_toolbar.findChildren(type(w.library_ui.mode)) if hasattr(b,'text')]
+    from PySide6.QtWidgets import QToolButton
+    tb_buttons=[b.text() for b in ed.edit_toolbar.findChildren(QToolButton)]
+    assert any('B' in t for t in tb_buttons)
+    assert any('a/b' in t for t in tb_buttons)
+    assert any('True' in t or '✓' in t for t in tb_buttons)
+
     w.close()
+

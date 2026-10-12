@@ -29,3 +29,5 @@ CodexTelegram/
 *.sqlite3-wal
 *.sqlite3-shm
 *.pem
+scratch/
+data/

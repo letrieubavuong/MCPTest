@@ -1,16 +1,24 @@
 # MCPTest — LaTeX Question Studio 0.5.2
 
-Ứng dụng desktop Windows: ngân hàng câu hỏi TeX, cây phân loại môn/chương/bài/dạng, ra đề theo ma trận và thiết kế bài giảng. Preview mặc định dùng MAPClass + ex_test được cung cấp trong docs.
+Ứng dụng desktop Windows: ngân hàng câu hỏi TeX, cây phân loại môn/chương/bài/dạng, ra đề theo ma trận, trộn mã đề từ file TeX và thiết kế bài giảng. Preview mặc định dùng MAPClass + ex_test được cung cấp trong docs; đề trộn từ file giữ mẫu gốc.
 
 **Tiếp tục trên máy khác:** đọc [tài liệu bàn giao](docs/HANDOVER.md) để cài đặt, chạy tests, build EXE và biết các việc còn lại. [Hướng dẫn sử dụng](docs/USER_GUIDE.md), [ghi chú phát hành](docs/RELEASE_NOTES.md).
 
 ```powershell
 py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[test]"
+.\.venv\Scripts\python.exe -m pip install -e ".[test,build]"
 .\scripts\run.ps1
 ```
 
-Python 64-bit 3.12+; preview/PDF cần pdfLaTeX và dependency của MAPClass. Đã đạt 95 kiểm thử trên bản 0.5.2; EXE/ZIP đã smoke test trên máy phát triển, chưa kiểm tra VM Windows sạch. Source đầy đủ nằm trên Git; build, môi trường Python và ngân hàng cá nhân được giữ ngoài repository.
+Python 64-bit 3.12+; preview/PDF cần pdfLaTeX và dependency của MAPClass. Đã đạt 162 kiểm thử qua ba lượt liên tiếp trên mã ứng dụng 0.5.2/schema 19; EXE được kiểm tra trên máy này, chưa kiểm tra VM Windows sạch. Xem [báo cáo ổn định](docs/STABILIZATION_20261011_REPORT.md). Build, môi trường Python và ngân hàng cá nhân được giữ ngoài repository.
+
+Soạn bài giảng mặc định ở WYSIWYG: sửa văn bản/định dạng trực tiếp, công thức/ảnh/TikZ render tại chỗ, nguồn LaTeX được giữ cùng autosave và revision. Công thức nhập/dán có dấu phân cách được nhận dạng; nội dung đã escape từ bản lỗi có nút khôi phục chủ động. PDF mặc định xem mục đang soạn, có lựa chọn toàn bài; macro/bảng ngoài tập hỗ trợ vẫn sửa qua mã. Xem [báo cáo WYSIWYG](docs/WYSIWYG_IMPLEMENTATION_REPORT.md).
+
+Bộ công cụ hiện tại đã kiểm thử trên máy này: Python 3.14.6, PySide6 6.11.2, PyMuPDF 1.28.0, PyInstaller 6.22.3 và TeX Live 2026. Chạy `.\scripts\build.ps1` để kiểm thử, build EXE và kiểm tra bản đóng gói; script dùng bootloader của PyInstaller đang cài, không tải lại wheel 6.21.0. Asset Resolver giữ câu độc lập thư mục nguồn; quản lý kho, portable ZIP và các giới hạn còn lại được ghi trong [báo cáo nghiệm thu](docs/ASSET_UX_IMPLEMENTATION_REPORT.md).
+
+EXE hiện tại build ở chế độ Windows GUI, không mở cửa sổ CMD. Smoke kiểm tra bản chạy bình thường và pdfLaTeX render mới; xem [báo cáo build GUI](docs/WINDOWED_BUILD_REPORT.md).
+
+Icon MCPTest được nhúng vào EXE và giao diện. `scripts/build.ps1` mặc định chỉ kiểm thử và build EXE, không tạo ZIP. Chỉ thêm `-PackageRelease` khi cần gói phát hành; ZIP khi đó cũng phải qua smoke trước khi thay bản hiện tại. Build đạt sẽ tự dọn các bản cũ. Xem [icon và chính sách giữ bản mới](docs/APP_ICON_BUILD_RETENTION_REPORT.md).
 
 ## Lịch sử các bản cũ
 

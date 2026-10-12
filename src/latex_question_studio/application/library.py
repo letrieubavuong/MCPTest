@@ -12,6 +12,16 @@ from latex_question_studio.persistence.database import Database, SCHEMA_VERSION
 class LibraryService:
     def __init__(self, services): self.services = services
 
+    def asset_report(self):
+        from latex_question_studio.application.assets import AssetStore
+        with self.services.database.connect() as connection:
+            return AssetStore(self.services.config.data_dir).integrity_report(connection)
+
+    def asset_gc(self, dry_run=True):
+        from latex_question_studio.application.assets import AssetStore
+        with self.services.database.transaction() as connection:
+            return AssetStore(self.services.config.data_dir).garbage_collect(connection, dry_run=dry_run)
+
     def metadata(self, question_id):
         with self.services.database.connect() as c:
             row=c.execute("SELECT data_json FROM question_metadata WHERE question_id=?",(question_id,)).fetchone()

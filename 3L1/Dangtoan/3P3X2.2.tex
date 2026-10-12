@@ -1,0 +1,48 @@
+\begin{dang}{Giá trị hiệu dụng - bài toán thời gian}
+	\Anlythuyet{\paragraph{Bài toán liên quan đến thời gian; thời điểm của điện áp và dòng điện}
+	\begin{itemize}
+		\item Ta giải quyết hoàn toàn tương tự như các bài toán về thời gian trong dao động điều hòa. 
+		\item Sử dụng các phương pháp: 
+		$\begin{cases}
+			\ct{Vòng tròn lượng giác}\\
+			\ct{Trục phân bố thời gian} 
+		\end{cases}$
+	\end{itemize}
+	\paragraph{Bài toán liên quan đến thời gian thiết bị hoạt động (sáng, tắt)}
+	immini[thm]{\begin{itemize}
+			\item Một thiết bị điện được đặt dưới điện áp xoay chiều $u=U_0 \cos \left(\omega t +\varphi\right)$ V. Thiết bị chỉ hoạt động khi điện áp tức thời có giá trị không nhỏ hơn $u_t$. 
+			\item Vậy thiết bị chỉ hoạt động khi u nằm ngoài khoảng ($-u_t,u_t$)
+			\item Thời gian hoạt động (đèn sáng) trong một chu kì: \begin{align*}t_s= \dfrac{4}{\omega} \arccos \dfrac{u_t}{U_0}\end{align*}
+			\item Thời gian đèn tắt trong một chu kì: $t_t=T-t_s$
+	\end{itemize}}{\begin{tikzpicture}[scale=1,thick,>=stealth']
+		\tkzInit[ymin=-3,ymax=3,xmin=-3,xmax=3]\tkzClip
+		\tkzDefPoints{-2.5/0/m, 2.5/0/n, 0/0/o, 0/2.5/p, 0/-2.5/q}
+		\tkzDefShiftPoint[o](130:2){2}
+		\tkzDefShiftPoint[o](50:2){1}
+		\tkzDefShiftPoint[o](-130:2){3}
+		\tkzDefShiftPoint[o](-50:2){4}
+		\tkzDefPointBy[projection=onto m--n](1) \tkzGetPoint{h1}
+		\tkzDefPointBy[projection=onto m--n](2) \tkzGetPoint{h2}
+		\draw(o)circle(2cm);
+		\tkzDrawSegments[dashed,thin](1,4 2,3)
+		\tkzDrawSegments[->](m,n)
+		\tkzDrawSegments[blue,->](o,1 o,2 o,3 o,4)
+		\tkzDrawPoints[size=3,fill=white](o,1,2,3,4,h1,h2)
+		\tkzMarkAngles[color=red,size=0.6cm,fill=blue,opacity=0.4,arrows=->](1,o,2)
+		\tkzMarkAngles[color=red,size=0.6cm,fill=blue,opacity=0.4,arrows=->](3,o,4)
+		\tkzMarkAngles[color=red,size=0.7cm,arrows=->](2,o,3)
+		\tkzMarkAngles[color=red,size=0.7cm,arrows=->](4,o,1)
+		\tkzLabelAngle[pos=1](1,o,2){Tắt}
+		\tkzLabelAngle[pos=1.2](2,o,m){Sáng}
+		\tkzLabelAngle[pos=1.2](n,o,1){Sáng}
+		\node at (1)[above right]{$M_1$};
+		\node at (2)[above left]{$M_2$};
+		\node at (3)[below left]{$M_2$};
+		\node at (4)[below right]{$M_1$};
+		\node at (2,0)[below right]{$U_0$};
+		\node at (n)[above]{$u$};
+		\node at (h1)[below right]{$u_t$};
+		\node at (h2)[below left]{$-u_t$};
+		\end{tikzpicture}}}
+	
+\end{dang}

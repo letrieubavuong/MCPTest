@@ -28,6 +28,17 @@ BUILTIN_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
 \newcommand{\shortans}[2][]{\par\textbf{Đáp án: }#2}
 \newcommand{\loigiai}[1]{\par\textbf{Lời giải. }#1}
 \let\hdan\loigiai
+\providecommand{\subject}{TOÁN}
+\providecommand{\TieudeT}[1]{%
+  \begin{center}%
+  \begin{tabular}{p{0.36\textwidth}|p{0.58\textwidth}}%
+    \centering \textbf{TRƯỜNG THPT} & \centering \textbf{\large #1} \tabularnewline%
+    \centering \textbf{ĐỀ KIỂM TRA} & \centering Môn: \textbf{\subject} \tabularnewline%
+    & \centering \textit{Thời gian làm bài: 90 phút}%
+  \end{tabular}%
+  \end{center}%
+  \vspace{1em}%
+}
 """
 
 MAPCLASS_PREAMBLE = r"""\documentclass[company=BookA4,pagesize=DethiA4,mausac=01,tuychon=GV1]{MAPClass}
@@ -75,7 +86,7 @@ class Compiler:
             for relative in ('Class/MAPClass.cls','Packages/ex_test.sty'):
                 if not (self.profile_root/relative).is_file():
                     raise FileNotFoundError('Thiếu tài nguyên preview: '+relative)
-        if r'\begin{document}' in preamble:
+        if any(command.name == 'begin' and command.depth == 0 and group(preamble, command.end)[0] == 'document' for command in commands(preamble)):
             raise ValueError('Preamble phải kết thúc trước begin{document}')
         for root in roots:
             for suffix in ('*.cls','*.sty','*.tex'):
@@ -83,11 +94,12 @@ class Compiler:
                     dependencies[str(file.relative_to(self.profile_root))]=hashlib.sha256(file.read_bytes()).hexdigest()
         return preamble+"\n"+self.preamble_extra,dependencies
 
-    def compile(self, source, assets=None, cancelled=lambda:False, progress=lambda a,b:None):
+    def compile(self, source, assets=None, cancelled=lambda:False, progress=lambda a,b:None, extra_files=None):
         engine=shutil.which(self.engine)
         if not engine:return CompileResult(False,None,'Không tìm thấy pdfLaTeX. Cấu hình đường dẫn trong Cài đặt.')
         if cancelled():return CompileResult(False,None,'Đã hủy.',cancelled=True)
         assets=assets or {}
+        extra_files=extra_files or {}
         try:
             preamble,dependencies=self.profile()
             stat=Path(engine).stat();engine_key=(str(Path(engine).resolve()),stat.st_mtime_ns,stat.st_size)
@@ -96,7 +108,8 @@ class Compiler:
                 version=subprocess.run([engine,'--version'],capture_output=True,timeout=10,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0)).stdout.decode('utf-8','replace').splitlines()[0]
                 self._engine_versions[engine_key]=version
             asset_bytes={name:Path(path).read_bytes() for name,path in assets.items()}
-            payload={'source':source,'preamble':preamble,'dependencies':dependencies,'assets':{n:hashlib.sha256(b).hexdigest() for n,b in asset_bytes.items()},'engine':str(Path(engine).resolve()),'version':version,'flags':'no-shell-escape/haltonerror/full-document/v1'}
+            extra_file_hashes={name:hashlib.sha256(content.encode('utf-8') if isinstance(content,str) else content).hexdigest() for name,content in extra_files.items()}
+            payload={'source':source,'preamble':preamble,'dependencies':dependencies,'assets':{n:hashlib.sha256(b).hexdigest() for n,b in asset_bytes.items()},'extra_files':extra_file_hashes,'engine':str(Path(engine).resolve()),'version':version,'flags':'no-shell-escape/haltonerror/full-document/v2'}
             key=hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
         except Exception as error:return CompileResult(False,None,'Cấu hình hoặc tài nguyên không hợp lệ: '+str(error))
         cache=self.root/'cache';cache.mkdir(parents=True,exist_ok=True)
@@ -122,6 +135,11 @@ class Compiler:
             work=Path(temporary);(work/'assets').mkdir()
             for name,raw in asset_bytes.items():
                 (work/'assets'/(hashlib.sha256(raw).hexdigest()+Path(assets[name]).suffix.lower())).write_bytes(raw)
+            for rel_path,content in extra_files.items():
+                target_file=work/rel_path
+                target_file.parent.mkdir(parents=True,exist_ok=True)
+                if isinstance(content,bytes):target_file.write_bytes(content)
+                else:target_file.write_text(content,encoding='utf-8')
             document=preamble+'\n\\begin{document}\n'+rewritten+'\n\\end{document}\n'
             (work/'preview.tex').write_text(document,encoding='utf-8')
             environment=os.environ.copy()

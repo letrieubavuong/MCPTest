@@ -1,0 +1,119 @@
+\begin{dang}{Suất điện động trên đoạn dây chuyển động (nâng cao)}
+\Anlythuyet{	\setcounter{paragraph}{0}
+\paragraph{Đoạn dây dẫn $MN$ $(MN=\ell)$ chuyển động trong từ trường đều}
+immini[thm]{\begin{itemize}
+\item Khi đoạn dây $MN$ chuyển động trong từ trường thì nó là một nguồn điện; chính lực Lorentz là nguyên nhân gây ra suất điện động bên trong nguồn điện đó. 
+\item Suất điện động cảm ứng trên đoạn dây:
+\begin{align*}
+\boder{e_c=B\ell v\sin\alpha} \quad \ct{với}\ \alpha=(\vec{v};\vec{B})
+\end{align*}
+\item Các cực của $e_c$ được xác định theo quy tắc bàn tay phải:\\
+$\bullet$ $\vec{B}$ hướng vào lòng bàn tay.\\
+$\bullet$ $\vec{v}$ ngón cái choãi ra $90^\circ$.\\
+$\bullet$ từ cực âm $(-)$ đến cực dương $(+)$ của $e_c$ có chiều từ cổ tay đến ngón tay. 
+\end{itemize}
+}
+{\begin{tikzpicture}[scale=1,thick,>=stealth']
+\coordinate (a) at (0,0)node[above]{\normalsize{\bth{N}}};
+\path (a) ++(270:3)coordinate (c)node[below]{\normalsize{\bth{M}}};
+\draw (a)--++(0:4.5)--++(270:3);
+\draw (c)--++(0:3)coordinate (g)--++(0:1.5);
+\path (a)--++(0:3.5)--++(270:1)coordinate (b);
+\draw (b)circle (0.2)node[above=6pt]{\normalsize{\bth{\vec{B}}}};
+\draw (b)--++(45:0.2);
+\draw (b)--++(135:0.2);
+\draw (b)--++(225:0.2);
+\draw (b)--++(315:0.2);
+\draw (a)--++(180:0.3);
+\draw (c)--++(180:0.3);
+\draw [dashed,line width=2pt] (a)--(c);
+\path (a) ++(0:1.5)coordinate (m)node[above]{\normalsize{\bth{N}'}};
+\path (c) ++(0:1.5)coordinate (n)node[below]{\normalsize{\bth{M}'}};
+\draw [line width=2pt] (m)--(n);
+\tkzInterLL(a,n)(c,m)
+\tkzGetPoint{o}
+\path (n) --++(90:1.5)coordinate (v);
+\draw [very thick,->](v)--++(0:1)node[below]{\normalsize{\bth{\vec{v}}}};
+\draw(g)[fill=white]circle(0.3)node{\normalsize{\bth{A}}};
+\end{tikzpicture}}
+\paragraph{Đoạn dây dẫn MN $(MN=\ell)$ chuyển động trong mạch điện}
+
+immini[thm]{\textbf{Mạch điện không chứa nguồn:}
+\begin{itemize}
+\item Gọi $R_{MN}$ là điện trở đoạn dây MN
+\item Dòng điện qua điện trở $R$: $i_c=\dfrac{e_c}{R+R_{MN}}$
+\end{itemize}
+}
+{\begin{tikzpicture}[scale=1,thick,>=stealth']
+\coordinate (a) at (0,0);
+\path (a) ++(225:3)coordinate (c);
+\draw (a)--++(180:4.5)coordinate (p);
+\draw (c)--++(180:4.5)coordinate (q);
+\path (a) ++(180:1)coordinate (m)node[above]{\normalsize{\bth{M}}};
+\path (c) ++(180:1)coordinate (n)node[below]{\normalsize{\bth{N}}};
+\draw [line width=2pt] (m)--(n);
+\tkzInterLL(m,q)(n,p)
+\tkzGetPoint{o}
+\draw [very thick,->](o)--++(90:1.5)node[right]{\normalsize{\bth{\vec{B}}}};
+\draw(p)--++(225:1.1)coordinate (r)node[left=6pt]{\normalsize{\bth{R}}}--++(180:0.15)--++(225:0.8)--++(0:0.15)--++(225:1.1);
+\draw (r)--++(0:0.15)--++(225:0.8)--++(180:0.15);
+\end{tikzpicture}}
+immini[thm]{
+\textbf{Mạch điện chứa nguồn:}
+\begin{itemize}
+\item Cường độ dòng điện qua mạch:\\ $i_c=\dfrac{\mathcal{E}+e_c}{r+R_{MN}}$
+\end{itemize}
+}
+{\begin{tikzpicture}[scale=1,thick,>=stealth']
+\coordinate (a) at (0,0);
+\draw (a)--++(225:1.4)coordinate (e1);
+\draw (e1)--++(0:0.15);
+\draw (e1)--++(180:0.15);
+\path (a) ++(225:3)coordinate (c);
+\draw (c) -- ($(c)!1.4cm!0:(a)$)coordinate (e2);
+\draw (e2)--++(0:0.3);
+\draw (e2)--++(180:0.3)node[above left]{\normalsize{\bth{\mathcal{E}, \;r}}};
+\draw (a)--++(0:4.5);
+\draw (c)--++(0:4.5);
+\path (a) ++(0:3.5)coordinate (m)node[above right]{\normalsize{\bth{M}}};
+\path (c) ++(0:3.5)coordinate (n)node[below right]{\normalsize{\bth{N}}};
+\draw [line width=2pt] (m)--(n);
+\tkzInterLL(a,n)(c,m)
+\tkzGetPoint{o}
+\draw [very thick,<-](o)--++(90:1.5)node[right]{\normalsize{\bth{\vec{B}}}};
+\path (n) --++(45:1.5)coordinate (v);
+\draw [very thick,->](v)--++(0:1)node[above]{\normalsize{\bth{\vec{v}}}};
+\path (c)--++(0:1.5)coordinate (g);
+\draw(g)[fill=white]circle(0.3)node{\normalsize{\bth{A}}};	
+\end{tikzpicture}}
+immini[thm]{
+\paragraph{Thanh $MN$ chuyển động theo phương thẳng đứng. Tìm vận tốc lớn nhất của thanh $MN$}
+\begin{itemize}
+\item \textbf{Hiện tượng}
+\begin{itemize}
+\item Lúc đầu, dưới tác dụng của trọng lực thanh chuyển động rơi tự do và khi đạt vận tốc $v$ thì qua nó có dòng điện cảm ứng $i_c$.
+\item Lúc này, thanh chịu tác dụng của lực từ ngược hướng với $\vec{P}$.
+\item Khi $v$ nhỏ thì lực từ $F<P$ nên thanh chuyển động nhanh dần.
+\item Khi $v$ tăng thì lực từ $F$ cũng tăng theo cho đến khi $F=P$ thì vận tốc của thanh không tăng nữa. Khi đó vận tốc của thanh đạt cực đại $v_{\max}$ và thanh chuyển động thẳng đều.
+\end{itemize}
+\item Tính $v_{\max}$
+\begin{itemize}
+\item Xét khi: $F=P$ với $P=mg$ 
+\begin{align*}
+&F=Bi_c\ell=B.\dfrac{e_c}{R}.\ell=B.\dfrac{Bv_{\max}\ell}{R}.\ell=\dfrac{B^2\ell^2v_{\max}}{R}\\
+\Rightarrow\ &\dfrac{B^2\ell^2v_{\max}}{R}= mg\Rightarrow  v_{\max}=\dfrac{mgR}{B^2\ell^2}.					
+\end{align*}
+\end{itemize}	
+\end{itemize}
+}
+{\begin{tikzpicture}[scale=1,thick,>=stealth']
+\coordinate (a) at (0,0);
+\draw (a)--++(90:1)coordinate (m)node[above left]{\normalsize{\bth{M}}}--++(90:3)coordinate (b)--++(0:1.5)--++(90:0.15)--++(0:0.5)coordinate (r)node[above]{\normalsize{\bth{R}}}--++(0:0.5)--++(270:0.15)--++(0:1.5)coordinate (c)--++(270:3)coordinate (n)node[above right]{\normalsize{\bth{N}}}--++(270:1)coordinate (d);
+\draw (b)--++(0:1.5)--++(270:0.15)--++(0:1)--++(90:0.15);
+\draw [line width=2pt](m)--(n);
+\path (r) --++(270:1.15)coordinate (b);
+\draw (b) circle (0.2);
+\filldraw (b) circle (1.2pt)node[above right=3pt]{\normalsize{\bth{\vec{B}}}};
+\end{tikzpicture}
+}}
+\end{dang}

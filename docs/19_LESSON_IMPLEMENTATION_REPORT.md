@@ -1,5 +1,11 @@
 # Triển khai bài giảng — phiên bản 0.2.0
 
+## Cập nhật mô hình file nguồn
+
+Document bài giảng hiện lưu manifest `files` trong `document_json`: `theory.tex`, từng `dang-*.tex` gồm phương pháp và ví dụ, và `bai-tap-van-dung.tex`. Document cũ tự nhận manifest khi mở; block/source/revision không bị rewrite. Export tạo các file này và `main.tex` ghép bằng `\input`, còn DB tiếp tục giữ bản nháp/revision.
+
+Bản tiếp theo thêm schema 19 với `lesson_files` và `lesson_file_exercises`. File bài tập lưu question ID, revision, source snapshot, export index và khóa chốt; sửa file sẽ mở khóa và export yêu cầu chốt lại. Vùng **TỆP NGUỒN BÀI GIẢNG** trong UI chuyển giữa các file, còn outline chỉ chỉnh các mục thuộc file đó.
+
 Ngày 2026-10-09. Đây là lát triển khai soạn bài mới xuyên suốt từ docs/18, chưa phải hoàn tất toàn bộ phương án tái thiết kế docs/17.
 
 ## Đã triển khai

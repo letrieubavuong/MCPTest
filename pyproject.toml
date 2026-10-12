@@ -7,10 +7,11 @@ name = "latex-question-studio"
 version = "0.5.2"
 description = "Windows desktop LaTeX question bank"
 requires-python = ">=3.12"
-dependencies = ["PySide6==6.11.1", "PyMuPDF==1.28.0"]
+dependencies = ["PySide6==6.11.2", "PyMuPDF==1.28.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10", "pytest-qt>=4.4,<5"]
+build = ["PyInstaller==6.22.3"]
 
 [project.scripts]
 latex-question-studio = "latex_question_studio.app.bootstrap:main"
@@ -22,6 +23,8 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 qt_api = "pyside6"
+cache_dir = ".runtime/pytest_cache"
+addopts = "--basetemp=.runtime/tmp"
 
 [tool.setuptools.package-data]
-latex_question_studio = ["domain/data/*.json", "preview/data/Class/*.cls", "preview/data/Packages/*.sty"]
+latex_question_studio = ["domain/data/*.json", "preview/data/Class/*.cls", "preview/data/Packages/*.sty", "ui/assets/*.svg", "ui/assets/*.png", "ui/assets/*.ico"]
