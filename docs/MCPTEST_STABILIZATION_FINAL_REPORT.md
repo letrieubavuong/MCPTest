@@ -17,7 +17,7 @@
 | **Phase E** | Hoàn thiện UI ngân hàng câu hỏi (P1) | HOÀN THÀNH | `c44fd00` | 3/3 passed (`test_phase_e_library_ui.py`) | `phase_e_library_1366x768_cards.png`, `phase_e_library_1920x1080.png`, `phase_e_library_batch_selection.png`, `phase_e_library_compact_list.png` |
 | **Phase F** | Thumbnail và preview hiệu năng (P1) | HOÀN THÀNH | `b32b0e2` | 5/5 passed (`test_phase_f_thumbnail_perf.py`) | Benchmark 200 câu thực tế |
 | **Phase G** | Soạn bài giảng và hồi quy (P2) | HOÀN THÀNH | `50e774e` | 4/4 passed (`test_phase_g_lesson_editor.py`) | `phase_g_lesson_editor_light.png` |
-| **Phase H** | Kiểm thử release và bàn giao | HOÀN THÀNH | (Commit hiện tại) | 3/3 passed (`test_phase_h_release_integrity.py`), Smoke test PASSED | `phase_h_smoke_test.png` |
+| **Phase H** | Kiểm thử release và bàn giao | HOÀN THÀNH | `aebc2d2` | 3/3 passed (`test_phase_h_release_integrity.py`), Smoke test PASSED | `phase_h_smoke_test.png` |
 
 ---
 
