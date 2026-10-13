@@ -193,6 +193,72 @@ class ExamService:
             for i,q in enumerate(snapshots):c.execute('INSERT INTO exam_questions VALUES (?,?,?,?,?,?)',(version,i+1,q['question_id'],q['revision'],json.dumps(q['permutation']),json.dumps(q['answer'],ensure_ascii=False)))
         return version,snapshot
 
+    def check_matrix_availability(self, matrix, manual_ids=None):
+        """Kiểm tra tính sẵn có của nguồn câu hỏi theo ma trận trước khi tạo đề."""
+        manual = set(manual_ids or [])
+        warnings = []
+        is_sufficient = True
+        for idx, row in enumerate(matrix or []):
+            count = int(row.get('count', 0))
+            if count <= 0:
+                continue
+            candidates = [q for q in self.candidates(row.get('filters', {}), row.get('taxonomy_id'), valid_only=True) if q not in manual]
+            scope_desc = row.get('scope_name') or row.get('taxonomy_id') or f'Hàng {idx + 1}'
+            qtype_desc = row.get('filters', {}).get('question_type', '')
+            level_desc = row.get('filters', {}).get('cognitive_level', '')
+            detail = f" ({qtype_desc} {level_desc})".strip() if (qtype_desc or level_desc) else ""
+            if len(candidates) < count:
+                is_sufficient = False
+                warnings.append({
+                    'row_index': idx,
+                    'scope': scope_desc,
+                    'required': count,
+                    'available': len(candidates),
+                    'message': f"Thiếu nguồn cho '{scope_desc}{detail}': cần {count}, chỉ có {len(candidates)}"
+                })
+        return {'ok': is_sufficient, 'warnings': warnings}
+
+    def generate_multiple(
+        self,
+        title,
+        manual_ids=None,
+        matrix=None,
+        base_seed=0,
+        exam_codes=None,
+        shuffle_questions=True,
+        shuffle_options=True,
+        subject='TOÁN',
+        grade='',
+        duration='90 phút',
+        school='',
+        cancelled=lambda: False,
+        **extra
+    ):
+        """Sinh đồng thời nhiều mã đề thi từ cùng một cấu hình/ma trận, xáo trộn câu và lựa chọn độc lập."""
+        exam_codes = exam_codes or ['101']
+        results = []
+        for i, code in enumerate(exam_codes):
+            if cancelled():
+                raise InterruptedError("Đã hủy tạo nhiều mã đề")
+            variant_seed = (base_seed + i * 1007) & 0x7FFFFFFF
+            version, snapshot = self.generate(
+                title=title,
+                manual_ids=manual_ids,
+                matrix=matrix,
+                seed=variant_seed,
+                shuffle_questions=shuffle_questions,
+                shuffle_options=shuffle_options,
+                subject=subject,
+                grade=grade,
+                duration=duration,
+                school=school,
+                exam_code=str(code),
+                cancelled=cancelled,
+                **extra
+            )
+            results.append((version, snapshot))
+        return results
+
     def history(self):
         with self.services.database.connect() as c:return [dict(r) for r in c.execute('SELECT v.*,p.title FROM exam_versions v JOIN exam_papers p ON p.id=v.paper_id ORDER BY v.created_at DESC LIMIT 100')]
 

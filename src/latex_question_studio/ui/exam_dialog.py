@@ -53,8 +53,9 @@ class TieudeTPreviewCard(QFrame):
         self.setObjectName("tieudeTPreviewCard")
         self.setStyleSheet("""
             QFrame#tieudeTPreviewCard {
-                background: #0f172a;
-                border: 2px solid #3b82f6;
+                background: #ffffff;
+                border: 1px solid #cbd5e1;
+                border-top: 3px solid #0284c7;
                 border-radius: 8px;
                 padding: 8px;
             }
@@ -68,24 +69,24 @@ class TieudeTPreviewCard(QFrame):
         left_box.setSpacing(3)
         self.lbl_school = QLabel("TRƯỜNG THPT CHUYÊN")
         self.lbl_school.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_school.setStyleSheet("font-weight: bold; font-size: 11px; color: #94a3b8;")
+        self.lbl_school.setStyleSheet("font-weight: bold; font-size: 11px; color: #475569;")
         left_box.addWidget(self.lbl_school)
 
         self.lbl_subtitle = QLabel("ĐỀ LUYỆN TẬP SỐ ①")
         self.lbl_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_subtitle.setStyleSheet("font-weight: bold; font-size: 13px; color: #f8fafc;")
+        self.lbl_subtitle.setStyleSheet("font-weight: bold; font-size: 13px; color: #0f172a;")
         left_box.addWidget(self.lbl_subtitle)
 
         self.lbl_code = QLabel("(Mã đề thi: 101)")
         self.lbl_code.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_code.setStyleSheet("font-size: 11px; color: #38bdf8;")
+        self.lbl_code.setStyleSheet("font-size: 11px; font-weight: bold; color: #0284c7;")
         left_box.addWidget(self.lbl_code)
         layout.addLayout(left_box, 38)
 
         # Đường phân cách dọc
         line = QFrame()
         line.setFrameShape(QFrame.Shape.VLine)
-        line.setStyleSheet("color: #334155;")
+        line.setStyleSheet("color: #cbd5e1;")
         layout.addWidget(line)
 
         # Cột phải: Tiêu đề đề thi, Môn học, Thời gian
@@ -93,18 +94,18 @@ class TieudeTPreviewCard(QFrame):
         right_box.setSpacing(3)
         self.lbl_title = QLabel("ĐỀ KIỂM TRA ĐỊNH KỲ")
         self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #38bdf8;")
+        self.lbl_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #0369a1;")
         self.lbl_title.setWordWrap(True)
         right_box.addWidget(self.lbl_title)
 
         self.lbl_subject = QLabel("Môn: TOÁN 12")
         self.lbl_subject.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_subject.setStyleSheet("font-weight: bold; font-size: 12px; color: #f1f5f9;")
+        self.lbl_subject.setStyleSheet("font-weight: bold; font-size: 12px; color: #0f172a;")
         right_box.addWidget(self.lbl_subject)
 
         self.lbl_duration = QLabel("Thời gian làm bài: 90 phút (không tính thời gian giao đề)")
         self.lbl_duration.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_duration.setStyleSheet("font-style: italic; font-size: 11px; color: #94a3b8;")
+        self.lbl_duration.setStyleSheet("font-style: italic; font-size: 11px; color: #64748b;")
         right_box.addWidget(self.lbl_duration)
         layout.addLayout(right_box, 62)
 
@@ -806,21 +807,29 @@ class ExamDialog(QWidget):
         p4_box.addWidget(style_group)
 
         # Nút hành động chính
+        export_btn_row = QHBoxLayout()
         self.big_export_btn = QPushButton('🚀 TIẾN HÀNH XUẤT VÀ BIÊN DỊCH')
         self.big_export_btn.setStyleSheet('font-size: 14px; font-weight: bold; padding: 10px 20px;')
         self.big_export_btn.setProperty('primary', True)
         self.big_export_btn.clicked.connect(self.start_export_process)
-        p4_box.addWidget(self.big_export_btn)
+        export_btn_row.addWidget(self.big_export_btn, 3)
+
+        self.btn_cancel_export = QPushButton('⛔ Hủy thao tác xuất')
+        self.btn_cancel_export.setStyleSheet('font-size: 13px; padding: 10px 16px;')
+        self.btn_cancel_export.setVisible(False)
+        self.btn_cancel_export.clicked.connect(self._cancel_export_process)
+        export_btn_row.addWidget(self.btn_cancel_export, 1)
+        p4_box.addLayout(export_btn_row)
 
         # Khung Kết quả & Thao tác sau khi xuất
         self.export_result_card = QFrame()
-        self.export_result_card.setStyleSheet('background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px;')
+        self.export_result_card.setStyleSheet('background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;')
         res_layout = QVBoxLayout(self.export_result_card)
         res_layout.setContentsMargins(10, 8, 10, 8)
         res_layout.setSpacing(6)
 
         self.export_status_lbl = QLabel('Sẵn sàng xuất đề thi. Chọn các tùy chọn trên và nhấn nút để bắt đầu.')
-        self.export_status_lbl.setStyleSheet('color: #94a3b8; font-size: 12px;')
+        self.export_status_lbl.setStyleSheet('color: #334155; font-size: 12px;')
         res_layout.addWidget(self.export_status_lbl)
 
         self.export_progress_bar = QProgressBar()
@@ -1494,11 +1503,14 @@ class ExamDialog(QWidget):
             target_path = Path(path)
 
         # Cập nhật UI trạng thái
+        self._export_cancelled = False
         self.big_export_btn.setEnabled(False)
+        self.btn_cancel_export.setVisible(True)
+        self.btn_cancel_export.setEnabled(True)
         self.export_progress_bar.setVisible(True)
         self.export_progress_bar.setRange(0, 0)
         self.export_status_lbl.setText("⏳ Đang đóng gói tài nguyên và biên dịch pdfLaTeX...")
-        self.export_status_lbl.setStyleSheet("color: #38bdf8; font-weight: bold;")
+        self.export_status_lbl.setStyleSheet("color: #0284c7; font-weight: bold;")
         self.export_path_lbl.setVisible(False)
         self.btn_open_pdf.setVisible(False)
         self.btn_open_folder.setVisible(False)
@@ -1522,6 +1534,7 @@ class ExamDialog(QWidget):
         snapshot_data = self.snapshot
 
         def do_export(cancelled, progress):
+            check_cancelled = lambda: cancelled() or getattr(self, '_export_cancelled', False)
             exam_svc = ExamService(self.services)
             if fmt == 'pdf':
                 selected_count = int(export_student) + int(export_teacher) + int(export_answers)
@@ -1535,7 +1548,7 @@ class ExamDialog(QWidget):
                         answer_only=export_answers,
                         engine=engine,
                         preamble_file=preamble_file,
-                        cancelled=cancelled
+                        cancelled=check_cancelled
                     )
                     tex_side = target_path.with_suffix('.tex')
                     exam_svc.export_tex(
@@ -1555,7 +1568,7 @@ class ExamDialog(QWidget):
                     base_stem = target_path.stem
                     if export_student:
                         s_pdf = base_dir / f"{base_stem}_hoc_sinh.pdf"
-                        s_res = exam_svc.export_pdf(snapshot_data, s_pdf, solutions=False, answer_only=False, engine=engine, preamble_file=preamble_file, cancelled=cancelled)
+                        s_res = exam_svc.export_pdf(snapshot_data, s_pdf, solutions=False, answer_only=False, engine=engine, preamble_file=preamble_file, cancelled=check_cancelled)
                         exam_svc.export_tex(snapshot_data, s_pdf.with_suffix('.tex'), solutions=False, answer_only=False, preamble=None if style == 'article' else MAPCLASS_PREAMBLE, bundle_dependencies=True)
                         if s_res.ok:
                             created_pdfs.append(s_pdf)
@@ -1563,7 +1576,7 @@ class ExamDialog(QWidget):
                             errors.append(('Đề học sinh', s_res.log))
                     if export_teacher:
                         t_pdf = base_dir / f"{base_stem}_giao_vien.pdf"
-                        t_res = exam_svc.export_pdf(snapshot_data, t_pdf, solutions=True, answer_only=False, engine=engine, preamble_file=preamble_file, cancelled=cancelled)
+                        t_res = exam_svc.export_pdf(snapshot_data, t_pdf, solutions=True, answer_only=False, engine=engine, preamble_file=preamble_file, cancelled=check_cancelled)
                         exam_svc.export_tex(snapshot_data, t_pdf.with_suffix('.tex'), solutions=True, answer_only=False, preamble=None if style == 'article' else MAPCLASS_PREAMBLE, bundle_dependencies=True)
                         if t_res.ok:
                             created_pdfs.append(t_pdf)
@@ -1571,7 +1584,7 @@ class ExamDialog(QWidget):
                             errors.append(('Đề giáo viên', t_res.log))
                     if export_answers:
                         a_pdf = base_dir / f"{base_stem}_dap_an.pdf"
-                        a_res = exam_svc.export_pdf(snapshot_data, a_pdf, solutions=False, answer_only=True, engine=engine, preamble_file=preamble_file, cancelled=cancelled)
+                        a_res = exam_svc.export_pdf(snapshot_data, a_pdf, solutions=False, answer_only=True, engine=engine, preamble_file=preamble_file, cancelled=check_cancelled)
                         exam_svc.export_tex(snapshot_data, a_pdf.with_suffix('.tex'), solutions=False, answer_only=True, preamble=None if style == 'article' else MAPCLASS_PREAMBLE, bundle_dependencies=True)
                         if a_res.ok:
                             created_pdfs.append(a_pdf)
@@ -1596,7 +1609,7 @@ class ExamDialog(QWidget):
                     compile_pdf=True,
                     engine=engine,
                     preamble_file=preamble_file,
-                    cancelled=cancelled,
+                    cancelled=check_cancelled,
                     progress=progress
                 )
                 return {'fmt': 'bundle', 'target': str(target_path), 'res': res, 'ok': res['ok'], 'errors': res.get('errors', [])}
@@ -1611,7 +1624,7 @@ class ExamDialog(QWidget):
                     compile_pdf=True,
                     engine=engine,
                     preamble_file=preamble_file,
-                    cancelled=cancelled
+                    cancelled=check_cancelled
                 )
                 return {'fmt': 'zip', 'target': str(target_path), 'ok': True}
             else:
@@ -1645,6 +1658,7 @@ class ExamDialog(QWidget):
                 return {'fmt': 'tex', 'target': str(created_texs[0] if created_texs else target_path), 'ok': True}
 
         job = Job(do_export)
+        self._current_export_job = job
         job.signals.completed.connect(self._on_export_completed)
         job.signals.failed.connect(self._on_export_failed)
         if self.run_job:
@@ -1653,8 +1667,17 @@ class ExamDialog(QWidget):
             from PySide6.QtCore import QThreadPool
             QThreadPool.globalInstance().start(job)
 
+    def _cancel_export_process(self):
+        self._export_cancelled = True
+        if hasattr(self, '_current_export_job') and self._current_export_job:
+            self._current_export_job.cancel()
+        self.btn_cancel_export.setEnabled(False)
+        self.export_status_lbl.setText("⏳ Đang hủy tác vụ xuất đề...")
+        self.export_status_lbl.setStyleSheet("color: #f59e0b; font-weight: bold;")
+
     def _on_export_completed(self, payload):
         self.big_export_btn.setEnabled(True)
+        self.btn_cancel_export.setVisible(False)
         self.export_progress_bar.setVisible(False)
         target = payload.get('target', '')
         fmt = payload.get('fmt', '')
@@ -1665,9 +1688,9 @@ class ExamDialog(QWidget):
 
         if ok:
             self.export_status_lbl.setText("🎉 XUẤT BẢN VÀ BIÊN DỊCH THÀNH CÔNG!")
-            self.export_status_lbl.setStyleSheet("color: #55bca3; font-weight: bold; font-size: 13px;")
+            self.export_status_lbl.setStyleSheet("color: #16a34a; font-weight: bold; font-size: 13px;")
             self.export_path_lbl.setText(f"📁 Đường dẫn: {target}")
-            self.export_path_lbl.setStyleSheet("color: #e2e8f0; font-size: 12px;")
+            self.export_path_lbl.setStyleSheet("color: #0f172a; font-size: 12px;")
             self.export_path_lbl.setVisible(True)
 
             self.btn_open_folder.setVisible(True)
@@ -1688,14 +1711,16 @@ class ExamDialog(QWidget):
             err_msg = "\n".join(f"{item}: {log[:300]}" for item, log in errors) if errors else payload.get('log', '')
             self._last_exported_log = err_msg or payload.get('log', '')
             self.export_status_lbl.setText("⚠️ ĐÃ XUẤT FILE TEX NHƯNG BIÊN DỊCH PDF GẶP LỖI")
-            self.export_status_lbl.setStyleSheet("color: #f59e0b; font-weight: bold; font-size: 13px;")
+            self.export_status_lbl.setStyleSheet("color: #d97706; font-weight: bold; font-size: 13px;")
             self.export_path_lbl.setText(f"Tài nguyên đã được lưu tại: {target}\nBạn có thể kiểm tra nhật ký lỗi để sửa câu hỏi.")
+            self.export_path_lbl.setStyleSheet("color: #475569; font-size: 12px;")
             self.export_path_lbl.setVisible(True)
             self.btn_open_folder.setVisible(True)
             self.btn_view_log.setVisible(True)
 
     def _on_export_failed(self, message):
         self.big_export_btn.setEnabled(True)
+        self.btn_cancel_export.setVisible(False)
         self.export_progress_bar.setVisible(False)
         self.export_status_lbl.setText(f"❌ Quá trình xuất đề thất bại: {message}")
         self.export_status_lbl.setStyleSheet("color: #ef4444; font-weight: bold; font-size: 13px;")
