@@ -191,7 +191,7 @@ class MoveTaxonomyDialog(QDialog):
 
 class LibraryWorkspace:
     def __init__(self,w,library,scroll):
-        self.w=w;self.cache=OrderedDict();self.images={};self.original=None;self.scroll=scroll;self.selected_id=None;self.loading=False;self.expanded_ids=set()
+        self.w=w;self.cache=OrderedDict();self.images={};self.compile_errors={};self.original=None;self.scroll=scroll;self.selected_id=None;self.loading=False;self.expanded_ids=set()
         layout=library.layout();layout.setContentsMargins(8,8,8,8);layout.setSpacing(6)
         self.toolbar=CommandToolbar('Thư viện',w.library_control)
         frame=QWidget();outer=QVBoxLayout(frame);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0);outer.addWidget(self.toolbar);outer.addWidget(w.library_vertical,1);w.library_control.setCentralWidget(frame)
@@ -597,6 +597,18 @@ class LibraryWorkspace:
                     img_lbl=QLabel();img_lbl.setObjectName('cardRenderImg')
                     scaled_pix=pix.scaledToWidth(min(card_w-30,pix.width()),Qt.TransformationMode.SmoothTransformation)
                     img_lbl.setPixmap(scaled_pix);card_layout.addWidget(img_lbl)
+                elif q.id in self.compile_errors:
+                    err_box = QFrame(); err_box.setObjectName('cardErrorBadge')
+                    err_l = QHBoxLayout(err_box); err_l.setContentsMargins(6,2,6,2); err_l.setSpacing(6)
+                    err_msg = self.compile_errors[q.id]
+                    err_lbl = QLabel(f"⚠️ Render lỗi: {err_msg[:60]}…")
+                    err_lbl.setStyleSheet("color: #dc2626; font-size: 11px;")
+                    err_lbl.setToolTip(err_msg)
+                    retry_btn = QPushButton("Thử lại")
+                    retry_btn.setStyleSheet("background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 4px; padding: 1px 6px; font-size: 11px;")
+                    retry_btn.clicked.connect(lambda _,qid=q.id:(self.select_single_id(qid),self.w.ensure_preview_visible(),self.w.compile_current()))
+                    err_l.addWidget(err_lbl, 1); err_l.addWidget(retry_btn)
+                    card_layout.addWidget(err_box)
                 actions=QHBoxLayout();actions.setContentsMargins(0,4,0,0);actions.setSpacing(8)
                 pv_btn=QPushButton('Xem trước');pv_btn.setObjectName('cardActionBtn')
                 pv_btn.clicked.connect(lambda _,qid=q.id:(self.select_single_id(qid),self.w.ensure_preview_visible(),self.w.compile_current()))

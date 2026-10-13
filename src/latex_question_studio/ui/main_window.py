@@ -906,10 +906,17 @@ class MainWindow(QMainWindow):
         self.logs.setPlainText(result.log)
         self.library_ui.errors.setPlainText(result.log)
         if result.ok:
+            if hasattr(self.library_ui, 'compile_errors'):
+                self.library_ui.compile_errors.pop(question_id, None)
             self.library_ui.remember(q,source,self.compiler_config(),result,image,pages)
             self.library_ui.display_image(image)
             self.statusBar().showMessage(f"Preview • Trang {page+1}/{pages} • "+("Cache" if result.cache_hit else "Biên dịch mới"))
         else:
+            if hasattr(self.library_ui, 'compile_errors'):
+                err_lines = [line.strip() for line in result.log.splitlines() if line.strip() and ('!' in line or 'Error' in line)]
+                self.library_ui.compile_errors[question_id] = err_lines[0] if err_lines else (result.log.strip().splitlines()[-1] if result.log.strip() else "Lỗi biên dịch")
+                if self.library_ui.mode.currentIndex() == 1:
+                    self.library_ui.sync_cards()
             self.preview.setPixmap(QPixmap());self.preview.setText("Không thể tạo preview. Xem Nhật ký / Tác vụ.\n" + result.log[-400:])
             self.statusBar().showMessage("Preview đã hủy" if result.cancelled else "Preview lỗi")
 
