@@ -521,6 +521,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if not self.lesson_page.save():
             event.ignore();return
+        self.cancel_preview()
         self.library_ui.preview_timer.stop();self.library_ui.timer.stop()
         self.exam_page.cancel_statistics()
         self.exam_page.preview.cancel()
@@ -893,6 +894,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Đang biên dịch câu được chọn…")
 
     def preview_ready(self,payload):
+        from shiboken6 import isValid
+        if not isValid(self):return
         generation,question_id,source,result,image,pages,page=payload
         editor=self.tabs.currentWidget()
         q=self.editors.get(editor) or self.library_ui.current_question()
@@ -1042,6 +1045,8 @@ class MainWindow(QMainWindow):
         QThreadPool.globalInstance().start(job)
 
     def finish_job(self,job):
+        from shiboken6 import isValid
+        if not isValid(self):return
         if job in self.all_jobs:self.all_jobs.remove(job)
         if hasattr(self,"library_ui"):self.library_ui.update_tasks()
 

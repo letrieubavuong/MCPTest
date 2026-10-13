@@ -315,29 +315,32 @@ class DashboardPage(QWidget):
                 DashboardPage._clear_layout(item.layout())
 
     def refresh(self):
-        with self.services.database.connect() as connection:
-            total = connection.execute('SELECT count(*) FROM questions').fetchone()[0]
-            active = connection.execute("SELECT count(*) FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id WHERE coalesce(json_extract(m.data_json,'$.archived'),0)=0").fetchone()[0]
-            invalid = connection.execute("SELECT count(*) FROM question_analysis WHERE valid=0").fetchone()[0]
-            missing = connection.execute("SELECT count(*) FROM question_assets WHERE resolution_status<>'RESOLVED'").fetchone()[0]
-            asset_total = connection.execute('SELECT count(*) FROM question_assets').fetchone()[0]
-            asset_ready = connection.execute("SELECT count(*) FROM question_assets WHERE resolution_status='RESOLVED'").fetchone()[0]
-            asset_missing = connection.execute("SELECT count(*) FROM question_assets WHERE resolution_status LIKE '%MISSING%' OR resolution_status LIKE '%AMBIGUOUS%'").fetchone()[0]
-            asset_other = max(0, asset_total - asset_ready - asset_missing)
-            levels = [(row['subject'] or 'Khác', row['cognitive_level'] or 'Chưa gán', row['count']) for row in connection.execute("SELECT json_extract(m.data_json,'$.subject') AS subject, q.cognitive_level, count(*) AS count FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id GROUP BY subject,q.cognitive_level ORDER BY subject,count DESC")]
-            recent = [(row['updated_at'], row['latex_source'], row['valid']) for row in connection.execute('SELECT q.updated_at,q.latex_source,coalesce(a.valid,1) AS valid FROM questions q LEFT JOIN question_analysis a ON a.question_id=q.id ORDER BY q.updated_at DESC LIMIT 6')]
-        self.cards[0].set_data(total, 'Câu hỏi trong ngân hàng')
-        self.cards[1].set_data(active, f'{number(active / total * 100) if total else 0}% đang hoạt động')
-        self.cards[2].set_data(invalid, 'Source cần kiểm tra')
-        self.cards[3].set_data(missing, 'Liên kết cần xử lý')
-        subject_data = {}
-        for subject, level, value in levels:
-            subject_data.setdefault(subject, {key: 0 for key, _ in LEVELS})
-            if level in subject_data[subject]:
-                subject_data[subject][level] += value
-        chart_data = [(subject, [values[key] for key, _ in LEVELS]) for subject, values in list(subject_data.items())[:5] if any(values.values())]
-        self.chart.set_data(chart_data)
-        self.chart_legend.setText('   '.join(f'<span style="color:{color}">■</span> {label}' for (_, label), color in zip(LEVELS, COLORS)))
+        try:
+            with self.services.database.connect() as connection:
+                total = connection.execute('SELECT count(*) FROM questions').fetchone()[0]
+                active = connection.execute("SELECT count(*) FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id WHERE coalesce(json_extract(m.data_json,'$.archived'),0)=0").fetchone()[0]
+                invalid = connection.execute("SELECT count(*) FROM question_analysis WHERE valid=0").fetchone()[0]
+                missing = connection.execute("SELECT count(*) FROM question_assets WHERE resolution_status<>'RESOLVED'").fetchone()[0]
+                asset_total = connection.execute('SELECT count(*) FROM question_assets').fetchone()[0]
+                asset_ready = connection.execute("SELECT count(*) FROM question_assets WHERE resolution_status='RESOLVED'").fetchone()[0]
+                asset_missing = connection.execute("SELECT count(*) FROM question_assets WHERE resolution_status LIKE '%MISSING%' OR resolution_status LIKE '%AMBIGUOUS%'").fetchone()[0]
+                asset_other = max(0, asset_total - asset_ready - asset_missing)
+                levels = [(row['subject'] or 'Khác', row['cognitive_level'] or 'Chưa gán', row['count']) for row in connection.execute("SELECT json_extract(m.data_json,'$.subject') AS subject, q.cognitive_level, count(*) AS count FROM questions q LEFT JOIN question_metadata m ON m.question_id=q.id GROUP BY subject,q.cognitive_level ORDER BY subject,count DESC")]
+                recent = [(row['updated_at'], row['latex_source'], row['valid']) for row in connection.execute('SELECT q.updated_at,q.latex_source,coalesce(a.valid,1) AS valid FROM questions q LEFT JOIN question_analysis a ON a.question_id=q.id ORDER BY q.updated_at DESC LIMIT 6')]
+            self.cards[0].set_data(total, 'Câu hỏi trong ngân hàng')
+            self.cards[1].set_data(active, f'{number(active / total * 100) if total else 0}% đang hoạt động')
+            self.cards[2].set_data(invalid, 'Source cần kiểm tra')
+            self.cards[3].set_data(missing, 'Liên kết cần xử lý')
+            subject_data = {}
+            for subject, level, value in levels:
+                subject_data.setdefault(subject, {key: 0 for key, _ in LEVELS})
+                if level in subject_data[subject]:
+                    subject_data[subject][level] += value
+            chart_data = [(subject, [values[key] for key, _ in LEVELS]) for subject, values in list(subject_data.items())[:5] if any(values.values())]
+            self.chart.set_data(chart_data)
+            self.chart_legend.setText('   '.join(f'<span style="color:{color}">■</span> {label}' for (_, label), color in zip(LEVELS, COLORS)))
+        except Exception:
+            return
         status = [('Sẵn sàng', asset_ready, COLORS[1]), ('Thiếu/hỏng', asset_missing, COLORS[2]), ('Chưa kiểm tra', asset_other, COLORS[3]), ('Không có tài nguyên', max(0, asset_total - asset_ready - asset_missing - asset_other), '#7b61c9')]
         self.donut.set_data(status)
         self._clear_layout(self.asset_labels)

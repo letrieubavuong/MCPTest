@@ -19,9 +19,11 @@ class Job(QRunnable):
         try:
             result = self.function(self.cancelled.is_set, self.signals.progress.emit)
             from shiboken6 import isValid
-            if isValid(self.signals):self.signals.completed.emit(result)
+            if isValid(self.signals) and not self.cancelled.is_set():
+                self.signals.completed.emit(result)
         except Exception as error:
             from shiboken6 import isValid
-            if isValid(self.signals):self.signals.failed.emit(str(error))
+            if isValid(self.signals) and not self.cancelled.is_set():
+                self.signals.failed.emit(str(error))
         finally:
             self.finished.set()
