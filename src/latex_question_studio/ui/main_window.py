@@ -55,6 +55,8 @@ class MainWindow(QMainWindow):
         self.preview_generation = 0
         self.preview_job = None
         self.layout_path = services.config.data_dir / "workspace.json"
+        from latex_question_studio.preview.thumbnails import ThumbnailManager
+        self.thumbnail_manager = ThumbnailManager(services.config.data_dir / "cache" / "thumbnails")
         from latex_question_studio.ui.shell.application import ApplicationShell
         self.shell = ApplicationShell(self)
         self.drawer=self.shell.activity;self.drawer_toggle=self.shell.toggle
@@ -135,6 +137,7 @@ class MainWindow(QMainWindow):
         self.add_action("Phục hồi backup", self.restore_library)
         self.add_action("Hàng chờ nhập", self.show_pending)
         self.add_action("Cài đặt pdfLaTeX", self.compiler_settings, activity=True)
+        self.add_action("Xóa bộ nhớ đệm preview", self.clear_preview_cache)
         self.add_action("Biên dịch / Preview", self.compile_current, "F5")
         self.add_action("Hủy biên dịch", self.cancel_preview)
         self.add_action("Trang preview trước",lambda:self.preview_page(-1))
@@ -906,6 +909,25 @@ class MainWindow(QMainWindow):
         else:
             self.preview.setPixmap(QPixmap());self.preview.setText("Không thể tạo preview. Xem Nhật ký / Tác vụ.\n" + result.log[-400:])
             self.statusBar().showMessage("Preview đã hủy" if result.cancelled else "Preview lỗi")
+
+    def clear_preview_cache(self):
+        from PySide6.QtWidgets import QMessageBox
+        if QMessageBox.question(self, "Xóa cache", "Xóa toàn bộ bộ nhớ đệm hình ảnh và PDF preview? (Tài nguyên câu hỏi gốc và dữ liệu CSDL được giữ nguyên an toàn).") != QMessageBox.StandardButton.Yes:
+            return
+        count = self.thumbnail_manager.clear_cache()
+        compiler_cache = self.services.config.data_dir / "cache"
+        pdf_count = 0
+        if compiler_cache.is_dir():
+            for p in compiler_cache.glob("*.pdf"):
+                try:
+                    p.unlink(missing_ok=True)
+                    pdf_count += 1
+                except OSError:
+                    pass
+        if hasattr(self, 'library_ui'):
+            self.library_ui.cache.clear()
+            self.library_ui.images.clear()
+        self.statusBar().showMessage(f"Đã dọn dẹp cache an toàn: {count} ảnh, {pdf_count} PDF.")
 
     def search_library(self):
         self.show_page(0);self.tabs.setCurrentIndex(0);self.library_ui.query.setFocus()

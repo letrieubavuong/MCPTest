@@ -1,6 +1,6 @@
 from dataclasses import replace
 from collections import OrderedDict
-import json,re
+import json,re,hashlib
 from PySide6.QtCore import Qt,QTimer,QSize
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QLineEdit,QComboBox,QTabWidget,QPlainTextEdit,QFormLayout,QPushButton,QListWidget,QListWidgetItem,QLabel,QStackedWidget,QHeaderView,QScrollArea,QListView,QFrame,QToolButton,QMenu,QDialog,QTreeWidget,QTreeWidgetItem,QMessageBox,QInputDialog)
@@ -580,8 +580,21 @@ class LibraryWorkspace:
                 if parsed['solution']:
                     sol_lbl=QLabel(f"💡 Lời giải: {parsed['solution']}");sol_lbl.setObjectName('cardSolutionText');sol_lbl.setWordWrap(True)
                     card_layout.addWidget(sol_lbl)
+                pix = None
                 if q.id in self.images and self.images[q.id][:2]==(q.revision,q.latex_source):
-                    img_lbl=QLabel();img_lbl.setObjectName('cardRenderImg');pix=self.images[q.id][2]
+                    pix = self.images[q.id][2]
+                elif hasattr(self.w, 'thumbnail_manager'):
+                    try:
+                        config = self.w.compiler_config()
+                        k = self.key(q, q.latex_source, config)
+                        thumb_key = hashlib.sha256(str(k).encode('utf-8')).hexdigest()
+                        pix = self.w.thumbnail_manager.get_pixmap(thumb_key)
+                        if pix:
+                            self.images[q.id] = (q.revision, q.latex_source, pix)
+                    except Exception:
+                        pass
+                if pix:
+                    img_lbl=QLabel();img_lbl.setObjectName('cardRenderImg')
                     scaled_pix=pix.scaledToWidth(min(card_w-30,pix.width()),Qt.TransformationMode.SmoothTransformation)
                     img_lbl.setPixmap(scaled_pix);card_layout.addWidget(img_lbl)
                 actions=QHBoxLayout();actions.setContentsMargins(0,4,0,0);actions.setSpacing(8)
@@ -712,12 +725,36 @@ class LibraryWorkspace:
         except (ValueError,OSError) as error:
             profile_signature=str(error)
         return q.id,q.revision,source,json.dumps(config,sort_keys=True),signatures,profile_signature
-    def cached(self,q,source,config):return self.cache.get(self.key(q,source,config))
+    def cached(self,q,source,config):
+        k = self.key(q,source,config)
+        if k in self.cache:
+            return self.cache[k]
+        if hasattr(self.w, 'thumbnail_manager'):
+            try:
+                import hashlib
+                thumb_key = hashlib.sha256(str(k).encode('utf-8')).hexdigest()
+                res = self.w.thumbnail_manager.get(thumb_key)
+                if res:
+                    data, fmt, path = res
+                    from latex_question_studio.preview.compiler import CompileResult
+                    result = CompileResult(True, None, f"Thumbnail từ disk cache ({fmt.upper()}).", cache_hit=True)
+                    return (result, data, 1)
+            except Exception:
+                pass
+        return None
+
     def remember(self,q,source,config,result,image,pages):
         key=self.key(q,source,config);self.cache[key]=(result,image,pages);self.cache.move_to_end(key)
         while len(self.cache)>40:self.cache.popitem(last=False)
         pix=QPixmap();pix.loadFromData(image);self.images[q.id]=(q.revision,source,pix)
         while len(self.images)>40:self.images.pop(next(iter(self.images)))
+        if hasattr(self.w, 'thumbnail_manager') and image:
+            try:
+                import hashlib
+                thumb_key = hashlib.sha256(str(key).encode('utf-8')).hexdigest()
+                self.w.thumbnail_manager.save(thumb_key, image, prefer_webp=True)
+            except Exception:
+                pass
         if self.mode.currentIndex()==1:self.sync_cards()
     def display_image(self,image):
         pix=QPixmap();pix.loadFromData(image);self.original=pix;self.fit()
