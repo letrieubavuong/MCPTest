@@ -720,8 +720,40 @@ class MainWindow(QMainWindow):
             while ancestor:ancestor.setExpanded(True);ancestor=ancestor.parent()
         self.refresh_curriculum_menu(nodes)
 
-    def refresh_curriculum_menu(self,nodes):
-        pass
+    def refresh_curriculum_menu(self, nodes):
+        if not hasattr(self, 'csdl_menu') or self.csdl_menu is None:
+            self.csdl_menu = QMenu("CSDL", self)
+        key = tuple((n['id'], n['parent_id'], n['name']) for n in nodes)
+        if getattr(self, 'curriculum_menu_key', None) == key:
+            return
+        self.curriculum_menu_key = key
+        self.csdl_menu.clear()
+        self.curriculum_submenus = []
+        self.csdl_menu.addAction('Tất cả câu hỏi', lambda: self.open_taxonomy(None))
+        for root in (n for n in nodes if n['parent_id'] is None):
+            root_id = root['id']
+            attribute = root_id.split(':')[-1] + '_menu'
+            menu = QMenu(root['name'], self.csdl_menu)
+            self.csdl_menu.addMenu(menu)
+            setattr(self, attribute, menu)
+            self.curriculum_submenus.append(menu)
+            action = menu.addAction('Tất cả ' + root['name'], lambda checked=False, k=root_id: self.open_taxonomy(k))
+            action.setData(root_id)
+            menu.addSeparator()
+            for chapter in (n for n in nodes if n['parent_id'] == root_id):
+                if chapter['kind'] == 'lesson':
+                    action = menu.addAction(chapter['name'], lambda checked=False, k=chapter['id']: self.open_taxonomy(k))
+                    action.setData(chapter['id'])
+                    continue
+                submenu = QMenu(chapter['name'], menu)
+                menu.addMenu(submenu)
+                self.curriculum_submenus.append(submenu)
+                action = submenu.addAction('Tất cả câu trong chương', lambda checked=False, k=chapter['id']: self.open_taxonomy(k))
+                action.setData(chapter['id'])
+                submenu.addSeparator()
+                for lesson in (n for n in nodes if n['parent_id'] == chapter['id']):
+                    action = submenu.addAction(lesson['name'], lambda checked=False, k=lesson['id']: self.open_taxonomy(k))
+                    action.setData(lesson['id'])
 
 
     def open_taxonomy(self,taxonomy_id):
