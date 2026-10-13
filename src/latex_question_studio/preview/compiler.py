@@ -84,6 +84,9 @@ class Compiler:
     def profile_root(self):
         return self.preamble_file.parent if self.preamble_file else default_profile_root()
 
+    def engine_path(self):
+        return shutil.which(self.engine)
+
     def profile(self):
         dependencies={}
         if self.preamble_file:

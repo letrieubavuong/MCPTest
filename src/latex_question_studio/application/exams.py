@@ -1,6 +1,8 @@
+import hashlib
+import json
+import os
 from pathlib import Path
 from datetime import datetime,timezone
-import json
 import random
 import shutil
 import tempfile
@@ -246,23 +248,104 @@ class ExamService:
         return '\n\n'.join(lines)
 
     @staticmethod
-    def copy_class_dependencies(target_folder):
-        """Sao chép MAPClass.cls và Packages/ex_test.sty vào thư mục xuất đề để đảm bảo biên dịch thành công 100%."""
+    def copy_class_dependencies(target_folder, raise_on_missing=False):
+        """Sao chép MAPClass.cls và Packages/ex_test.sty vào thư mục xuất đề."""
+        copied = []
+        missing = []
+        root = default_profile_root()
+        target_folder = Path(target_folder)
+        target_folder.mkdir(parents=True, exist_ok=True)
+
+        probe = target_folder / '.write_probe'
         try:
-            root = default_profile_root()
-            target_folder = Path(target_folder)
+            probe.write_text('probe', encoding='utf-8')
+            probe.unlink(missing_ok=True)
+        except Exception as e:
+            raise PermissionError(f"Không có quyền ghi vào thư mục: {target_folder}") from e
+
+        mapclass_src = root / 'Class' / 'MAPClass.cls'
+        if not mapclass_src.is_file():
+            alt = root / 'MAPClass.cls'
+            if alt.is_file():
+                mapclass_src = alt
+        if mapclass_src.is_file():
+            shutil.copyfile(mapclass_src, target_folder / 'MAPClass.cls')
+            copied.append('MAPClass.cls')
+        else:
+            missing.append('MAPClass.cls')
+
+        extest_src = root / 'Packages' / 'ex_test.sty'
+        if not extest_src.is_file():
+            alt = root / 'ex_test.sty'
+            if alt.is_file():
+                extest_src = alt
+        if extest_src.is_file():
+            pkg_dir = target_folder / 'Packages'
+            pkg_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(extest_src, pkg_dir / 'ex_test.sty')
+            shutil.copyfile(extest_src, target_folder / 'ex_test.sty')
+            copied.append('Packages/ex_test.sty')
+        else:
+            missing.append('Packages/ex_test.sty')
+
+        if raise_on_missing and missing:
+            raise FileNotFoundError(f"Thiếu file phụ thuộc lớp LaTeX: {', '.join(missing)}")
+        return {'copied': copied, 'missing': missing}
+
+    def preflight_export(self, snapshot, target_folder, engine='pdflatex', preamble_file=None, style='mapclass'):
+        """Kiểm tra trước khi export: quyền ghi, class, package, preamble, engine và assets."""
+        errors = []
+        warnings = []
+        missing_assets = []
+        missing_deps = []
+
+        # 1. Kiểm tra quyền ghi thư mục đích
+        target_folder = Path(target_folder)
+        try:
             target_folder.mkdir(parents=True, exist_ok=True)
-            mapclass_src = root / 'Class' / 'MAPClass.cls'
-            if mapclass_src.is_file():
-                shutil.copyfile(mapclass_src, target_folder / 'MAPClass.cls')
-            extest_src = root / 'Packages' / 'ex_test.sty'
-            if extest_src.is_file():
-                pkg_dir = target_folder / 'Packages'
-                pkg_dir.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(extest_src, pkg_dir / 'ex_test.sty')
-                shutil.copyfile(extest_src, target_folder / 'ex_test.sty')
-        except Exception:
-            pass
+            probe = target_folder / f'.probe_{os.getpid()}'
+            probe.write_text('probe', encoding='utf-8')
+            probe.unlink(missing_ok=True)
+        except Exception as e:
+            errors.append(f"Không thể ghi vào thư mục '{target_folder}': {e}")
+
+        # 2. Kiểm tra preamble file nếu có
+        if preamble_file:
+            pf = Path(preamble_file)
+            if not pf.is_file():
+                errors.append(f"Không tìm thấy file preamble: {preamble_file}")
+
+        # 3. Kiểm tra class dependencies nếu dùng mapclass
+        if style == 'mapclass' or preamble_file is None:
+            root = default_profile_root()
+            mapclass = root / 'Class' / 'MAPClass.cls'
+            if not mapclass.is_file() and not (root / 'MAPClass.cls').is_file():
+                missing_deps.append('MAPClass.cls')
+            extest = root / 'Packages' / 'ex_test.sty'
+            if not extest.is_file() and not (root / 'ex_test.sty').is_file():
+                missing_deps.append('Packages/ex_test.sty')
+            if missing_deps:
+                warnings.append(f"Thiếu file phụ thuộc lớp LaTeX trong profile: {', '.join(missing_deps)}")
+
+        # 4. Kiểm tra engine biên dịch
+        compiler = Compiler(self.services.config.data_dir, engine=engine)
+        if not compiler.engine_path():
+            warnings.append(f"Không tìm thấy trình biên dịch LaTeX '{engine}' trên hệ thống (chỉ có thể xuất TeX)")
+
+        # 5. Kiểm tra assets trong snapshot
+        for ref, src in snapshot.get('assets', {}).items():
+            if not Path(src).is_file():
+                missing_assets.append(ref)
+        if missing_assets:
+            warnings.append(f"Không tìm thấy file ảnh tài nguyên: {', '.join(missing_assets)}")
+
+        return {
+            'ok': len(errors) == 0,
+            'errors': errors,
+            'warnings': warnings,
+            'missing_assets': missing_assets,
+            'missing_deps': missing_deps
+        }
 
     def export_tex(self, snapshot, path, solutions=False, answer_only=False, preamble=None, bundle_dependencies=True):
         body = self.content(snapshot, solutions, answer_only)
@@ -277,22 +360,28 @@ class ExamService:
             if cursor < len(body) and body[cursor] == '[':
                 _, cursor, _ = group(body, cursor, '[', ']')
             references.add(group(body, cursor)[0])
-        path = Path(path)
+        path = Path(path).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
         for reference, source in snapshot.get('assets', {}).items():
             if reference not in references:
                 continue
-            target = path.parent / reference
+            target = (path.parent / reference).resolve()
+            # Bảo vệ chống Path Traversal
+            try:
+                target.relative_to(path.parent.resolve())
+            except ValueError:
+                raise ValueError(f"Phát hiện đường dẫn tài nguyên không an toàn (path traversal): {reference}")
             target.parent.mkdir(parents=True, exist_ok=True)
-            if Path(source).resolve() != target.resolve():
+            if Path(source).resolve() != target.resolve() and Path(source).is_file():
                 shutil.copyfile(source, target)
         header = preamble or BUILTIN_PREAMBLE
         if not solutions and not answer_only:
             header += '\n' + HIDE_ANSWERS
         document = header + '\n\\begin{document}\n' + body + '\n\\end{document}\n'
         path.write_text(document, encoding='utf-8')
+        dep_info = {'copied': [], 'missing': []}
         if bundle_dependencies and ('MAPClass' in header or preamble is None):
-            self.copy_class_dependencies(path.parent)
+            dep_info = self.copy_class_dependencies(path.parent)
         return path
 
     def export_pdf(self, snapshot, path, solutions=False, answer_only=False, engine='pdflatex', preamble_file=None, cancelled=lambda: False):
@@ -322,10 +411,17 @@ class ExamService:
         - Tự động đóng gói MAPClass.cls, Packages/ex_test.sty và toàn bộ ảnh assets
         - File tự biên dịch nhanh trên Windows: bien-dich.bat
         - File hướng dẫn sử dụng: HUONG_DAN_BIEN_DICH.txt
-        Đảm bảo bất kỳ ai mở ra trên TeXStudio hoặc Overleaf đều biên dịch 100% thành công!
+        - File manifest.json đầy đủ hash SHA256 và audience
         """
         folder = Path(folder).resolve()
         folder.mkdir(parents=True, exist_ok=True)
+        probe = folder / f'.probe_{os.getpid()}'
+        try:
+            probe.write_text('probe', encoding='utf-8')
+            probe.unlink(missing_ok=True)
+        except Exception as e:
+            raise PermissionError(f"Không có quyền ghi vào thư mục: {folder}") from e
+
         if cancelled():
             raise InterruptedError('Đã hủy xuất đề thi')
 
@@ -333,13 +429,22 @@ class ExamService:
             preamble = Path(preamble_file).read_text(encoding='utf-8-sig')
         elif style == 'mapclass':
             preamble = MAPCLASS_PREAMBLE
-            self.copy_class_dependencies(folder)
         else:
             preamble = BUILTIN_PREAMBLE
 
         created_tex = []
         created_pdf = []
         errors = []
+
+        # Xác định đối tượng (audience)
+        if export_student and not export_teacher and not export_answers:
+            audience = 'student'
+        elif export_teacher and not export_student and not export_answers:
+            audience = 'teacher'
+        elif export_answers and not export_student and not export_teacher:
+            audience = 'answers'
+        else:
+            audience = 'all'
 
         total_steps = (int(export_student) + int(export_teacher) + int(export_answers)) * (2 if compile_pdf else 1)
         total_steps = max(total_steps, 1)
@@ -406,8 +511,9 @@ class ExamService:
                 progress(step, total_steps)
 
         # 4. Sao chép các file phụ thuộc của MAPClass nếu dùng MAPClass
+        dep_info = {'copied': [], 'missing': []}
         if style == 'mapclass' or preamble_file is None:
-            self.copy_class_dependencies(folder)
+            dep_info = self.copy_class_dependencies(folder)
 
         # 5. Tạo file biên dịch nhanh Windows bien-dich.bat
         bat_content = (
@@ -433,10 +539,7 @@ class ExamService:
             "echo ========================================================\r\n"
             "pause\r\n"
         )
-        try:
-            (folder / 'bien-dich.bat').write_text(bat_content, encoding='utf-8')
-        except Exception:
-            pass
+        (folder / 'bien-dich.bat').write_text(bat_content, encoding='utf-8')
 
         # 6. Tạo file hướng dẫn biên dịch chi tiết HUONG_DAN_BIEN_DICH.txt
         guide_content = (
@@ -454,33 +557,31 @@ class ExamService:
             "3. BIÊN DỊCH TỰ ĐỘNG TRÊN WINDOWS:\n"
             "   - Nhấp đúp chuột vào file 'bien-dich.bat' để tự động chạy pdfLaTeX.\n"
         )
-        try:
-            (folder / 'HUONG_DAN_BIEN_DICH.txt').write_text(guide_content, encoding='utf-8')
-        except Exception:
-            pass
+        (folder / 'HUONG_DAN_BIEN_DICH.txt').write_text(guide_content, encoding='utf-8')
 
         # 7. Ghi manifest JSON để kiểm tra tính toàn vẹn
-        try:
-            import hashlib
-            files_hash = {
-                file.relative_to(folder).as_posix(): hashlib.sha256(file.read_bytes()).hexdigest()
-                for file in folder.rglob('*') if file.is_file()
-            }
-            manifest = {
-                'format': 1,
-                'title': snapshot.get('title', 'Đề thi'),
-                'exam_code': snapshot.get('exam_code', '101'),
-                'question_count': len(snapshot.get('questions', [])),
-                'sha256': files_hash
-            }
-            (folder / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
-        except Exception:
-            pass
+        files_hash = {
+            file.relative_to(folder).as_posix(): hashlib.sha256(file.read_bytes()).hexdigest()
+            for file in sorted(folder.rglob('*')) if file.is_file() and file.name != 'manifest.json'
+        }
+        manifest = {
+            'format': 1,
+            'title': snapshot.get('title', 'Đề thi'),
+            'exam_code': snapshot.get('exam_code', '101'),
+            'question_count': len(snapshot.get('questions', [])),
+            'audience': audience,
+            'style': style,
+            'engine': engine,
+            'dependencies': dep_info,
+            'sha256': files_hash
+        }
+        (folder / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
 
         return {
             'folder': str(folder),
             'created_tex': created_tex,
             'created_pdf': created_pdf,
+            'dependencies': dep_info,
             'errors': errors,
             'ok': len(errors) == 0
         }
@@ -498,10 +599,11 @@ class ExamService:
         compile_pdf=True,
         engine='pdflatex',
         preamble_file=None,
+        raise_on_compile_error=False,
         cancelled=lambda: False
     ):
         """Tạo gói đề Portable ZIP tự trị chứa toàn bộ TeX + PDF + MAPClass + Assets."""
-        path = Path(path)
+        path = Path(path).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
         if export_student is None and export_teacher is None and export_answers is None:
             export_student = not solutions
@@ -512,9 +614,9 @@ class ExamService:
             export_teacher = bool(export_teacher)
             export_answers = bool(export_answers)
 
-        with tempfile.TemporaryDirectory(prefix='.exam-bundle-', dir=path.parent) as temporary:
+        with tempfile.TemporaryDirectory(prefix='.exam-bundle-', dir=path.parent, ignore_cleanup_errors=True) as temporary:
             folder = Path(temporary)
-            self.export_bundle(
+            bundle_res = self.export_bundle(
                 snapshot,
                 folder,
                 export_student=export_student,
@@ -526,18 +628,38 @@ class ExamService:
                 preamble_file=preamble_file,
                 cancelled=cancelled
             )
+
             # Tạo alias main.tex để tương thích với các công cụ đọc gói cũ
             if (folder / 'de-thi-hoc-sinh.tex').is_file() and not (folder / 'main.tex').is_file():
                 shutil.copyfile(folder / 'de-thi-hoc-sinh.tex', folder / 'main.tex')
             elif (folder / 'de-thi-giao-vien.tex').is_file() and not (folder / 'main.tex').is_file():
                 shutil.copyfile(folder / 'de-thi-giao-vien.tex', folder / 'main.tex')
 
+            # Cập nhật manifest để bao gồm main.tex, compilation status và toàn bộ file trong zip
+            manifest_file = folder / 'manifest.json'
+            if manifest_file.is_file():
+                manifest_data = json.loads(manifest_file.read_text(encoding='utf-8'))
+                files_hash = {
+                    file.relative_to(folder).as_posix(): hashlib.sha256(file.read_bytes()).hexdigest()
+                    for file in sorted(folder.rglob('*')) if file.is_file() and file.name != 'manifest.json'
+                }
+                manifest_data['sha256'] = files_hash
+                manifest_data['compilation'] = {
+                    'ok': bundle_res['ok'],
+                    'errors': [name for name, _ in bundle_res.get('errors', [])]
+                }
+                manifest_file.write_text(json.dumps(manifest_data, ensure_ascii=False, indent=2), encoding='utf-8')
+
             if cancelled():
                 raise InterruptedError('Đã hủy xuất gói đề')
 
-            temporary_zip = path.with_suffix(path.suffix + '.tmp')
+            if compile_pdf and not bundle_res['ok'] and raise_on_compile_error:
+                err_details = "; ".join(f"{name}: {log[:200]}" for name, log in bundle_res['errors'])
+                raise RuntimeError(f"Biên dịch PDF thất bại trong gói xuất đề: {err_details}")
+
+            temporary_zip = path.with_suffix(path.suffix + f'.tmp_{os.getpid()}')
             with zipfile.ZipFile(temporary_zip, 'w', zipfile.ZIP_DEFLATED) as archive:
-                for file in folder.rglob('*'):
+                for file in sorted(folder.rglob('*')):
                     if file.is_file():
                         archive.write(file, file.relative_to(folder).as_posix())
             temporary_zip.replace(path)
