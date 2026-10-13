@@ -233,11 +233,35 @@ class ExamService:
                     try:
                         source = student_source(source, hide_answers=True)
                     except ValueError:
-                        import re
-                        source = re.sub(r'\\True\b', '', source)
-                        source = re.sub(r'\\(loigiai|hdan)(\[[^\]]*\])?\{.*?\}', '', source, flags=re.DOTALL)
-                        source = re.sub(r'\\shortans(\[[^\]]*\])?\{.*?\}', '', source, flags=re.DOTALL)
-                lines.append(f"\\noindent\\textbf{{Câu {i}.}}\n"+source)
+                        # Fallback robust: dùng scanner nhóm ngoặc nhọn để bóc tách triệt để khối \loigiai lồng nhau
+                        edits = []
+                        for cmd in commands(source):
+                            if cmd.name == 'True':
+                                edits.append((cmd.start, cmd.end, ''))
+                            elif cmd.name in ('loigiai', 'hdan', 'shortans'):
+                                cursor = skip_space(source, cmd.end)
+                                if cmd.name == 'shortans' and cursor < len(source) and source[cursor] == '[':
+                                    try:
+                                        _, cursor, _ = group(source, cursor, '[', ']')
+                                    except ValueError:
+                                        pass
+                                try:
+                                    _, end, _ = group(source, cursor)
+                                    edits.append((cmd.start, end, ''))
+                                except ValueError:
+                                    pass
+                        boundary = -1
+                        selected = []
+                        for start, end, rep in sorted(edits):
+                            if start >= boundary:
+                                selected.append((start, end, rep))
+                                boundary = end
+                        for start, end, rep in reversed(selected):
+                            source = source[:start] + rep + source[end:]
+                if any(env in source for env in (r'\begin{ex}', r'\begin{bt}')):
+                    lines.append(source)
+                else:
+                    lines.append(f"\\noindent\\textbf{{Câu {i}.}}\n" + source)
                 if solutions and q['solution'] and not any(c.name in ('loigiai','hdan') for c in commands(q['source'])):lines.append(r'\loigiai{'+q['solution']+'}')
         return '\n\n'.join(lines)
 
