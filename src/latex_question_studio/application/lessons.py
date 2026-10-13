@@ -190,24 +190,32 @@ STUDENT_COMMANDS=set(('begin end choice choiceTF choiceTFt True shortans loigiai
 
 
 def student_source(source, hide_answers=False):
-    source=without_comments(source)
-    edits=[]
+    source = without_comments(source)
+    if hide_answers:
+        edits = []
+        for cmd in commands(source):
+            if cmd.name == 'True':
+                edits.append((cmd.start, cmd.end, ''))
+            elif cmd.name in ('loigiai', 'hdan', 'shortans'):
+                cursor = skip_space(source, cmd.end)
+                if cursor < len(source) and source[cursor] == '[':
+                    _, cursor, _ = group(source, cursor, '[', ']')
+                cursor = skip_space(source, cursor)
+                _, end, _ = group(source, cursor)
+                edits.append((cmd.start, end, ''))
+        boundary = -1
+        selected = []
+        for start, end, replacement in sorted(edits):
+            if start >= boundary:
+                selected.append((start, end, replacement))
+                boundary = end
+        for start, end, replacement in reversed(selected):
+            source = source[:start] + replacement + source[end:]
+
+    # Kiểm tra xác thực các lệnh còn lại trong source học sinh (fail-closed)
     for cmd in commands(source):
-        if cmd.name not in STUDENT_COMMANDS and not (len(cmd.name)==1 and not cmd.name.isalpha()):
+        if cmd.name not in STUDENT_COMMANDS and not (len(cmd.name) == 1 and not cmd.name.isalpha()):
             raise ValueError('Macro chưa được chứng nhận cho source học sinh: \\' + cmd.name)
-        if not hide_answers:continue
-        if cmd.name=='True':edits.append((cmd.start,cmd.end,''))
-        elif cmd.name in ('loigiai','hdan','shortans'):
-            cursor=skip_space(source,cmd.end)
-            if cmd.name=='shortans' and cursor<len(source) and source[cursor]=='[':
-                _,cursor,_=group(source,cursor,'[',']')
-            _,end,_=group(source,cursor)
-            edits.append((cmd.start,end,''))
-    # Nested answer macros are swallowed by their enclosing removed group.
-    boundary=-1;selected=[]
-    for start,end,replacement in sorted(edits):
-        if start>=boundary:selected.append((start,end,replacement));boundary=end
-    for start,end,replacement in reversed(selected):source=source[:start]+replacement+source[end:]
     return source
 
 

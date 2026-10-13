@@ -227,37 +227,17 @@ class ExamService:
                 # Values are genuine LaTeX answers; preserve math rather than escaping.
                 lines.append(f"\\noindent {i}. "+str(value)+r'\par')
             else:
-                source=q['source']
+                source = q['source']
                 if not solutions:
                     from latex_question_studio.application.lessons import student_source
                     try:
                         source = student_source(source, hide_answers=True)
-                    except ValueError:
-                        # Fallback robust: dùng scanner nhóm ngoặc nhọn để bóc tách triệt để khối \loigiai lồng nhau
-                        edits = []
-                        for cmd in commands(source):
-                            if cmd.name == 'True':
-                                edits.append((cmd.start, cmd.end, ''))
-                            elif cmd.name in ('loigiai', 'hdan', 'shortans'):
-                                cursor = skip_space(source, cmd.end)
-                                if cmd.name == 'shortans' and cursor < len(source) and source[cursor] == '[':
-                                    try:
-                                        _, cursor, _ = group(source, cursor, '[', ']')
-                                    except ValueError:
-                                        pass
-                                try:
-                                    _, end, _ = group(source, cursor)
-                                    edits.append((cmd.start, end, ''))
-                                except ValueError:
-                                    pass
-                        boundary = -1
-                        selected = []
-                        for start, end, rep in sorted(edits):
-                            if start >= boundary:
-                                selected.append((start, end, rep))
-                                boundary = end
-                        for start, end, rep in reversed(selected):
-                            source = source[:start] + rep + source[end:]
+                    except ValueError as err:
+                        qid = q.get('question_id', '')
+                        msg = str(err)
+                        if qid and not msg.startswith('Câu hỏi'):
+                            msg = f"Câu hỏi {qid[:8]}: {msg}"
+                        raise ValueError(msg) from err
                 if any(env in source for env in (r'\begin{ex}', r'\begin{bt}')):
                     lines.append(source)
                 else:
