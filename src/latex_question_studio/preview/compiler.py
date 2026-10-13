@@ -37,6 +37,11 @@ BUILTIN_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
 \providecommand{\bacot}[4]{\begin{multicols}{3}\begin{enumerate}[label=\Alph*.]\item #1\item #2\item #3\item #4\end{enumerate}\end{multicols}}
 \providecommand{\boncot}[4]{\begin{multicols}{4}\begin{enumerate}[label=\Alph*.]\item #1\item #2\item #3\item #4\end{enumerate}\end{multicols}}
 \providecommand{\tab}{\hspace*{1.5em}}
+\providecommand{\haidong}[2][]{}
+\providecommand{\bondong}[2][]{}
+\providecommand{\loai}[1]{}
+\providecommand{\dapan}[1]{}
+\providecommand{\nguon}[1]{}
 \providecommand{\subject}{TOÁN}
 \providecommand{\TieudeT}[1]{%
   \begin{center}%
