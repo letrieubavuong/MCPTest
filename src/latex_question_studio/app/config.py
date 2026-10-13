@@ -7,7 +7,7 @@ import os
 @dataclass(frozen=True)
 class AppConfig:
     data_dir: Path
-    theme: str = "dark"
+    theme: str = "light"
 
     @property
     def database_path(self) -> Path:
@@ -27,7 +27,7 @@ class AppConfig:
             settings = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(settings, dict) or settings.get("version") != 1:
                 raise ValueError("Unsupported settings format")
-            theme = settings.get("theme", "dark")
+            theme = settings.get("theme", "light")
             if theme not in ("dark", "light"):
                 raise ValueError("Invalid theme")
             return cls(root, theme)

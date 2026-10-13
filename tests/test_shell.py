@@ -24,7 +24,8 @@ def test_tabs_dirty_cancel_save_and_restore(qtbot, tmp_path, monkeypatch):
     qtbot.addWidget(restored)
     assert restored.tabs.count() == 2
     assert restored.editors[next(iter(restored.editors))].latex_source == "changed \\begin{ex}original\\end{ex}"
+    initial_theme = AppConfig.load(tmp_path).theme
     restored.toggle_theme()
-    assert AppConfig.load(tmp_path).theme == "light"
+    assert AppConfig.load(tmp_path).theme == ("dark" if initial_theme == "light" else "light")
     window.close()
     restored.close()
