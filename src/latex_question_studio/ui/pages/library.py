@@ -206,12 +206,21 @@ class LibraryWorkspace:
         from latex_question_studio.ui.icons import icon
         more=QToolButton();more.setText('Thao tác khác');more.setIcon(icon('settings','#6d8aa6'));more.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         menu=QMenu(more)
+        menu.addAction('Thêm câu hỏi mới · Ctrl+N', w.new_question)
+        menu.addAction('Tìm câu hỏi trùng lặp...', w.find_duplicates)
+        menu.addSeparator()
         menu.addAction('Di chuyển sang dạng / bài khác...', self.move_questions)
         menu.addAction('Đổi dạng thức câu hỏi (MCQ / Đúng-Sai / Điền khuyết / Tự luận)...', self.change_type_dialog)
         menu.addAction('Phân loại câu đã chọn...', self.open_classification)
-        menu.addAction('Sao chép câu đã chọn',self.copy);menu.addAction('Lưu trữ câu đã chọn',self.archive)
+        menu.addAction('Thêm mục phân loại mới...', w.add_taxonomy)
+        menu.addSeparator()
+        menu.addAction('Sao chép câu đã chọn',self.copy)
+        menu.addAction('Lưu trữ câu đã chọn',self.archive)
+        menu.addAction('Khôi phục câu đã lưu trữ...', w.restore_archived)
+        menu.addAction('Lịch sử phiên bản / Khôi phục...', w.show_revisions)
+        menu.addSeparator()
         menu.addAction('Trang trước · Alt+Left',w.previous_page);menu.addAction('Trang tiếp · Alt+Right',w.next_page)
-        menu.addAction('Đi tới dòng lỗi LaTeX',self.goto_error);menu.addAction('Mở / ẩn nhật ký',w.log_dock.toggleViewAction().trigger)
+        menu.addAction('Đi tới dòng lỗi LaTeX',self.goto_error);menu.addAction('Mở / ẩn nhật ký & tác vụ',w.log_dock.toggleViewAction().trigger)
         more.setMenu(menu);more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup);self.toolbar.addWidget(more)
         for action in self.toolbar.actions():
             button=self.toolbar.widgetForAction(action)
@@ -249,6 +258,8 @@ class LibraryWorkspace:
         w.table.selectionModel().currentRowChanged.connect(lambda current,old:self.select(current.row()))
         self.cards.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu);self.cards.customContextMenuRequested.connect(self.question_context_menu)
         w.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu);w.table.customContextMenuRequested.connect(self.question_context_menu)
+        self.cards.itemSelectionChanged.connect(self.update_batch_bar)
+        w.table.selectionModel().selectionChanged.connect(lambda *a:self.update_batch_bar())
         self.timer=QTimer(w);self.timer.setSingleShot(True);self.timer.setInterval(250);self.timer.timeout.connect(self.filters_changed)
         self.preview_timer=QTimer(w);self.preview_timer.setSingleShot(True);self.preview_timer.setInterval(250);self.preview_timer.timeout.connect(w.compile_current)
         self.query.textChanged.connect(lambda *a:self.timer.start())
@@ -256,6 +267,48 @@ class LibraryWorkspace:
         self.mode.currentIndexChanged.connect(self.switch_mode)
         self.stack.setCurrentIndex(1)
         w.refresh_button.hide()
+
+        # Floating Batch Action Bar for bulk question management
+        self.batch_bar = QFrame()
+        self.batch_bar.setObjectName("batchActionBar")
+        bb_layout = QHBoxLayout(self.batch_bar)
+        bb_layout.setContentsMargins(10, 6, 10, 6)
+        bb_layout.setSpacing(8)
+        self.batch_count_lbl = QLabel("Đã chọn 0 câu hỏi:")
+        self.batch_count_lbl.setObjectName("batchCountLabel")
+        bb_layout.addWidget(self.batch_count_lbl)
+        btn_exam = QPushButton("➕ Lấy vào đề thi")
+        btn_exam.setObjectName("batchBtn")
+        btn_exam.setProperty("primary", True)
+        btn_exam.clicked.connect(lambda: (w.use_exam_selection(), w.show_page(2)))
+        bb_layout.addWidget(btn_exam)
+        btn_move = QPushButton("📁 Chuyển dạng toán")
+        btn_move.setObjectName("batchBtn")
+        btn_move.clicked.connect(self.move_questions)
+        bb_layout.addWidget(btn_move)
+        btn_level = QPushButton("🏷 Đổi mức độ...")
+        btn_level.setObjectName("batchBtn")
+        btn_level.clicked.connect(self.batch_change_level)
+        bb_layout.addWidget(btn_level)
+        btn_type = QPushButton("Đổi dạng thức...")
+        btn_type.setObjectName("batchBtn")
+        btn_type.clicked.connect(self.change_type_dialog)
+        bb_layout.addWidget(btn_type)
+        btn_copy = QPushButton("Sao chép")
+        btn_copy.setObjectName("batchBtn")
+        btn_copy.clicked.connect(self.copy)
+        bb_layout.addWidget(btn_copy)
+        btn_archive = QPushButton("Lưu trữ")
+        btn_archive.setObjectName("batchBtn")
+        btn_archive.clicked.connect(self.archive)
+        bb_layout.addWidget(btn_archive)
+        bb_layout.addStretch(1)
+        btn_uncheck = QPushButton("✕ Bỏ chọn")
+        btn_uncheck.setObjectName("batchBtn")
+        btn_uncheck.clicked.connect(self.clear_selection)
+        bb_layout.addWidget(btn_uncheck)
+        self.batch_bar.hide()
+        layout.addWidget(self.batch_bar)
         self.inspector=QTabWidget();w.preview_dock.layout().replaceWidget(scroll,self.inspector);self.inspector.addTab(scroll,'Xem trước')
         metadata=QWidget();form=QFormLayout(metadata);self.meta_title=QLabel('Chọn câu hỏi');self.meta_title.setWordWrap(True);form.addRow(self.meta_title)
         self.asset_status=QLabel('Tài nguyên: chưa kiểm tra');self.asset_status.setWordWrap(True);form.addRow(self.asset_status)
@@ -532,7 +585,10 @@ class LibraryWorkspace:
                     scaled_pix=pix.scaledToWidth(min(card_w-30,pix.width()),Qt.TransformationMode.SmoothTransformation)
                     img_lbl.setPixmap(scaled_pix);card_layout.addWidget(img_lbl)
                 actions=QHBoxLayout();actions.setContentsMargins(0,4,0,0);actions.setSpacing(8)
-                edit_btn=QPushButton('Sửa câu');edit_btn.setObjectName('cardActionBtn');edit_btn.clicked.connect(lambda _,qid=q.id:self.w.open_question(qid))
+                pv_btn=QPushButton('Xem trước');pv_btn.setObjectName('cardActionBtn')
+                pv_btn.clicked.connect(lambda _,qid=q.id:(self.select_single_id(qid),self.w.ensure_preview_visible(),self.w.compile_current()))
+                actions.addWidget(pv_btn)
+                edit_btn=QPushButton('Sửa câu');edit_btn.setObjectName('cardActionBtn');edit_btn.clicked.connect(lambda _,qid=q.id:self.open_editor_dialog(qid))
                 actions.addWidget(edit_btn)
                 exam_btn=QPushButton('Lấy vào đề');exam_btn.setObjectName('cardActionBtn');exam_btn.clicked.connect(lambda _,qid=q.id:(self.select_single_id(qid),self.w.use_exam_selection(),self.w.show_page(2)))
                 actions.addWidget(exam_btn)
@@ -550,6 +606,59 @@ class LibraryWorkspace:
     def ids(self):
         if self.mode.currentIndex()==1 and self.w.tabs.currentIndex()==0:return [i.data(Qt.ItemDataRole.UserRole) for i in self.cards.selectedItems()]
         return self.w.selected_exam_ids()
+
+    def update_batch_bar(self):
+        selected_ids = self.ids()
+        count = len(selected_ids)
+        if count > 0:
+            self.batch_count_lbl.setText(f"Đã chọn <b>{count}</b> câu hỏi:")
+            self.batch_bar.show()
+        else:
+            self.batch_bar.hide()
+
+    def clear_selection(self):
+        self.cards.clearSelection()
+        self.w.table.clearSelection()
+        self.update_batch_bar()
+
+    def batch_change_level(self):
+        selected_ids = self.ids()
+        if not selected_ids:
+            QMessageBox.information(self.w, "Chưa chọn câu", "Vui lòng chọn ít nhất một câu hỏi để đổi mức độ.")
+            return
+        levels = [('Nhận biết (NB)', 'NB'), ('Thông hiểu (TH)', 'TH'), ('Vận dụng (VD)', 'VD'), ('Vận dụng cao (VDC)', 'VDC')]
+        labels = [l[0] for l in levels]
+        chosen, ok = QInputDialog.getItem(self.w, "Đổi mức độ nhận thức", f"Chọn mức độ mới cho {len(selected_ids)} câu hỏi đã chọn:", labels, 0, False)
+        if not ok: return
+        new_lvl = next(l[1] for l in levels if l[0] == chosen)
+        try:
+            for qid in selected_ids:
+                LibraryService(self.w.services).save_metadata(qid, {'cognitive_level': new_lvl})
+            self.w.refresh_status()
+            self.w.statusBar().showMessage(f"Đã đổi mức độ {len(selected_ids)} câu thành: {chosen}")
+        except Exception as error:
+            QMessageBox.warning(self.w, "Lỗi đổi mức độ", str(error))
+
+    def select_single_id(self, qid):
+        for i in range(self.cards.count()):
+            item = self.cards.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == qid:
+                self.cards.setCurrentItem(item)
+                break
+        self.selected_id = qid
+
+    def open_editor_dialog(self, qid):
+        from latex_question_studio.ui.question_editor_dialog import QuestionEditorDialog
+        dlg = QuestionEditorDialog(qid, self.w.services, parent=self.w)
+        dlg.question_saved.connect(self.on_question_saved)
+        dlg.exec()
+
+    def on_question_saved(self, qid):
+        self.w.refresh_status()
+        self.sync_cards()
+        self.w.compile_current()
+        self.w.statusBar().showMessage(f"Đã cập nhật câu hỏi #{qid[:8]}.")
+
     def preview_action(self):
         if not self.selected_id:
             if self.mode.currentIndex()==1 and self.cards.count()>0:
@@ -566,7 +675,8 @@ class LibraryWorkspace:
             elif len(self.w.table_model.rows)>0:
                 self.w.table.selectRow(max(0,self.w.table.currentIndex().row()))
         q=self.current_question()
-        if q:self.w.open_question(q.id)
+        if q:
+            self.open_editor_dialog(q.id)
     def copy(self):
         for qid in self.ids():
             q=self.w.services.questions.get(qid)

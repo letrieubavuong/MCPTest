@@ -181,7 +181,11 @@ STUDENT_COMMANDS=set(('begin end choice choiceTF choiceTFt True shortans loigiai
     'includegraphics linewidth textwidth textheight item label ref pageref dots ldots cdots vdots ddots '
     'draw node path fill filldraw coordinate foreach newpage clearpage '
     'centering caption multicolumn hline cline to mapsto longrightarrow '
-    'Rightarrow Leftrightarrow perp parallel angle degree').split())
+    'Rightarrow Leftrightarrow perp parallel angle degree '
+    'implies iff Leftarrow leftarrow rightarrow leftrightarrow heva hoac motcot haicot bacot boncot '
+    'tab rq lq circ setminus epsilon varepsilon varphi arcsin arccos arctan cotan gcd lcm pmod mod '
+    'clip shade shadedraw widehat widetilde TieudeT subject color textcolor definecolor '
+    'bfseries itshape rmfamily sffamily tiny small large Large LARGE huge Huge phantom vphantom hphantom').split())
 
 
 def student_source(source, hide_answers=False):

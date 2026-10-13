@@ -121,7 +121,7 @@ class MainWindow(QMainWindow):
         from latex_question_studio.ui.dashboard import DashboardPage
         self.dashboard_page=DashboardPage(self.services,{'import':lambda:self.show_page(1),'exam':lambda:self.show_page(2),'library':lambda:self.show_page(0),'settings':lambda:self.show_page(3),'lesson':lambda:self.show_page(4)},self.pages)
         self.pages.addWidget(self.dashboard_page)
-        self.csdl_menu = self.menuBar().addMenu("CSDL")
+        self.menuBar().hide()
         self.shell.home_clicked.connect(self.open_dashboard)
         self.navigation.currentRowChanged.connect(self.show_page)
         self.navigation.setCurrentRow(0)
@@ -159,9 +159,6 @@ class MainWindow(QMainWindow):
         self.add_action("Trang trước", self.previous_page, "Alt+Left")
         self.add_action("Trang tiếp", self.next_page, "Alt+Right")
         self.add_action("Đổi giao diện", self.toggle_theme, "Ctrl+Shift+T", activity=True)
-        view = self.menuBar().addMenu("Hiển thị")
-        for dock in (self.explorer_dock, self.preview_dock, self.log_dock):
-            view.addAction(dock.toggleViewAction())
         from latex_question_studio.ui.pages.library import LibraryWorkspace
         self.library_ui=LibraryWorkspace(self,library,scroll)
         self.restore_workspace()
@@ -209,6 +206,9 @@ class MainWindow(QMainWindow):
         self.exam_export.setToolTip('Xuất đề, đáp án hoặc lời giải từ đề đã tạo')
         self.exam_export.setEnabled(False)
         self.exam_export.triggered.connect(lambda: self.export_exam(self.exam_snapshot))
+        self.exam_history_action = self.exam_page.toolbar.addAction(icon('exam','#4ba3eb'),"Lịch sử đề...")
+        self.exam_history_action.setToolTip('Xem lại các đề thi đã tạo và xuất lại')
+        self.exam_history_action.triggered.connect(self.exam_history)
         self.pages.addWidget(self.exam_page)
         self.settings_page = QWidget()
         layout = QVBoxLayout(self.settings_page); layout.addWidget(QLabel("CÀI ĐẶT"))
@@ -222,6 +222,10 @@ class MainWindow(QMainWindow):
         layout.addLayout(form)
         button = QPushButton("Lưu cấu hình"); button.clicked.connect(self.save_compiler_settings); layout.addWidget(button)
         button = QPushButton("Đổi giao diện sáng / tối"); button.clicked.connect(self.toggle_theme); layout.addWidget(button)
+        backup_group=QGroupBox('Sao lưu & Phục hồi CSDL');backup_layout=QHBoxLayout(backup_group)
+        backup_btn=QPushButton('Sao lưu CSDL (Backup)');backup_btn.clicked.connect(self.backup_library);backup_layout.addWidget(backup_btn)
+        restore_btn=QPushButton('Phục hồi CSDL từ file...');restore_btn.clicked.connect(self.restore_library);backup_layout.addWidget(restore_btn)
+        layout.addWidget(backup_group)
         asset_group=QGroupBox('Quản lý tài nguyên');asset_layout=QVBoxLayout(asset_group)
         self.asset_report=QLabel('Chưa quét kho tài nguyên.');self.asset_report.setWordWrap(True);asset_layout.addWidget(self.asset_report)
         scan_assets=QPushButton('Quét integrity kho tài nguyên');scan_assets.clicked.connect(self.scan_assets);asset_layout.addWidget(scan_assets)
@@ -290,18 +294,8 @@ class MainWindow(QMainWindow):
         if shortcut:
             action.setShortcut(QKeySequence(shortcut))
         self.addAction(action)
-        if activity:
-            pass  # Drawer owns page navigation.
-        else:
-            group = "Thư viện"
-            if title in ("Câu hỏi mới","Lưu câu hỏi","Đóng tab","Sao lưu","Phục hồi backup","Nhập thư mục","Hàng chờ nhập"):group="Tệp"
-            elif title in ("Tìm trong câu","Thay thế"):group="Biên tập"
-            elif title in ("Biên dịch / Preview","Hủy biên dịch"):group="LaTeX"
-            elif title in ("Lịch sử đề",):group="Đề thi"
-            elif title in ("Soạn bài giảng","Soạn bài giảng (số)","Tạo bài giảng mới","Xuất bài giảng (TeX + PDF)"):group="Bài giảng"
-            if group not in self._menus:self._menus[group]=self.menuBar().addMenu(group)
-            self._menus[group].addAction(action)
         return action
+
 
     def refresh_status(self,refresh_tree=True):
         try:
@@ -727,26 +721,8 @@ class MainWindow(QMainWindow):
         self.refresh_curriculum_menu(nodes)
 
     def refresh_curriculum_menu(self,nodes):
-        from latex_question_studio.domain.curriculum import ROOT_ID,MATH_ROOT_ID,KHTN7_ROOT_ID,MATH7_ROOT_ID,KHTN8_ROOT_ID,MATH8_ROOT_ID,KHTN9_ROOT_ID,MATH9_ROOT_ID
-        key=tuple((n['id'],n['parent_id'],n['name']) for n in nodes)
-        if getattr(self,'curriculum_menu_key',None)==key:return
-        self.curriculum_menu_key=key;self.csdl_menu.clear();self.curriculum_submenus=[]
-        self.csdl_menu.addAction('Tất cả câu hỏi',lambda:self.open_taxonomy(None))
-        for root in (n for n in nodes if n['parent_id'] is None):
-            root_id=root['id'];attribute=root_id.split(':')[-1]+'_menu'
-            menu=QMenu(root['name'],self.csdl_menu);self.csdl_menu.addMenu(menu);setattr(self,attribute,menu)
-            self.curriculum_submenus.append(menu)
-            action=menu.addAction('Tất cả '+root['name'],lambda checked=False,key=root_id:self.open_taxonomy(key));action.setData(root_id)
-            menu.addSeparator()
-            for chapter in (n for n in nodes if n['parent_id']==root_id):
-                if chapter['kind']=='lesson':
-                    action=menu.addAction(chapter['name'],lambda checked=False,key=chapter['id']:self.open_taxonomy(key));action.setData(chapter['id'])
-                    continue
-                submenu=QMenu(chapter['name'],menu);menu.addMenu(submenu);self.curriculum_submenus.append(submenu)
-                action=submenu.addAction('Tất cả câu trong chương',lambda checked=False,key=chapter['id']:self.open_taxonomy(key));action.setData(chapter['id'])
-                submenu.addSeparator()
-                for lesson in (n for n in nodes if n['parent_id']==chapter['id']):
-                    action=submenu.addAction(lesson['name'],lambda checked=False,key=lesson['id']:self.open_taxonomy(key));action.setData(lesson['id'])
+        pass
+
 
     def open_taxonomy(self,taxonomy_id):
         self.show_page(0);self.tabs.setCurrentIndex(0)
@@ -984,31 +960,19 @@ class MainWindow(QMainWindow):
         label,ok=QInputDialog.getItem(self,"Lịch sử đề","Chọn đề để xuất lại:",labels,0,False)
         if ok:self.export_exam(json.loads(history[labels.index(label)]['snapshot_json']))
 
-    def export_exam(self,snapshot):
-        from PySide6.QtCore import QThreadPool
-        from latex_question_studio.application.exams import ExamService
-        from latex_question_studio.ui.jobs import Job
-        mode,ok=QInputDialog.getItem(self,"Xuất đề","Nội dung:",["Đề học sinh","Đề kèm lời giải","Đáp án"],0,False)
-        if not ok:return
+    def export_exam(self, snapshot):
+        if not snapshot:
+            self.logs.appendPlainText('Chưa có đề thi nào sẵn sàng để xuất. Hãy hoàn thành tạo đề trước.')
+            return
+        self.exam_snapshot = snapshot
+        self.exam_page.show_snapshot(snapshot)
         self.exam_page.set_exam_step(4)
-        path,selected=QFileDialog.getSaveFileName(self,"Xuất đề","de-kiem-tra.tex","LaTeX (*.tex);;PDF (*.pdf);;Gói portable (*.zip)")
-        if not path:return
-        service=ExamService(self.services);solutions=mode=='Đề kèm lời giải';answer_only=mode=='Đáp án';config=self.compiler_config()
-        if path.lower().endswith('.zip'):
-            preamble=Path(config['preamble_file']).read_text(encoding='utf-8-sig') if config.get('preamble_file') else None
-            service.export_zip(snapshot,path,solutions,preamble=preamble);self.logs.appendPlainText('Đã xuất gói đề portable cùng manifest/checksum.')
-        elif path.lower().endswith('.pdf'):
-            job=Job(lambda cancelled,progress:service.export_pdf(snapshot,path,solutions,answer_only,engine=config.get('engine','pdflatex'),preamble_file=config.get('preamble_file') or None,cancelled=cancelled))
-            self.export_job=job
-            job.signals.completed.connect(self.exam_export_ready)
-            job.signals.failed.connect(lambda error:self.logs.appendPlainText('Xuất PDF lỗi: '+error))
-            self.start_job(job);self.logs.appendPlainText('Đang xuất PDF nền…')
-        else:
-            preamble=Path(config['preamble_file']).read_text(encoding='utf-8-sig') if config.get('preamble_file') else None
-            service.export_tex(snapshot,path,solutions,answer_only,preamble=preamble);self.logs.appendPlainText('Đã xuất TeX cùng tài nguyên.')
+        self.show_page(self.pages.indexOf(self.exam_page))
+        self.logs.appendPlainText('Đã chuyển sang Bước 5: Tùy chọn xuất bản & biên dịch đề thi.')
 
-    def exam_export_ready(self,result):
-        self.export_job=None;self.logs.setPlainText(('Đã xuất PDF.\n' if result.ok else 'Xuất PDF lỗi.\n')+result.log)
+    def exam_export_ready(self, result):
+        self.export_job = None
+        self.logs.setPlainText(('Đã xuất PDF.\n' if result.ok else 'Xuất PDF lỗi.\n') + result.log)
 
     def filtered_count(self):
         from latex_question_studio.application.search import SearchService

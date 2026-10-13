@@ -1,13 +1,18 @@
-"""Wizard-based exam generation workflow with five explicit steps and Mapclass TieudeT header."""
+import os
+import re
+import json
 import random
+from pathlib import Path
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QSpinBox, QCheckBox,
     QTableWidget, QTableWidgetItem, QPushButton, QLabel, QSplitter,
     QTreeWidget, QTreeWidgetItem, QHBoxLayout, QComboBox, QTabBar,
-    QStackedWidget, QListWidget, QListWidgetItem, QHeaderView, QGroupBox, QFrame
+    QStackedWidget, QListWidget, QListWidgetItem, QHeaderView, QGroupBox, QFrame,
+    QRadioButton, QButtonGroup, QFileDialog, QMessageBox, QProgressBar
 )
 from latex_question_studio.ui.icons import icon
+from latex_question_studio.preview.compiler import MAPCLASS_PREAMBLE
 
 # Mapping helper dictionaries
 QTYPE_CODE_MAP = {
@@ -423,7 +428,8 @@ class ExamDialog(QWidget):
             self.matrix_grid.horizontalHeader().setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch)
         self.matrix_grid.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         self.matrix_grid.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.matrix_grid.setMaximumHeight(165)
+        self.matrix_grid.verticalHeader().setDefaultSectionSize(34)
+        self.matrix_grid.setMaximumHeight(180)
 
         self.grid_spins = {}       # (qtype, level) -> QSpinBox
         self.grid_avail_lbls = {}  # (qtype, level) -> QLabel
@@ -445,20 +451,41 @@ class ExamDialog(QWidget):
             for col_idx, (lvl, _) in enumerate(levels_list, 1):
                 cell_widget = QWidget()
                 c_lay = QHBoxLayout(cell_widget)
-                c_lay.setContentsMargins(4, 1, 4, 1)
+                c_lay.setContentsMargins(4, 2, 4, 2)
                 c_lay.setSpacing(4)
+                c_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-                avail_lbl = QLabel('có: 0')
-                avail_lbl.setStyleSheet('font-size: 10px; color: #94a3b8;')
-                self.grid_avail_lbls[(qtype, lvl)] = avail_lbl
-                c_lay.addWidget(avail_lbl)
+                lbl_prefix = QLabel('chọn')
+                lbl_prefix.setFixedWidth(30)
+                lbl_prefix.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                lbl_prefix.setStyleSheet('font-size: 11px; color: #64748b; font-weight: 500;')
+                c_lay.addWidget(lbl_prefix)
 
                 spin = QSpinBox()
+                spin.setObjectName('matrixSpin')
                 spin.setRange(0, 500)
                 spin.setValue(0)
+                spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                spin.setFixedWidth(46)
+                spin.setFixedHeight(24)
                 spin.valueChanged.connect(self._update_grid_selection_summary)
                 self.grid_spins[(qtype, lvl)] = spin
-                c_lay.addWidget(spin, 1)
+                c_lay.addWidget(spin)
+                c_lay.addSpacing(8)
+
+                avail_badge = QLabel('[0]')
+                avail_badge.setObjectName('matrixAvailBadge')
+                avail_badge.setFixedWidth(40)
+                avail_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                avail_badge.setStyleSheet('font-size: 11px; color: #94a3b8; font-weight: 600; padding: 1px 2px;')
+                self.grid_avail_lbls[(qtype, lvl)] = avail_badge
+                c_lay.addWidget(avail_badge)
+
+                unit_lbl = QLabel('câu')
+                unit_lbl.setFixedWidth(24)
+                unit_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                unit_lbl.setStyleSheet('font-size: 11px; color: #64748b;')
+                c_lay.addWidget(unit_lbl)
 
                 self.matrix_grid.setCellWidget(row_idx, col_idx, cell_widget)
 
@@ -473,7 +500,7 @@ class ExamDialog(QWidget):
         # Thanh hành động lưu vào ma trận đề
         grid_action_bar = QHBoxLayout()
         self.grid_summary_lbl = QLabel('🎯 Đang chọn: 0 câu cho phạm vi này')
-        self.grid_summary_lbl.setStyleSheet('font-weight: bold; color: #f1f5f9;')
+        self.grid_summary_lbl.setStyleSheet('font-weight: bold; color: #0284c7; font-size: 12px;')
         grid_action_bar.addWidget(self.grid_summary_lbl, 1)
 
         self.btn_save_grid = QPushButton('➕ Lưu vào bảng ma trận đề')
@@ -554,7 +581,7 @@ class ExamDialog(QWidget):
         self.preview = QuestionPreview(services, run_job)
         rb.addWidget(self.preview, 1)
         self.workspace.addWidget(right)
-        self.workspace.setSizes([260, 640, 400])
+        self.workspace.setSizes([230, 760, 360])
         self.chosen.currentRowChanged.connect(self.preview_selected)
 
         nav_box_1 = QHBoxLayout()
@@ -689,20 +716,28 @@ class ExamDialog(QWidget):
         self.bank_step_stack.addWidget(page_preview)
 
         # =========================================================================
-        # ------------------ BƯỚC 5: XUẤT ĐỀ THI ---------------------------------
+        # ------------------ BƯỚC 5: XUẤT ĐỀ THI & BIÊN DỊCH ---------------------
         # =========================================================================
         page_export = QWidget()
         p4_box = QVBoxLayout(page_export)
-        p4_box.setContentsMargins(16, 16, 16, 16)
-        p4_box.setSpacing(14)
+        p4_box.setContentsMargins(16, 14, 16, 14)
+        p4_box.setSpacing(10)
 
-        exp_header = QLabel('BƯỚC 5: XUẤT BẢN ĐỀ THI, ĐÁP ÁN VÀ LỜI GIẢI (TIÊU ĐỀ \\TieudeT MAPCLASS)')
-        exp_header.setStyleSheet('font-weight: bold; font-size: 14px; color: #4ba3eb;')
+        exp_header = QLabel('BƯỚC 5: XUẤT BẢN VÀ BIÊN DỊCH ĐỀ THI (PDF SẴN SÀNG IN / GÓI TỰ TRỊ)')
+        exp_header.setStyleSheet('font-weight: bold; font-size: 15px; color: #4ba3eb;')
         p4_box.addWidget(exp_header)
+        exp_subtitle = QLabel('Biên dịch trực tiếp ra PDF in ngay hoặc đóng gói trọn gói TeX + MAPClass.cls + ex_test.sty + Assets để biên dịch 100% thành công trên mọi máy tính.')
+        exp_subtitle.setStyleSheet('color: #94a3b8; font-size: 12px;')
+        exp_subtitle.setWordWrap(True)
+        p4_box.addWidget(exp_subtitle)
 
-        exp_group = QGroupBox('Thông tin đề thi đã sẵn sàng xuất')
+        # Khung thông tin đề thi
+        exp_group = QGroupBox('Thông tin đề thi sẵn sàng xuất')
         exp_form = QFormLayout(exp_group)
+        exp_form.setContentsMargins(12, 8, 12, 8)
+        exp_form.setVerticalSpacing(4)
         self.export_info_title = QLabel()
+        self.export_info_title.setStyleSheet('font-weight: bold; color: #38bdf8;')
         exp_form.addRow('Tên đề thi:', self.export_info_title)
         self.export_info_count = QLabel()
         exp_form.addRow('Tổng số câu:', self.export_info_count)
@@ -712,29 +747,127 @@ class ExamDialog(QWidget):
         exp_form.addRow('Tiêu đề chuẩn:', self.export_info_header)
         p4_box.addWidget(exp_group)
 
-        exp_card = QFrame()
-        exp_card.setStyleSheet('background-color: rgba(85, 188, 163, 0.08); border-radius: 8px; padding: 14px;')
-        ec_layout = QVBoxLayout(exp_card)
-        self.big_export_btn = QPushButton('💾 XUẤT ĐỀ / ĐÁP ÁN / LỜI GIẢI')
-        self.big_export_btn.setStyleSheet('font-size: 14px; font-weight: bold; padding: 12px 24px;')
+        # Hai cột: Cột 1 chọn tài liệu, Cột 2 chọn định dạng & phương thức
+        columns_layout = QHBoxLayout()
+        columns_layout.setSpacing(12)
+
+        # Cột 1: Chọn tài liệu cần xuất
+        doc_group = QGroupBox('1. Chọn tài liệu cần xuất')
+        doc_layout = QVBoxLayout(doc_group)
+        doc_layout.setSpacing(6)
+        self.chk_exp_student = QCheckBox('Đề thi học sinh (Ẩn lời giải và đáp án)')
+        self.chk_exp_student.setChecked(True)
+        doc_layout.addWidget(self.chk_exp_student)
+        self.chk_exp_teacher = QCheckBox('Đề thi giáo viên (Hiện lời giải và đáp án)')
+        self.chk_exp_teacher.setChecked(True)
+        doc_layout.addWidget(self.chk_exp_teacher)
+        self.chk_exp_answers = QCheckBox('Bảng tra cứu đáp án trắc nghiệm')
+        self.chk_exp_answers.setChecked(True)
+        doc_layout.addWidget(self.chk_exp_answers)
+        lbl_hint = QLabel('💡 Có thể chọn đồng thời để xuất cùng lúc nhiều bản.')
+        lbl_hint.setStyleSheet('color: #64748b; font-size: 11px; font-style: italic;')
+        doc_layout.addWidget(lbl_hint)
+        doc_layout.addStretch()
+        columns_layout.addWidget(doc_group, 1)
+
+        # Cột 2: Chọn định dạng & Phương thức
+        fmt_group = QGroupBox('2. Định dạng và Phương thức xuất')
+        fmt_layout = QVBoxLayout(fmt_group)
+        fmt_layout.setSpacing(6)
+        self.rad_fmt_pdf = QRadioButton('📄 Xuất PDF hoàn chỉnh (Khuyên dùng - In ấn ngay)')
+        self.rad_fmt_pdf.setToolTip('Phần mềm tự gọi pdfLaTeX biên dịch ra file PDF chất lượng cao, sẵn sàng in hoặc gửi học sinh.')
+        self.rad_fmt_pdf.setChecked(True)
+        fmt_layout.addWidget(self.rad_fmt_pdf)
+
+        self.rad_fmt_bundle = QRadioButton('📁 Xuất Thư mục Trọn Gói tự trị (Khuyên dùng để lưu trữ và sửa TeX)')
+        self.rad_fmt_bundle.setToolTip('Tạo thư mục đầy đủ gồm file PDF + file TeX + MAPClass.cls + ex_test.sty + Assets + file bat tự biên dịch.')
+        fmt_layout.addWidget(self.rad_fmt_bundle)
+
+        self.rad_fmt_zip = QRadioButton('🗜 Xuất Gói ZIP Portable (Tải lên Overleaf hoặc chia sẻ)')
+        self.rad_fmt_zip.setToolTip('Nén toàn bộ thư mục bundle thành file .zip để kéo thả lên Overleaf hoặc gửi đồng nghiệp.')
+        fmt_layout.addWidget(self.rad_fmt_zip)
+
+        self.rad_fmt_tex = QRadioButton('📝 Xuất File TeX Độc Lập (.tex Standalone)')
+        self.rad_fmt_tex.setToolTip('File .tex đơn lẻ kèm Preamble siêu tương thích mọi máy tính.')
+        fmt_layout.addWidget(self.rad_fmt_tex)
+        columns_layout.addWidget(fmt_group, 1)
+
+        p4_box.addLayout(columns_layout)
+
+        # Khung phong cách LaTeX
+        style_group = QGroupBox('3. Phong cách giao diện LaTeX')
+        style_layout = QHBoxLayout(style_group)
+        style_layout.setContentsMargins(12, 6, 12, 6)
+        self.rad_style_mapclass = QRadioButton('Chuẩn Bộ GD&ĐT (Lớp MAPClass, tiêu đề \\TieudeT - Tự động đóng gói kèm file class)')
+        self.rad_style_mapclass.setChecked(True)
+        style_layout.addWidget(self.rad_style_mapclass)
+        self.rad_style_article = QRadioButton('Chuẩn Độc Lập (Lớp Article - Siêu tương thích, tự chứa mọi macro)')
+        style_layout.addWidget(self.rad_style_article)
+        p4_box.addWidget(style_group)
+
+        # Nút hành động chính
+        self.big_export_btn = QPushButton('🚀 TIẾN HÀNH XUẤT VÀ BIÊN DỊCH')
+        self.big_export_btn.setStyleSheet('font-size: 14px; font-weight: bold; padding: 10px 20px;')
         self.big_export_btn.setProperty('primary', True)
-        self.big_export_btn.clicked.connect(self.export_requested.emit)
-        ec_layout.addWidget(self.big_export_btn)
-        ec_desc = QLabel('Hỗ trợ xuất file TeX học sinh (không đáp án), TeX giáo viên (kèm lời giải), file PDF và bảng ma trận. Tiêu đề sẽ sử dụng lệnh \\TieudeT tương thích Mapclass.')
-        ec_desc.setWordWrap(True)
-        ec_layout.addWidget(ec_desc)
-        p4_box.addWidget(exp_card)
+        self.big_export_btn.clicked.connect(self.start_export_process)
+        p4_box.addWidget(self.big_export_btn)
 
-        btn_restart = QPushButton('🔄 Tạo đề thi mới từ đầu')
-        btn_restart.clicked.connect(lambda: self.set_exam_step(0))
-        p4_box.addWidget(btn_restart)
-        p4_box.addStretch()
+        # Khung Kết quả & Thao tác sau khi xuất
+        self.export_result_card = QFrame()
+        self.export_result_card.setStyleSheet('background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px;')
+        res_layout = QVBoxLayout(self.export_result_card)
+        res_layout.setContentsMargins(10, 8, 10, 8)
+        res_layout.setSpacing(6)
 
+        self.export_status_lbl = QLabel('Sẵn sàng xuất đề thi. Chọn các tùy chọn trên và nhấn nút để bắt đầu.')
+        self.export_status_lbl.setStyleSheet('color: #94a3b8; font-size: 12px;')
+        res_layout.addWidget(self.export_status_lbl)
+
+        self.export_progress_bar = QProgressBar()
+        self.export_progress_bar.setVisible(False)
+        self.export_progress_bar.setFixedHeight(8)
+        res_layout.addWidget(self.export_progress_bar)
+
+        self.export_path_lbl = QLabel()
+        self.export_path_lbl.setWordWrap(True)
+        self.export_path_lbl.setVisible(False)
+        res_layout.addWidget(self.export_path_lbl)
+
+        actions_row = QHBoxLayout()
+        self.btn_open_pdf = QPushButton('📄 Mở file PDF ngay')
+        self.btn_open_pdf.setProperty('primary', True)
+        self.btn_open_pdf.setVisible(False)
+        self.btn_open_pdf.clicked.connect(self._open_exported_pdf)
+        actions_row.addWidget(self.btn_open_pdf)
+
+        self.btn_open_folder = QPushButton('📁 Mở thư mục chứa')
+        self.btn_open_folder.setVisible(False)
+        self.btn_open_folder.clicked.connect(self._open_exported_folder)
+        actions_row.addWidget(self.btn_open_folder)
+
+        self.btn_open_tex = QPushButton('📝 Mở file TeX')
+        self.btn_open_tex.setVisible(False)
+        self.btn_open_tex.clicked.connect(self._open_exported_tex)
+        actions_row.addWidget(self.btn_open_tex)
+
+        self.btn_view_log = QPushButton('🔍 Xem chi tiết lỗi (Log)')
+        self.btn_view_log.setVisible(False)
+        self.btn_view_log.clicked.connect(self._view_export_log)
+        actions_row.addWidget(self.btn_view_log)
+        actions_row.addStretch()
+
+        res_layout.addLayout(actions_row)
+        p4_box.addWidget(self.export_result_card)
+
+        # Điều hướng dưới cùng
         nav_box_4 = QHBoxLayout()
         btn_back_step3 = QPushButton('‹ Quay lại: Xem trước đề thi')
         btn_back_step3.clicked.connect(lambda: self.set_exam_step(3))
         nav_box_4.addWidget(btn_back_step3)
         nav_box_4.addStretch()
+        btn_restart = QPushButton('🔄 Tạo đề thi mới từ đầu')
+        btn_restart.clicked.connect(lambda: self.set_exam_step(0))
+        nav_box_4.addWidget(btn_restart)
         p4_box.addLayout(nav_box_4)
 
         self.bank_step_stack.addWidget(page_export)
@@ -804,7 +937,7 @@ class ExamDialog(QWidget):
             sizes = self.workspace.sizes()
             if len(sizes) == 3 and sizes[0] < 200:
                 total = sum(sizes) if sum(sizes) > 600 else 1280
-                self.workspace.setSizes([280, max(500, total - 680), 400])
+                self.workspace.setSizes([230, max(600, total - 590), 360])
 
     def _collapse_tree_all(self):
         all_item = self.tree.topLevelItem(0)
@@ -1196,17 +1329,39 @@ class ExamDialog(QWidget):
                     for lvl in levels:
                         cnt = t_data.get(lvl, 0)
                         lbl = self.grid_avail_lbls.get((t, lvl))
+                        spin = self.grid_spins.get((t, lvl))
                         if lbl:
-                            lbl.setText(f"có: {cnt}")
-                            lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #38bdf8;" if cnt > 0 else "font-size: 10px; color: #64748b;")
+                            lbl.setText(f"[{cnt}]")
+                            if cnt > 0:
+                                lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #0284c7; background: rgba(2, 132, 199, 0.08); border-radius: 3px; padding: 1px 2px;")
+                                lbl.setToolTip(f"Có sẵn {cnt} câu trong CSDL. Bấm vào để chọn nhanh.")
+                                lbl.setCursor(Qt.CursorShape.PointingHandCursor)
+                                if spin:
+                                    lbl.mousePressEvent = (lambda s, c: lambda e: s.setValue(c if s.value() == 0 else 0))(spin, cnt)
+                            else:
+                                lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
+                                lbl.setToolTip("Không có câu hỏi nào trong phạm vi này.")
+                                lbl.setCursor(Qt.CursorShape.ArrowCursor)
+                                lbl.mousePressEvent = None
             else:
                 for t in ('mcq', 'true_false', 'short_answer', 'essay'):
                     for lvl in ('NB', 'TH', 'VD', 'VDC'):
                         cnt = stat_res['counts'].get(lvl, 0) if t == (kind or 'mcq') else 0
                         lbl = self.grid_avail_lbls.get((t, lvl))
+                        spin = self.grid_spins.get((t, lvl))
                         if lbl:
-                            lbl.setText(f"có: {cnt}")
-                            lbl.setStyleSheet("font-size: 10px; font-weight: bold; color: #38bdf8;" if cnt > 0 else "font-size: 10px; color: #64748b;")
+                            lbl.setText(f"[{cnt}]")
+                            if cnt > 0:
+                                lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #0284c7; background: rgba(2, 132, 199, 0.08); border-radius: 3px; padding: 1px 2px;")
+                                lbl.setToolTip(f"Có sẵn {cnt} câu trong CSDL. Bấm vào để chọn nhanh.")
+                                lbl.setCursor(Qt.CursorShape.PointingHandCursor)
+                                if spin:
+                                    lbl.mousePressEvent = (lambda s, c: lambda e: s.setValue(c if s.value() == 0 else 0))(spin, cnt)
+                            else:
+                                lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
+                                lbl.setToolTip("Không có câu hỏi nào trong phạm vi này.")
+                                lbl.setCursor(Qt.CursorShape.ArrowCursor)
+                                lbl.mousePressEvent = None
 
         if not self.run_job:
             apply(fetch_data(lambda: False))
@@ -1291,3 +1446,328 @@ class ExamDialog(QWidget):
         if self.matrix.currentRow() >= 0:
             self.matrix.removeRow(self.matrix.currentRow())
             self.update_matrix_summary()
+
+    def start_export_process(self):
+        if not self.snapshot:
+            QMessageBox.warning(self, "Chưa tạo đề", "Vui lòng hoàn thành Bước 2 hoặc Bước 3 để tạo đề thi trước khi xuất.")
+            return
+
+        export_student = self.chk_exp_student.isChecked()
+        export_teacher = self.chk_exp_teacher.isChecked()
+        export_answers = self.chk_exp_answers.isChecked()
+
+        if not (export_student or export_teacher or export_answers):
+            QMessageBox.warning(self, "Chưa chọn tài liệu", "Vui lòng chọn ít nhất một loại tài liệu cần xuất (Đề học sinh, Đề giáo viên hoặc Bảng đáp án).")
+            return
+
+        style = 'mapclass' if self.rad_style_mapclass.isChecked() else 'article'
+        exam_code = str(self.snapshot.get('exam_code', '101')).strip()
+        title_slug = re.sub(r'[^\w\-]+', '_', self.snapshot.get('title', 'de_kiem_tra')).strip('_')
+
+        # Xác định định dạng & đường dẫn xuất
+        if self.rad_fmt_pdf.isChecked():
+            fmt = 'pdf'
+            default_name = f"{title_slug}_{exam_code}.pdf"
+            path, _ = QFileDialog.getSaveFileName(self, "Lưu file PDF đề thi", default_name, "File PDF (*.pdf)")
+            if not path:
+                return
+            target_path = Path(path)
+        elif self.rad_fmt_bundle.isChecked():
+            fmt = 'bundle'
+            folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục lưu bộ đề thi trọn gói", "")
+            if not folder:
+                return
+            target_path = Path(folder) / f"{title_slug}_{exam_code}"
+        elif self.rad_fmt_zip.isChecked():
+            fmt = 'zip'
+            default_name = f"{title_slug}_{exam_code}.zip"
+            path, _ = QFileDialog.getSaveFileName(self, "Lưu gói đề thi portable ZIP", default_name, "File ZIP (*.zip)")
+            if not path:
+                return
+            target_path = Path(path)
+        else:
+            fmt = 'tex'
+            default_name = f"{title_slug}_{exam_code}.tex"
+            path, _ = QFileDialog.getSaveFileName(self, "Lưu file TeX đề thi", default_name, "LaTeX (*.tex)")
+            if not path:
+                return
+            target_path = Path(path)
+
+        # Cập nhật UI trạng thái
+        self.big_export_btn.setEnabled(False)
+        self.export_progress_bar.setVisible(True)
+        self.export_progress_bar.setRange(0, 0)
+        self.export_status_lbl.setText("⏳ Đang đóng gói tài nguyên và biên dịch pdfLaTeX...")
+        self.export_status_lbl.setStyleSheet("color: #38bdf8; font-weight: bold;")
+        self.export_path_lbl.setVisible(False)
+        self.btn_open_pdf.setVisible(False)
+        self.btn_open_folder.setVisible(False)
+        self.btn_open_tex.setVisible(False)
+        self.btn_view_log.setVisible(False)
+
+        # Đọc cấu hình compiler
+        compiler_cfg = {}
+        if self.services:
+            cpath = self.services.config.data_dir / "compiler.json"
+            if cpath.exists():
+                try:
+                    compiler_cfg = json.loads(cpath.read_text(encoding='utf-8'))
+                except Exception:
+                    pass
+        engine = compiler_cfg.get('engine', 'pdflatex')
+        preamble_file = compiler_cfg.get('preamble_file') or None
+
+        from latex_question_studio.ui.jobs import Job
+        from latex_question_studio.application.exams import ExamService
+        snapshot_data = self.snapshot
+
+        def do_export(cancelled, progress):
+            exam_svc = ExamService(self.services)
+            if fmt == 'pdf':
+                selected_count = int(export_student) + int(export_teacher) + int(export_answers)
+                created_pdfs = []
+                errors = []
+                if selected_count == 1:
+                    res = exam_svc.export_pdf(
+                        snapshot_data,
+                        target_path,
+                        solutions=export_teacher,
+                        answer_only=export_answers,
+                        engine=engine,
+                        preamble_file=preamble_file,
+                        cancelled=cancelled
+                    )
+                    tex_side = target_path.with_suffix('.tex')
+                    exam_svc.export_tex(
+                        snapshot_data,
+                        tex_side,
+                        solutions=export_teacher,
+                        answer_only=export_answers,
+                        preamble=None if style == 'article' else MAPCLASS_PREAMBLE,
+                        bundle_dependencies=True
+                    )
+                    if res.ok:
+                        created_pdfs.append(target_path)
+                    else:
+                        errors.append(('File PDF', res.log))
+                else:
+                    base_dir = target_path.parent
+                    base_stem = target_path.stem
+                    if export_student:
+                        s_pdf = base_dir / f"{base_stem}_hoc_sinh.pdf"
+                        s_res = exam_svc.export_pdf(snapshot_data, s_pdf, solutions=False, answer_only=False, engine=engine, preamble_file=preamble_file, cancelled=cancelled)
+                        exam_svc.export_tex(snapshot_data, s_pdf.with_suffix('.tex'), solutions=False, answer_only=False, preamble=None if style == 'article' else MAPCLASS_PREAMBLE, bundle_dependencies=True)
+                        if s_res.ok:
+                            created_pdfs.append(s_pdf)
+                        else:
+                            errors.append(('Đề học sinh', s_res.log))
+                    if export_teacher:
+                        t_pdf = base_dir / f"{base_stem}_giao_vien.pdf"
+                        t_res = exam_svc.export_pdf(snapshot_data, t_pdf, solutions=True, answer_only=False, engine=engine, preamble_file=preamble_file, cancelled=cancelled)
+                        exam_svc.export_tex(snapshot_data, t_pdf.with_suffix('.tex'), solutions=True, answer_only=False, preamble=None if style == 'article' else MAPCLASS_PREAMBLE, bundle_dependencies=True)
+                        if t_res.ok:
+                            created_pdfs.append(t_pdf)
+                        else:
+                            errors.append(('Đề giáo viên', t_res.log))
+                    if export_answers:
+                        a_pdf = base_dir / f"{base_stem}_dap_an.pdf"
+                        a_res = exam_svc.export_pdf(snapshot_data, a_pdf, solutions=False, answer_only=True, engine=engine, preamble_file=preamble_file, cancelled=cancelled)
+                        exam_svc.export_tex(snapshot_data, a_pdf.with_suffix('.tex'), solutions=False, answer_only=True, preamble=None if style == 'article' else MAPCLASS_PREAMBLE, bundle_dependencies=True)
+                        if a_res.ok:
+                            created_pdfs.append(a_pdf)
+                        else:
+                            errors.append(('Bảng đáp án', a_res.log))
+
+                return {
+                    'fmt': 'pdf',
+                    'target': str(created_pdfs[0] if created_pdfs else target_path),
+                    'ok': len(errors) == 0,
+                    'errors': errors,
+                    'log': errors[0][1] if errors else ''
+                }
+            elif fmt == 'bundle':
+                res = exam_svc.export_bundle(
+                    snapshot_data,
+                    target_path,
+                    export_student=export_student,
+                    export_teacher=export_teacher,
+                    export_answers=export_answers,
+                    style=style,
+                    compile_pdf=True,
+                    engine=engine,
+                    preamble_file=preamble_file,
+                    cancelled=cancelled,
+                    progress=progress
+                )
+                return {'fmt': 'bundle', 'target': str(target_path), 'res': res, 'ok': res['ok'], 'errors': res.get('errors', [])}
+            elif fmt == 'zip':
+                res = exam_svc.export_zip(
+                    snapshot_data,
+                    target_path,
+                    export_student=export_student,
+                    export_teacher=export_teacher,
+                    export_answers=export_answers,
+                    style=style,
+                    compile_pdf=True,
+                    engine=engine,
+                    preamble_file=preamble_file,
+                    cancelled=cancelled
+                )
+                return {'fmt': 'zip', 'target': str(target_path), 'ok': True}
+            else:
+                selected_count = int(export_student) + int(export_teacher) + int(export_answers)
+                created_texs = []
+                if selected_count == 1:
+                    exam_svc.export_tex(
+                        snapshot_data,
+                        target_path,
+                        solutions=export_teacher,
+                        answer_only=export_answers,
+                        preamble=None if style == 'article' else MAPCLASS_PREAMBLE,
+                        bundle_dependencies=True
+                    )
+                    created_texs.append(target_path)
+                else:
+                    base_dir = target_path.parent
+                    base_stem = target_path.stem
+                    if export_student:
+                        s_tex = base_dir / f"{base_stem}_hoc_sinh.tex"
+                        exam_svc.export_tex(snapshot_data, s_tex, solutions=False, answer_only=False, preamble=None if style == 'article' else MAPCLASS_PREAMBLE, bundle_dependencies=True)
+                        created_texs.append(s_tex)
+                    if export_teacher:
+                        t_tex = base_dir / f"{base_stem}_giao_vien.tex"
+                        exam_svc.export_tex(snapshot_data, t_tex, solutions=True, answer_only=False, preamble=None if style == 'article' else MAPCLASS_PREAMBLE, bundle_dependencies=True)
+                        created_texs.append(t_tex)
+                    if export_answers:
+                        a_tex = base_dir / f"{base_stem}_dap_an.tex"
+                        exam_svc.export_tex(snapshot_data, a_tex, solutions=False, answer_only=True, preamble=None if style == 'article' else MAPCLASS_PREAMBLE, bundle_dependencies=True)
+                        created_texs.append(a_tex)
+                return {'fmt': 'tex', 'target': str(created_texs[0] if created_texs else target_path), 'ok': True}
+
+        job = Job(do_export)
+        job.signals.completed.connect(self._on_export_completed)
+        job.signals.failed.connect(self._on_export_failed)
+        if self.run_job:
+            self.run_job(job)
+        else:
+            from PySide6.QtCore import QThreadPool
+            QThreadPool.globalInstance().start(job)
+
+    def _on_export_completed(self, payload):
+        self.big_export_btn.setEnabled(True)
+        self.export_progress_bar.setVisible(False)
+        target = payload.get('target', '')
+        fmt = payload.get('fmt', '')
+        ok = payload.get('ok', True)
+        self._last_exported_target = target
+        self._last_exported_fmt = fmt
+        self._last_exported_log = payload.get('log', '')
+
+        if ok:
+            self.export_status_lbl.setText("🎉 XUẤT BẢN VÀ BIÊN DỊCH THÀNH CÔNG!")
+            self.export_status_lbl.setStyleSheet("color: #55bca3; font-weight: bold; font-size: 13px;")
+            self.export_path_lbl.setText(f"📁 Đường dẫn: {target}")
+            self.export_path_lbl.setStyleSheet("color: #e2e8f0; font-size: 12px;")
+            self.export_path_lbl.setVisible(True)
+
+            self.btn_open_folder.setVisible(True)
+            if fmt == 'pdf':
+                self.btn_open_pdf.setVisible(True)
+            elif fmt == 'tex':
+                self.btn_open_tex.setVisible(True)
+            elif fmt == 'bundle':
+                pdir = Path(target)
+                if list(pdir.glob('*.pdf')):
+                    self.btn_open_pdf.setVisible(True)
+                if list(pdir.glob('*.tex')):
+                    self.btn_open_tex.setVisible(True)
+            elif fmt == 'zip':
+                self.btn_open_folder.setVisible(True)
+        else:
+            errors = payload.get('errors', [])
+            err_msg = "\n".join(f"{item}: {log[:300]}" for item, log in errors) if errors else payload.get('log', '')
+            self._last_exported_log = err_msg or payload.get('log', '')
+            self.export_status_lbl.setText("⚠️ ĐÃ XUẤT FILE TEX NHƯNG BIÊN DỊCH PDF GẶP LỖI")
+            self.export_status_lbl.setStyleSheet("color: #f59e0b; font-weight: bold; font-size: 13px;")
+            self.export_path_lbl.setText(f"Tài nguyên đã được lưu tại: {target}\nBạn có thể kiểm tra nhật ký lỗi để sửa câu hỏi.")
+            self.export_path_lbl.setVisible(True)
+            self.btn_open_folder.setVisible(True)
+            self.btn_view_log.setVisible(True)
+
+    def _on_export_failed(self, message):
+        self.big_export_btn.setEnabled(True)
+        self.export_progress_bar.setVisible(False)
+        self.export_status_lbl.setText(f"❌ Quá trình xuất đề thất bại: {message}")
+        self.export_status_lbl.setStyleSheet("color: #ef4444; font-weight: bold; font-size: 13px;")
+
+    def _open_exported_pdf(self):
+        if not hasattr(self, '_last_exported_target'):
+            return
+        target = Path(self._last_exported_target)
+        to_open = None
+        if target.is_file() and target.suffix.lower() == '.pdf':
+            to_open = target
+        elif target.is_dir():
+            student = target / 'de-thi-hoc-sinh.pdf'
+            teacher = target / 'de-thi-giao-vien.pdf'
+            pdfs = list(target.glob('*.pdf'))
+            if student.is_file():
+                to_open = student
+            elif teacher.is_file():
+                to_open = teacher
+            elif pdfs:
+                to_open = pdfs[0]
+        if to_open and to_open.is_file():
+            try:
+                os.startfile(str(to_open))
+            except Exception:
+                pass
+
+    def _open_exported_folder(self):
+        if not hasattr(self, '_last_exported_target'):
+            return
+        target = Path(self._last_exported_target)
+        folder = target if target.is_dir() else target.parent
+        if folder.exists():
+            try:
+                os.startfile(str(folder))
+            except Exception:
+                pass
+
+    def _open_exported_tex(self):
+        if not hasattr(self, '_last_exported_target'):
+            return
+        target = Path(self._last_exported_target)
+        to_open = None
+        if target.is_file() and target.suffix.lower() == '.tex':
+            to_open = target
+        elif target.is_dir():
+            student = target / 'de-thi-hoc-sinh.tex'
+            teacher = target / 'de-thi-giao-vien.tex'
+            texs = list(target.glob('*.tex'))
+            if student.is_file():
+                to_open = student
+            elif teacher.is_file():
+                to_open = teacher
+            elif texs:
+                to_open = texs[0]
+        if to_open and to_open.is_file():
+            try:
+                os.startfile(str(to_open))
+            except Exception:
+                pass
+
+    def _view_export_log(self):
+        from PySide6.QtWidgets import QDialog, QPlainTextEdit, QDialogButtonBox
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nhật ký biên dịch LaTeX")
+        dlg.resize(720, 480)
+        vbox = QVBoxLayout(dlg)
+        txt = QPlainTextEdit(dlg)
+        txt.setReadOnly(True)
+        txt.setPlainText(getattr(self, '_last_exported_log', 'Không có nhật ký chi tiết.'))
+        vbox.addWidget(txt)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        btns.rejected.connect(dlg.close)
+        vbox.addWidget(btns)
+        dlg.exec()

@@ -48,3 +48,34 @@ def test_tex_pdf_student_and_solution_answers(tmp_path):
     with pymupdf.open(solution) as pdf:assert 'SECRET' in ''.join(p.get_text() for p in pdf)
     result=exam.export_pdf(snapshot,tmp_path/'answers.pdf',answer_only=True)
     assert result.ok,result.log
+
+@pytest.mark.skipif(not shutil.which('pdflatex'),reason='pdfLaTeX missing')
+def test_export_bundle_and_zip(tmp_path):
+    import zipfile
+    s=create_services(AppConfig.load(tmp_path/'app'));exam=ExamService(s)
+    q=s.questions.create(MCQ)
+    _,snapshot=exam.generate('Exam Test',manual_ids=[q.id],seed=5)
+    bundle_dir=tmp_path/'export_bundle'
+    bundle_res=exam.export_bundle(snapshot,bundle_dir,export_student=True,export_teacher=True,export_answers=True,compile_pdf=True)
+    assert bundle_res['ok']
+    assert (bundle_dir/'de-thi-hoc-sinh.tex').is_file()
+    assert (bundle_dir/'de-thi-giao-vien.tex').is_file()
+    assert (bundle_dir/'dap-an.tex').is_file()
+    assert (bundle_dir/'de-thi-hoc-sinh.pdf').is_file()
+    assert (bundle_dir/'de-thi-giao-vien.pdf').is_file()
+    assert (bundle_dir/'MAPClass.cls').is_file()
+    assert (bundle_dir/'Packages'/'ex_test.sty').is_file()
+    assert (bundle_dir/'bien-dich.bat').is_file()
+    assert (bundle_dir/'HUONG_DAN_BIEN_DICH.txt').is_file()
+
+    zip_file=tmp_path/'exam.zip'
+    exam.export_zip(snapshot,zip_file)
+    assert zip_file.is_file()
+    with zipfile.ZipFile(zip_file,'r') as zf:
+        names=zf.namelist()
+        assert 'MAPClass.cls' in names
+        assert 'Packages/ex_test.sty' in names
+        assert 'bien-dich.bat' in names
+        assert 'HUONG_DAN_BIEN_DICH.txt' in names
+        assert 'manifest.json' in names
+

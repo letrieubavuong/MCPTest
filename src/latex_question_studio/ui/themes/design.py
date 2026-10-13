@@ -1,4 +1,5 @@
 """Theme tokens and application styling, kept outside page orchestration."""
+from pathlib import Path
 from PySide6.QtGui import QPalette, QColor, QFont
 from PySide6.QtWidgets import QApplication
 
@@ -76,8 +77,17 @@ def apply(theme):
       QPushButton { padding: 5px 12px; border: 1px solid BORDER; border-radius: 4px; background: CARD; color: FG; font-weight: 500; }
       QPushButton:hover { background: HOVER; border-color: BORDER; }
       QPushButton:disabled { color: MUTED; background: PANEL; border-color: BORDER; }
-      QLineEdit, QComboBox, QSpinBox { padding: 4px 8px; min-height: 22px; border: 1px solid BORDER; border-radius: 4px; background: CARD; color: FG; }
+      QLineEdit, QComboBox { padding: 4px 8px; min-height: 22px; border: 1px solid BORDER; border-radius: 4px; background: CARD; color: FG; }
+      QSpinBox { padding: 2px 4px; min-height: 22px; border: 1px solid BORDER; border-radius: 4px; background: CARD; color: FG; }
+      QSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 14px; border-left: 1px solid BORDER; border-bottom: 1px solid BORDER; border-top-right-radius: 4px; background: PANEL; }
+      QSpinBox::up-button:hover { background: HOVER; }
+      QSpinBox::up-arrow { image: url(ASSETS_DIR/spin_up.svg); width: 8px; height: 5px; }
+      QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 14px; border-left: 1px solid BORDER; border-bottom-right-radius: 4px; background: PANEL; }
+      QSpinBox::down-button:hover { background: HOVER; }
+      QSpinBox::down-arrow { image: url(ASSETS_DIR/spin_down.svg); width: 8px; height: 5px; }
       QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border: 1px solid ACCENT; }
+      QSpinBox#matrixSpin { padding: 1px 2px; min-height: 22px; max-height: 24px; min-width: 44px; max-width: 48px; border: 1px solid BORDER; border-radius: 4px; background: CARD; color: FG; font-weight: 600; font-size: 11.5px; }
+      QSpinBox#matrixSpin:focus { border: 1px solid ACCENT; }
       QComboBox QAbstractItemView { border: 1px solid BORDER; background: CARD; color: FG; selection-background-color: HOVER; selection-color: FG; padding: 2px; }
       QPlainTextEdit { font-family: Consolas, monospace; font-size: 13px; background: CARD; color: FG; border: 1px solid BORDER; }
 
@@ -104,35 +114,58 @@ def apply(theme):
       QStatusBar QLabel { color: STATUS_FG; }
       QSplitter::handle { background: BORDER; }
 
-      /* Question cards */
+      /* Question cards & Educational Library */
       QListWidget#questionCards { background: BASE; border: 0; padding: 6px; }
-      QListWidget#questionCards::item { border: 0; padding: 0; margin: 2px 0; }
+      QListWidget#questionCards::item { border: 0; padding: 0; margin: 3px 0; }
       QListWidget#questionCards::item:selected { background: transparent; }
-      QFrame#questionCard { background: CARD; border: 1px solid BORDER; border-radius: 6px; }
+      QFrame#questionCard { background: CARD; border: 1px solid BORDER; border-radius: 8px; }
       QFrame#questionCard:hover { border: 1px solid ACCENT; }
       QFrame#questionCard[expanded='true'] { border: 1px solid ACCENT; background: CARD; }
-      QToolButton#expanderToggle { background: transparent; border: 0; font-size: 13px; font-weight: bold; color: MUTED; min-width: 22px; min-height: 22px; border-radius: 3px; }
+      QFrame#questionCard[selected='true'] { border: 2px solid ACCENT; background: CARD; }
+      QToolButton#expanderToggle { background: transparent; border: 0; font-size: 13px; font-weight: bold; color: MUTED; min-width: 22px; min-height: 22px; border-radius: 4px; }
       QToolButton#expanderToggle:hover { color: ACCENT; background: HOVER; }
       QToolButton#expandAllToggle { font-size: 11px; padding: 4px 8px; border-radius: 4px; background: PANEL; border: 1px solid BORDER; color: MUTED; }
       QToolButton#expandAllToggle:hover { color: FG; background: HOVER; border-color: ACCENT; }
-      QLabel#cardLevelBadge[level='NB'] { background: NB_BG; color: NB_FG; border-radius: 3px; font-weight: 600; font-size: 10px; padding: 1px 5px; }
-      QLabel#cardLevelBadge[level='TH'] { background: TH_BG; color: TH_FG; border-radius: 3px; font-weight: 600; font-size: 10px; padding: 1px 5px; }
-      QLabel#cardLevelBadge[level='VD'] { background: VD_BG; color: VD_FG; border-radius: 3px; font-weight: 600; font-size: 10px; padding: 1px 5px; }
-      QLabel#cardLevelBadge[level='VDC'] { background: VDC_BG; color: VDC_FG; border-radius: 3px; font-weight: 600; font-size: 10px; padding: 1px 5px; }
-      QLabel#cardLevelBadge[level='NONE'] { background: HOVER; color: MUTED; border-radius: 3px; font-weight: 500; font-size: 10px; padding: 1px 5px; }
-      QLabel#cardTypeBadge { background: HOVER; color: MUTED; border-radius: 3px; font-size: 10px; padding: 1px 5px; }
-      QLabel#cardIdLabel { color: MUTED; font-size: 10px; font-family: Consolas, monospace; }
-      QLabel#cardTaxonomyLabel { color: MUTED; font-size: 10.5px; }
-      QLabel#cardStemSummary { color: FG; font-size: 12px; font-weight: 500; }
-      QLabel#cardStemFull { color: FG; font-size: 13px; padding: 2px 0; }
-      QFrame#cardOptionGrid { background: PANEL; border-radius: 4px; border: 1px solid BORDER; }
-      QLabel#cardOptionText { color: FG; font-size: 11.5px; padding: 4px 8px; border-radius: 3px; }
+      QLabel#cardLevelBadge[level='NB'] { background: NB_BG; color: NB_FG; border-radius: 4px; font-weight: 600; font-size: 10.5px; padding: 2px 6px; }
+      QLabel#cardLevelBadge[level='TH'] { background: TH_BG; color: TH_FG; border-radius: 4px; font-weight: 600; font-size: 10.5px; padding: 2px 6px; }
+      QLabel#cardLevelBadge[level='VD'] { background: VD_BG; color: VD_FG; border-radius: 4px; font-weight: 600; font-size: 10.5px; padding: 2px 6px; }
+      QLabel#cardLevelBadge[level='VDC'] { background: VDC_BG; color: VDC_FG; border-radius: 4px; font-weight: 600; font-size: 10.5px; padding: 2px 6px; }
+      QLabel#cardLevelBadge[level='NONE'] { background: HOVER; color: MUTED; border-radius: 4px; font-weight: 500; font-size: 10.5px; padding: 2px 6px; }
+      QLabel#cardTypeBadge { background: HOVER; color: MUTED; border-radius: 4px; font-size: 10.5px; padding: 2px 6px; }
+      QLabel#cardIdLabel { color: MUTED; font-size: 10.5px; font-family: Consolas, monospace; }
+      QLabel#cardTaxonomyLabel { color: MUTED; font-size: 11px; }
+      QLabel#cardStemSummary { color: FG; font-size: 12.5px; font-weight: 500; }
+      QLabel#cardStemFull { color: FG; font-size: 13.5px; padding: 3px 0; }
+      QFrame#cardOptionGrid { background: PANEL; border-radius: 6px; border: 1px solid BORDER; }
+      QLabel#cardOptionText { color: FG; font-size: 12px; padding: 5px 9px; border-radius: 4px; }
       QLabel#cardOptionText[correct='true'] { color: #16a34a; font-weight: 600; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.3); }
-      QLabel#cardSolutionText { color: MUTED; font-size: 11.5px; background: PANEL; padding: 6px 10px; border-left: 3px solid ACCENT; border-radius: 3px; }
-      QPushButton#cardActionBtn { font-size: 11px; padding: 3px 10px; border-radius: 4px; min-height: 22px; background: PANEL; border: 1px solid BORDER; color: FG; }
+      QLabel#cardSolutionText { color: MUTED; font-size: 12px; background: PANEL; padding: 8px 12px; border-left: 3px solid ACCENT; border-radius: 4px; }
+      QPushButton#cardActionBtn { font-size: 11.5px; padding: 4px 10px; border-radius: 4px; min-height: 24px; background: PANEL; border: 1px solid BORDER; color: FG; }
       QPushButton#cardActionBtn:hover { background: HOVER; border-color: ACCENT; }
-      QLabel#cardFooter { color: MUTED; font-size: 10px; border-top: 1px solid BORDER; padding-top: 3px; }
-      QLabel#scopeBreadcrumb { font-size: 13px; font-weight: 600; color: FG; padding: 2px 0; }
+      QPushButton#cardActionBtn[primary='true'] { background: ACCENT; color: #ffffff; border-color: ACCENT; font-weight: 600; }
+      QPushButton#cardActionBtn[primary='true']:hover { background: ACCENT_HOVER; border-color: ACCENT_HOVER; }
+      QLabel#cardFooter { color: MUTED; font-size: 11px; border-top: 1px solid BORDER; padding-top: 4px; }
+      QLabel#scopeBreadcrumb { font-size: 13.5px; font-weight: 600; color: FG; padding: 2px 0; }
+
+      /* Floating Batch Action Bar */
+      QFrame#batchActionBar { background: CARD; border: 1px solid ACCENT; border-radius: 8px; padding: 6px 12px; }
+      QLabel#batchCountLabel { font-size: 12.5px; font-weight: 600; color: ACCENT; padding-right: 8px; }
+      QPushButton#batchBtn { font-size: 12px; padding: 5px 12px; border-radius: 5px; background: PANEL; border: 1px solid BORDER; color: FG; font-weight: 500; }
+      QPushButton#batchBtn:hover { background: HOVER; border-color: ACCENT; }
+      QPushButton#batchBtn[primary='true'] { background: ACCENT; color: #ffffff; border-color: ACCENT; font-weight: 600; }
+      QPushButton#batchBtn[primary='true']:hover { background: ACCENT_HOVER; border-color: ACCENT_HOVER; }
+
+      /* Educational Library Header & Catalog Sidebar */
+      QFrame#libraryHeaderBar { background: PANEL; border-bottom: 1px solid BORDER; padding: 6px 10px; }
+      QFrame#treeSidebar { background: PANEL; border-right: 1px solid BORDER; }
+      QToolButton#sidebarCollapseBtn { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 4px 6px; }
+      QToolButton#sidebarCollapseBtn:hover { background: HOVER; border-color: BORDER; }
+
+      /* Question Editor Modal & Preview Drawer */
+      QDialog#questionEditorDialog { background: BASE; }
+      QFrame#dialogEditorSection, QFrame#dialogPreviewSection { background: CARD; border: 1px solid BORDER; border-radius: 8px; }
+      QFrame#previewDrawer { background: CARD; border-left: 1px solid BORDER; }
+      QLabel#drawerTitle { font-size: 14px; font-weight: 600; color: FG; }
 
       /* Dashboard components */
       QFrame#dashboardMetric, QFrame#dashboardPanel { background: PANEL; border: 1px solid BORDER; border-radius: 5px; }
@@ -184,4 +217,6 @@ def apply(theme):
         ('VDC_BG', t['vdc_bg']), ('VDC_FG', t['vdc_fg']),
     ]:
         css = css.replace(key, val)
+    assets_dir = (Path(__file__).resolve().parent.parent / 'assets').as_posix()
+    css = css.replace('ASSETS_DIR', assets_dir)
     app.setStyleSheet(css)

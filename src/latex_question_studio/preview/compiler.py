@@ -13,11 +13,13 @@ from latex_question_studio.parsing.latex import commands, group, skip_space
 BUILTIN_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
 \usepackage[utf8]{vietnam}
 \usepackage[margin=18mm]{geometry}
-\usepackage{amsmath,amssymb,graphicx,tikz,enumitem}
-\usetikzlibrary{arrows,arrows.meta,calc,positioning,shapes,patterns}
+\usepackage{amsmath,amssymb,amsfonts,mathrsfs}
+\usepackage{graphicx,xcolor,multicol,enumitem,tabularx,array}
+\usepackage{tikz}
+\usetikzlibrary{arrows,arrows.meta,calc,positioning,shapes,patterns,intersections}
 \pagestyle{empty}
-\newenvironment{ex}{\par\noindent}{\par\medskip}
-\newenvironment{vidu}{\par\noindent}{\par\medskip}
+\newenvironment{ex}{\par\noindent\ignorespaces}{\par\medskip}
+\newenvironment{vidu}{\par\noindent\ignorespaces}{\par\medskip}
 \newenvironment{ex*}{\begin{ex}}{\end{ex}}
 \newenvironment{vidu*}{\begin{vidu}}{\end{vidu}}
 \newenvironment{listEX}[1][1]{\begin{enumerate}}{\end{enumerate}}
@@ -28,6 +30,13 @@ BUILTIN_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
 \newcommand{\shortans}[2][]{\par\textbf{Đáp án: }#2}
 \newcommand{\loigiai}[1]{\par\textbf{Lời giải. }#1}
 \let\hdan\loigiai
+\providecommand{\heva}[1]{\left\{\begin{aligned}#1\end{aligned}\right.}
+\providecommand{\hoac}[1]{\left[\begin{aligned}#1\end{aligned}\right.}
+\providecommand{\motcot}[4]{\begin{enumerate}[label=\Alph*.]\item #1\item #2\item #3\item #4\end{enumerate}}
+\providecommand{\haicot}[4]{\begin{multicols}{2}\begin{enumerate}[label=\Alph*.]\item #1\item #2\item #3\item #4\end{enumerate}\end{multicols}}
+\providecommand{\bacot}[4]{\begin{multicols}{3}\begin{enumerate}[label=\Alph*.]\item #1\item #2\item #3\item #4\end{enumerate}\end{multicols}}
+\providecommand{\boncot}[4]{\begin{multicols}{4}\begin{enumerate}[label=\Alph*.]\item #1\item #2\item #3\item #4\end{enumerate}\end{multicols}}
+\providecommand{\tab}{\hspace*{1.5em}}
 \providecommand{\subject}{TOÁN}
 \providecommand{\TieudeT}[1]{%
   \begin{center}%
@@ -131,7 +140,7 @@ class Compiler:
         except ValueError as error:return CompileResult(False,None,str(error))
         rewritten=source
         for start,end,value in reversed(replacements):rewritten=rewritten[:start]+value+rewritten[end:]
-        with tempfile.TemporaryDirectory(prefix='compile-',dir=cache) as temporary:
+        with tempfile.TemporaryDirectory(prefix='compile-',dir=cache,ignore_cleanup_errors=True) as temporary:
             work=Path(temporary);(work/'assets').mkdir()
             for name,raw in asset_bytes.items():
                 (work/'assets'/(hashlib.sha256(raw).hexdigest()+Path(assets[name]).suffix.lower())).write_bytes(raw)
