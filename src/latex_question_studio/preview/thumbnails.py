@@ -115,17 +115,17 @@ class ThumbnailManager:
     def get_pixmap(self, key: str) -> Optional[QPixmap]:
         """
         Retrieves cached QPixmap for fast PySide6 UI display.
+        Accurately accounts for decoded RGBA pixel memory in RAM and enforces LRU limits.
         """
         if key in self._ram_cache:
             data, fmt, size, pix = self._ram_cache[key]
             if pix is not None and not pix.isNull():
                 self._ram_cache.move_to_end(key)
                 return pix
-            # If pixmap was not created yet, create it
+            # If pixmap was not created or was evicted from memory, decode it
             pix = QPixmap()
             pix.loadFromData(data)
-            self._ram_cache[key] = (data, fmt, size, pix)
-            self._ram_cache.move_to_end(key)
+            self._put_ram(key, data, fmt, pix)
             return pix
 
         res = self.get(key)
@@ -133,8 +133,6 @@ class ThumbnailManager:
             data, fmt, path = res
             pix = QPixmap()
             pix.loadFromData(data)
-            # update RAM entry with pixmap
-            size = len(data)
             self._put_ram(key, data, fmt, pix)
             return pix
 
@@ -214,8 +212,18 @@ class ThumbnailManager:
         path, fmt = self.save(key, raw_png, prefer_webp=prefer_webp, quality=quality)
         return ThumbnailResult(key=key, file_path=path, format=fmt, data=raw_png, cache_hit=False)
 
+    @staticmethod
+    def _calculate_entry_size(data: bytes, pix: Optional[QPixmap] = None) -> int:
+        compressed_size = len(data) if data else 0
+        decoded_size = 0
+        if pix is not None and not pix.isNull():
+            depth = pix.depth()
+            bytes_per_pixel = max(1, depth // 8) if depth > 0 else 4
+            decoded_size = max(0, pix.width() * pix.height() * bytes_per_pixel)
+        return compressed_size + decoded_size
+
     def _put_ram(self, key: str, data: bytes, fmt: str, pix: Optional[QPixmap] = None):
-        size = len(data)
+        size = self._calculate_entry_size(data, pix)
         if key in self._ram_cache:
             _, _, old_size, _ = self._ram_cache.pop(key)
             self._ram_usage -= old_size
@@ -225,9 +233,29 @@ class ThumbnailManager:
         self._trim_ram()
 
     def _trim_ram(self):
+        # Tier 1: Release decoded QPixmap memory from older entries to reclaim uncompressed RAM
+        if self._ram_usage > self.ram_limit:
+            for k in list(self._ram_cache.keys()):
+                if self._ram_usage <= self.ram_limit:
+                    break
+                data, fmt, s, pix = self._ram_cache[k]
+                if pix is not None and len(self._ram_cache) > 1:
+                    new_size = len(data)
+                    freed = s - new_size
+                    if freed > 0:
+                        self._ram_cache[k] = (data, fmt, new_size, None)
+                        self._ram_usage -= freed
+
+        # Tier 2: If still exceeding limit, evict oldest entries completely from RAM cache
         while self._ram_usage > self.ram_limit and len(self._ram_cache) > 1:
             k, (_, _, s, _) = self._ram_cache.popitem(last=False)
             self._ram_usage -= s
+
+    def ram_count(self) -> int:
+        return len(self._ram_cache)
+
+    def pixmap_count(self) -> int:
+        return sum(1 for _, _, _, pix in self._ram_cache.values() if pix is not None and not pix.isNull())
 
     def _trim_disk(self, keep: Optional[Path] = None):
         files = sorted(self.cache_dir.glob("*.webp")) + sorted(self.cache_dir.glob("*.png"))
