@@ -2,8 +2,11 @@
 from html import unescape
 import re
 import unicodedata
-import urllib.parse
-from latex_question_studio.scraping.adapters.base import BaseSiteAdapter, RawExtractedQuestion
+from latex_question_studio.scraping.adapters.base import (
+    BaseSiteAdapter,
+    RawExtractedQuestion,
+    extract_img_urls,
+)
 
 
 class VietjackAdapter(BaseSiteAdapter):
@@ -129,13 +132,8 @@ class VietjackAdapter(BaseSiteAdapter):
         ).strip()
         prompt_html = re.sub(r'^(?:Câu|Bài)\s*\d+[\s:.]*', '', prompt_html, flags=re.IGNORECASE).strip()
 
-        # Extract image URLs
-        image_urls = []
-        for img_m in re.finditer(r'<img[^>]+src=["\']([^"\']+)["\']', block, re.IGNORECASE):
-            src = img_m.group(1).strip()
-            if src and not src.startswith("data:"):
-                resolved = urllib.parse.urljoin(base_url, src)
-                image_urls.append(resolved)
+        # Extract image URLs (standard and lazy-loaded)
+        image_urls = extract_img_urls(block, base_url)
 
         if not prompt_html and not options:
             return None

@@ -39,6 +39,7 @@ class QuestionDraft:
     status: str = "needs_review"  # "needs_review", "verified", "rejected"
     review_notes: str = ""
     warnings: list[str] = field(default_factory=list)
+    has_missing_images: bool = False
     created_at: str = ""
 
     def validate_and_update_warnings(self) -> None:
@@ -46,6 +47,8 @@ class QuestionDraft:
         warns = []
         if not self.prompt_latex.strip():
             warns.append("Nội dung đề bài còn rỗng.")
+        if self.has_missing_images:
+            warns.append("Ảnh gốc không tải được hoặc bị thiếu; câu chưa hoàn chỉnh.")
         if self.question_type == "mcq":
             if len(self.options_latex) != 4:
                 warns.append(f"Số lượng phương án ({len(self.options_latex)}) khác 4.")
@@ -167,26 +170,36 @@ class WebScraperService:
             all_img_urls = list(dict.fromkeys(raw.image_urls + prompt_imgs + sol_imgs))
             staged_assets = []
 
-            # Safely fetch and stage assets if asset_store is provided
-            if asset_store and all_img_urls:
+            # Safely fetch and stage assets
+            has_missing = False
+            if all_img_urls:
                 for img_url in all_img_urls:
-                    try:
-                        img_res = self.fetcher.fetch(img_url, check_robots=False)
-                        if img_res.ok and img_res.content:
-                            parsed = urllib.parse.urlparse(img_url)
-                            suffix = Path(parsed.path).suffix.lower()
-                            if suffix not in (".png", ".jpg", ".jpeg", ".pdf"):
-                                suffix = ".png"
-                            staged = asset_store.stage_bytes(img_res.content, suffix, batch_id)
-                            staged["original_url"] = img_url
-                            staged_assets.append(staged)
-                            # Replace placeholder in LaTeX text
-                            rel_posix = staged["relative_path"]
-                            img_macro = f"\\includegraphics[max width=0.85\\linewidth]{{{rel_posix}}}"
-                            prompt_latex = prompt_latex.replace(f"[IMG:{img_url}]", img_macro)
-                            sol_latex = sol_latex.replace(f"[IMG:{img_url}]", img_macro)
-                    except Exception:
-                        pass
+                    downloaded = False
+                    if asset_store:
+                        try:
+                            img_res = self.fetcher.fetch(img_url, check_robots=False)
+                            if img_res.ok and img_res.content:
+                                parsed = urllib.parse.urlparse(img_url)
+                                suffix = Path(parsed.path).suffix.lower()
+                                if suffix not in (".png", ".jpg", ".jpeg", ".pdf"):
+                                    suffix = ".png"
+                                staged = asset_store.stage_bytes(img_res.content, suffix, batch_id)
+                                staged["original_url"] = img_url
+                                staged_assets.append(staged)
+                                # Replace placeholder in LaTeX text
+                                rel_posix = staged["relative_path"]
+                                img_macro = f"\\includegraphics[max width=0.85\\linewidth]{{{rel_posix}}}"
+                                prompt_latex = prompt_latex.replace(f"[IMG:{img_url}]", img_macro)
+                                sol_latex = sol_latex.replace(f"[IMG:{img_url}]", img_macro)
+                                downloaded = True
+                        except Exception:
+                            pass
+
+                    if not downloaded:
+                        has_missing = True
+                        missing_tag = f"% [THIẾU ẢNH: {img_url}]\n"
+                        prompt_latex = prompt_latex.replace(f"[IMG:{img_url}]", missing_tag)
+                        sol_latex = sol_latex.replace(f"[IMG:{img_url}]", missing_tag)
 
             # Clean any remaining placeholder tokens
             prompt_latex = re.sub(r'\[IMG:[^\]]+\]', '', prompt_latex).strip()
@@ -205,6 +218,7 @@ class WebScraperService:
                 solution_latex=sol_latex,
                 image_urls=all_img_urls,
                 local_assets=staged_assets,
+                has_missing_images=has_missing or raw.has_missing_images,
                 status="needs_review",  # MANDATORY: never auto-verify
                 created_at=datetime.now(timezone.utc).isoformat(),
             )
@@ -234,6 +248,8 @@ class WebScraperService:
         errors = []
 
         for draft in verified_drafts:
+            if draft.has_missing_images:
+                raise ValueError(f"Không thể lưu câu hỏi '{draft.title}' chưa hoàn chỉnh vì thiếu ảnh.")
             try:
                 # Promote staged assets first
                 for asset_info in draft.local_assets:
