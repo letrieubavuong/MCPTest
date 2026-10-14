@@ -202,6 +202,8 @@ STUDENT_COMMANDS=set(('begin end choice choiceTF choiceTFt True shortans loigiai
     'rho tau phi Phi psi Psi eta xi Xi zeta chi nu kappa iota upsilon Upsilon Gamma Theta Lambda Sigma Pi vartheta varpi varrho varsigma '
     'dot ddot dddot tilde acute grave check breve '
     'ell sim bullet cong propto mid nmid hbar nabla nparallel supset supseteq '
+    'SI SIrange ang num unit qty '
+    'meter milli kilo centi micro nano second ampere volt ohm kelvin joule watt hertz newton pascal celsius per square cubic '
     'xrightarrow xleftarrow').split())
 
 
@@ -212,12 +214,15 @@ def student_source(source, hide_answers=False):
         for cmd in commands(source):
             if cmd.name == 'True':
                 edits.append((cmd.start, cmd.end, ''))
-            elif cmd.name in ('loigiai', 'hdan', 'shortans'):
+            elif cmd.name in ('loigiai', 'hdan', 'shortans', 'dapso', 'dapsoTL', 'chudapso'):
                 cursor = skip_space(source, cmd.end)
                 if cursor < len(source) and source[cursor] == '[':
                     _, cursor, _ = group(source, cursor, '[', ']')
                 cursor = skip_space(source, cursor)
-                _, end, _ = group(source, cursor)
+                if cursor < len(source) and source[cursor] == '{':
+                    _, end, _ = group(source, cursor)
+                else:
+                    end = cursor
                 edits.append((cmd.start, end, ''))
         boundary = -1
         selected = []
