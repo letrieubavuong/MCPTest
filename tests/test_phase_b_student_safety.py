@@ -193,3 +193,33 @@ def test_compile_student_and_teacher_pdf(tmp_path):
 
     assert res_teacher.ok is True
     assert teacher_pdf.is_file() and teacher_pdf.stat().st_size > 1000
+
+
+def test_vietnamese_layout_and_tkz_macros_in_student_export(tmp_path):
+    r"""Kiểm tra xuất đề học sinh an toàn với \immini, tkz-euclide, \doC, \tau, \rho."""
+    source = (
+        r"\begin{ex} \nguon{4}" "\n"
+        r"\immini[thm]{Người ta dùng một lò hồ quang điện có $\tau = 50\text{ s}$ và $t = 1530\doC$.}{" "\n"
+        r"  \begin{tikzpicture}[scale=0.5]" "\n"
+        r"    \tkzDefPoints{0/0/o, 8/0/x, 0/5.5/y, 4/4/b}" "\n"
+        r"    \tkzDrawSegments[->](o,x o,y)" "\n"
+        r"    \tkzLabelPoint[below](x){$\tau$}" "\n"
+        r"    \tkzDrawPoints(o,b)" "\n"
+        r"  \end{tikzpicture}}" "\n"
+        r"\choiceTF[t]" "\n"
+        r"{\True Giai đoạn $AB$ tương ứng nóng chảy}" "\n"
+        r"{Khối kim loại không nhận thêm nhiệt lượng}" "\n"
+        r"{\True Nhiệt dung riêng xấp xỉ $459,8\text{ J/kg.K}$}" "\n"
+        r"{Nhiệt nóng chảy xấp xỉ $276\cdot 10^3\text{ J/kg}$}" "\n"
+        r"\loigiai{Lời giải chi tiết bí mật.}" "\n"
+        r"\end{ex}"
+    )
+    student = student_source(source, hide_answers=True)
+    assert r"\immini" in student
+    assert r"\tkzDefPoints" in student
+    assert r"\tkzLabelPoint" in student
+    assert r"\doC" in student
+    assert r"\True" not in student
+    assert r"\loigiai" not in student
+    assert "Lời giải chi tiết bí mật" not in student
+

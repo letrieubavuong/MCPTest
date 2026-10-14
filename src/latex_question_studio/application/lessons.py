@@ -186,7 +186,23 @@ STUDENT_COMMANDS=set(('begin end choice choiceTF choiceTFt True shortans loigiai
     'motdong haidong badong bondong dapan bangdapan loai loaidapan nguon nganh tieude dethi tieuDe '
     'tab rq lq circ setminus epsilon varepsilon varphi arcsin arccos arctan cotan gcd lcm pmod mod '
     'clip shade shadedraw widehat widetilde TieudeT subject color textcolor definecolor '
-    'bfseries itshape rmfamily sffamily tiny small large Large LARGE huge Huge phantom vphantom hphantom').split())
+    'bfseries itshape rmfamily sffamily tiny small large Large LARGE huge Huge phantom vphantom hphantom '
+    'immini imminiL imlabel IMname IMlabel impicinpar doC ct itemch bth vd bt vidu chc printex '
+    'boder lefthand righthand pbrace showansEX hideansEX dapso dapsoTL chudapso '
+    'tabularnewline toprule midrule bottomrule arraystretch renewcommand setlength setcounter stepcounter '
+    'centerline normalsize footnotesize scriptsize paragraph subparagraph '
+    'alph Alph arabic roman Roman Binhluan Vehinh Anlythuyet Note Hn Bookmark '
+    'tkzDefPoints tkzDefPoint tkzDefPointBy tkzDefShiftPoint tkzDefMidPoint tkzDefPointWith '
+    'tkzDrawPoints tkzDrawSegments tkzDrawSegment tkzDrawLines tkzDrawLine tkzDrawPolygon tkzDrawPolygons tkzDrawCircle tkzDrawCircles tkzDrawArc tkzDrawSemiCircle '
+    'tkzLabelPoint tkzLabelPoints tkzLabelSegment tkzLabelSegments tkzLabelAngle tkzLabelAngles tkzLabelCircle tkzLabelLine '
+    'tkzMarkAngle tkzMarkAngles tkzMarkRightAngle tkzMarkRightAngles tkzMarkSegment tkzMarkSegments '
+    'tkzGetPoint tkzGetPoints tkzInit tkzClip tkzInterLL tkzInterLC tkzInterCC '
+    'pgfmathtruncatemacro pgfmathsetmacro pgfmathparse '
+    'x y z i j k n t a b c u v w p r s '
+    'rho tau phi Phi psi Psi eta xi Xi zeta chi nu kappa iota upsilon Upsilon Gamma Theta Lambda Sigma Pi vartheta varpi varrho varsigma '
+    'dot ddot dddot tilde acute grave check breve '
+    'ell sim bullet cong propto mid nmid hbar nabla nparallel supset supseteq '
+    'xrightarrow xleftarrow').split())
 
 
 def student_source(source, hide_answers=False):
@@ -214,7 +230,7 @@ def student_source(source, hide_answers=False):
 
     # Kiểm tra xác thực các lệnh còn lại trong source học sinh (fail-closed)
     for cmd in commands(source):
-        if cmd.name not in STUDENT_COMMANDS and not (len(cmd.name) == 1 and not cmd.name.isalpha()):
+        if cmd.name not in STUDENT_COMMANDS and len(cmd.name) > 1:
             raise ValueError('Macro chưa được chứng nhận cho source học sinh: \\' + cmd.name)
     return source
 
