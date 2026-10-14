@@ -532,6 +532,23 @@ class LibraryWorkspace:
         if self.mode.currentIndex()!=1:return
         selected={item.data(Qt.ItemDataRole.UserRole) for item in self.cards.selectedItems()};current=self.cards.currentItem().data(Qt.ItemDataRole.UserRole) if self.cards.currentItem() else None
         scroll_val=self.cards.verticalScrollBar().value()
+
+        existing_ids = [self.cards.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.cards.count())]
+        current_rows_ids = [q.id for q in self.w.table_model.rows]
+        if existing_ids == current_rows_ids and getattr(self, '_last_synced_expanded_ids', None) == set(self.expanded_ids):
+            self.cards.blockSignals(True)
+            for i in range(self.cards.count()):
+                it = self.cards.item(i)
+                qid = it.data(Qt.ItemDataRole.UserRole)
+                should_sel = qid in selected
+                if it.isSelected() != should_sel:
+                    it.setSelected(should_sel)
+                if qid == current and self.cards.currentItem() != it:
+                    self.cards.setCurrentItem(it)
+            self.cards.blockSignals(False)
+            return
+
+        self._last_synced_expanded_ids = set(self.expanded_ids)
         self.cards.blockSignals(True);self.cards.clear()
         all_ids={q.id for q in self.w.table_model.rows}
         self.expand_toggle.setText('Thu gọn tất cả' if self.expanded_ids and all_ids and self.expanded_ids>=all_ids else 'Mở rộng tất cả')

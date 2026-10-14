@@ -610,15 +610,19 @@ class ExamDialog(QWidget):
         config_header.setStyleSheet('font-weight: bold; font-size: 14px; color: #4ba3eb;')
         p2_box.addWidget(config_header)
 
-        shuffle_group = QGroupBox('Tùy chọn xáo trộn đề thi')
+        shuffle_group = QGroupBox('Tùy chọn xáo trộn đề thi (Chuẩn hóa 4 phần Phase K)')
         shuffle_layout = QVBoxLayout(shuffle_group)
-        self.shuffle_questions = QCheckBox('Xáo trộn thứ tự các câu hỏi trong đề thi')
+        self.shuffle_questions = QCheckBox('Xáo trộn thứ tự các câu hỏi độc lập trong từng phần')
         self.shuffle_questions.setChecked(True)
         shuffle_layout.addWidget(self.shuffle_questions)
-        self.shuffle_options = QCheckBox('Xáo trộn các phương án A, B, C, D (tự động giữ đúng đáp án chính xác)')
+        self.shuffle_options = QCheckBox('Xáo trộn các phương án A, B, C, D ở Phần I (tự động giữ đúng đáp án \\True)')
         self.shuffle_options.setToolTip('Giữ đúng đáp án khi xáo')
         self.shuffle_options.setChecked(True)
         shuffle_layout.addWidget(self.shuffle_options)
+        note_lbl = QLabel('📌 Bất biến cấu trúc: Phần II (Đúng/Sai) giữ nguyên 4 mệnh đề a, b, c, d; Phần IV (Tự luận) giữ nguyên thứ tự câu; Câu hỏi không bao giờ nhảy giữa các phần.')
+        note_lbl.setStyleSheet('color: #64748b; font-size: 11px; font-style: italic;')
+        note_lbl.setWordWrap(True)
+        shuffle_layout.addWidget(note_lbl)
         p2_box.addWidget(shuffle_group)
 
         summary_group = QGroupBox('Tóm tắt cấu trúc đề thi sẽ tạo')
@@ -1173,10 +1177,27 @@ class ExamDialog(QWidget):
         self.chosen.clear()
         self.snapshot_chosen.blockSignals(True)
         self.snapshot_chosen.clear()
+        part_counts = {'mcq': 0, 'true_false': 0, 'short_answer': 0, 'essay': 0}
         for i, q in enumerate(snapshot['questions'], 1):
-            text = f'{i}. ' + readable(q['source'])[:100]
+            q_type = q.get('question_type')
+            if not q_type:
+                ans = q.get('answer', {})
+                if 'correct_letter' in ans: q_type = 'mcq'
+                elif 'truth' in ans: q_type = 'true_false'
+                elif 'value' in ans: q_type = 'short_answer'
+                else: q_type = 'essay'
+            part_counts[q_type] = part_counts.get(q_type, 0) + 1
+            part_prefix = {
+                'mcq': '[Phần I - MCQ] ',
+                'true_false': '[Phần II - Đúng/Sai] ',
+                'short_answer': '[Phần III - TL Ngắn] ',
+                'essay': '[Phần IV - Tự luận] '
+            }.get(q_type, '')
+            text = f'{part_prefix}Câu {i}. ' + readable(q['source'])[:90]
+            item = QListWidgetItem(text)
+            item.setData(Qt.ItemDataRole.UserRole, i - 1)
             self.chosen.addItem(text)
-            self.snapshot_chosen.addItem(text)
+            self.snapshot_chosen.addItem(item)
         self.chosen.blockSignals(False)
         self.snapshot_chosen.blockSignals(False)
 
@@ -1188,7 +1209,13 @@ class ExamDialog(QWidget):
             self.duplicate_warning_lbl.setText('✓ Không có cảnh báo trùng lặp nào.')
             self.duplicate_warning_lbl.setStyleSheet('color: #55bca3;')
 
-        self.preview_desc_lbl.setText(f"Đề thi: {snapshot.get('title', 'Đề kiểm tra')} • Tổng {len(snapshot['questions'])} câu hỏi.")
+        details = []
+        if part_counts.get('mcq'): details.append(f"Phần I: {part_counts['mcq']} câu")
+        if part_counts.get('true_false'): details.append(f"Phần II: {part_counts['true_false']} câu")
+        if part_counts.get('short_answer'): details.append(f"Phần III: {part_counts['short_answer']} câu")
+        if part_counts.get('essay'): details.append(f"Phần IV: {part_counts['essay']} câu")
+        details_str = f" ({', '.join(details)})" if details else ""
+        self.preview_desc_lbl.setText(f"Đề thi: {snapshot.get('title', 'Đề kiểm tra')} • Tổng {len(snapshot['questions'])} câu hỏi{details_str}.")
         if self.chosen.count():
             self.chosen.setCurrentRow(0)
         if self.snapshot_chosen.count():
@@ -1199,7 +1226,11 @@ class ExamDialog(QWidget):
         if index < 0 or not self.snapshot or index >= len(self.snapshot['questions']):
             self.snapshot_preview.set_source('')
             return
-        q = self.snapshot['questions'][index]
+        item = self.snapshot_chosen.item(index)
+        real_idx = item.data(Qt.ItemDataRole.UserRole) if item else index
+        if real_idx is None or real_idx >= len(self.snapshot['questions']):
+            real_idx = index
+        q = self.snapshot['questions'][real_idx]
         self.snapshot_preview.set_source(q['source'], self.snapshot.get('assets', {}))
 
     def preview_selected(self, index):
