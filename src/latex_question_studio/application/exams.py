@@ -444,7 +444,8 @@ class ExamService:
         if not solutions and not answer_only:
             header += '\n' + HIDE_ANSWERS
         document = header + '\n\\begin{document}\n' + body + '\n\\end{document}\n'
-        path.write_text(document, encoding='utf-8')
+        document = document.replace('\r\n', '\n').replace('\r', '\n')
+        path.write_text(document, encoding='utf-8', newline='\n')
         dep_info = {'copied': [], 'missing': []}
         if bundle_dependencies and ('MAPClass' in header or preamble is None):
             dep_info = self.copy_class_dependencies(path.parent)

@@ -654,10 +654,11 @@ class LessonService:
                         shutil.copyfile(path,target_asset)
                 file_path=work/entry['filename']
                 file_path.parent.mkdir(parents=True,exist_ok=True)
-                file_path.write_text(source,encoding='utf-8')
+                file_path.write_text(source.replace('\r\n', '\n').replace('\r', '\n'), encoding='utf-8', newline='\n')
             body, _ = self.body(doc, audience, worksheet)
             source_index = '\n'.join('% ' + line for line in body.splitlines())
-            (work/'main.tex').write_text(preamble+'\n'+r'\begin{document}'+'\n'+master_source+'\n'+source_index+'\n'+r'\end{document}',encoding='utf-8')
+            main_content = (preamble+'\n'+r'\begin{document}'+'\n'+master_source+'\n'+source_index+'\n'+r'\end{document}').replace('\r\n', '\n').replace('\r', '\n')
+            (work/'main.tex').write_text(main_content, encoding='utf-8', newline='\n')
             shutil.copyfile(result.pdf,work/'bai-giang.pdf')
             hashes={f.relative_to(work).as_posix():hashlib.sha256(f.read_bytes()).hexdigest() for f in work.rglob('*') if f.is_file()}
             (work/'manifest.json').write_text(json.dumps({'lesson_id':doc['id'],'revision':doc['revision'],'audience':audience,'worksheet':worksheet,'sha256':hashes},ensure_ascii=False,indent=2),encoding='utf-8')
