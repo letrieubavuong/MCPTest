@@ -273,21 +273,23 @@ def test_tech12h_live_url_smoke(tmp_path):
 
 
 def test_tech12h_live_url_semester_review_smoke(tmp_path):
-    """Test live URL without bold question prefix: https://tech12h.com/bai-hoc/trac-nghiem-tap-vat-li-9-ket-noi-tri-thuc-hoc-ki-1-phan-1."""
-    url = "https://tech12h.com/bai-hoc/trac-nghiem-tap-vat-li-9-ket-noi-tri-thuc-hoc-ki-1-phan-1"
+    """Test live URL without bold question prefix and with markdown link wrapper."""
+    raw_url = "[Trắc nghiệm ôn tập Vật lí 9 kết nối tri thức học kì 1 (Phần 1) | Tech12h](https://tech12h.com/bai-hoc/trac-nghiem-tap-vat-li-9-ket-noi-tri-thuc-hoc-ki-1-phan-1)"
     fetcher = SafeFetcher()
-    res = fetcher.fetch(url, check_robots=True)
+    clean_url = "https://tech12h.com/bai-hoc/trac-nghiem-tap-vat-li-9-ket-noi-tri-thuc-hoc-ki-1-phan-1"
+    res = fetcher.fetch(clean_url, check_robots=True)
 
     if not res.ok:
-        pytest.skip(f"Live network access to {url} failed: {res.error}")
+        pytest.skip(f"Live network access to {clean_url} failed: {res.error}")
 
-    adapter = get_adapter_for_url(url)
+    adapter = get_adapter_for_url(clean_url)
     assert isinstance(adapter, Tech12hAdapter)
 
     service = WebScraperService(fetcher=fetcher)
     asset_store = AssetStore(tmp_path / "assets")
 
-    ok, msg, drafts = service.fetch_and_extract(url, asset_store=asset_store, check_robots=True)
+    # Pass markdown-wrapped URL to test sanitize_url
+    ok, msg, drafts = service.fetch_and_extract(raw_url, asset_store=asset_store, check_robots=True)
     assert ok, f"fetch_and_extract thất bại: {msg}"
     assert len(drafts) == 24, f"Mong đợi 24 câu hỏi từ trang thật, nhận: {len(drafts)}"
 
@@ -295,3 +297,18 @@ def test_tech12h_live_url_semester_review_smoke(tmp_path):
     assert drafts[0].title == "Câu 1"
     assert drafts[0].correct_choice == 1  # B
     assert len(drafts[0].options_latex) == 4
+
+    # Verify that DB commit works cleanly for drafts with images (Câu 11 & Câu 23)
+    from latex_question_studio.app.config import AppConfig
+    from latex_question_studio.application.services import create_services
+    cfg = AppConfig.load(tmp_path / "db")
+    services = create_services(cfg)
+    store = AssetStore(cfg.data_dir)
+
+    for d in drafts:
+        d.status = "verified"
+    commit_res = service.commit_drafts_to_db(drafts, services, store)
+    assert commit_res["ok"]
+    assert commit_res["committed_count"] == 24
+    assert len(commit_res["errors"]) == 0
+

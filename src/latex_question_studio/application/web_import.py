@@ -110,6 +110,22 @@ class QuestionDraft:
         return "\n".join(lines)
 
 
+def sanitize_url(raw_url: str) -> str:
+    """Sanitizes user-provided URL strings, stripping Markdown links, brackets, and quotes."""
+    if not raw_url:
+        return ""
+    cleaned = raw_url.strip()
+    # Match markdown link [Title](https://...)
+    m = re.search(r"\((https?://[^\s\)]+)\)", cleaned)
+    if m:
+        return m.group(1).strip()
+    # Match bare URL within text or brackets
+    m = re.search(r"(https?://[^\s\)\]\"<>]+)", cleaned)
+    if m:
+        return m.group(1).strip()
+    return cleaned
+
+
 class WebScraperService:
     """Service handling web question scraping, HTML conversion, asset staging, moderation and export."""
 
@@ -123,7 +139,8 @@ class WebScraperService:
         check_robots: bool = True
     ) -> tuple[bool, str, list[QuestionDraft]]:
         """Safely fetches a webpage and extracts question drafts."""
-        res = self.fetcher.fetch(url, check_robots=check_robots)
+        clean_url = sanitize_url(url)
+        res = self.fetcher.fetch(clean_url, check_robots=check_robots)
         if not res.ok:
             return False, res.error, []
 
@@ -277,20 +294,22 @@ class WebScraperService:
                 # Record assets in database if present
                 if draft.local_assets:
                     with services.database.transaction() as conn:
-                        now = datetime.now(timezone.utc).isoformat()
                         for asset_info in draft.local_assets:
-                            asset_id = str(uuid.uuid4())
                             rel_p = asset_info["relative_path"]
                             c_hash = asset_info["hash"]
                             b_size = asset_info["bytes"]
                             conn.execute(
-                                "INSERT OR IGNORE INTO assets (id, content_hash, relative_path, bytes, created_at) VALUES (?,?,?,?,?)",
-                                (asset_id, c_hash, rel_p, b_size, now)
+                                "INSERT OR IGNORE INTO assets (id, content_hash, relative_path, bytes) VALUES (?,?,?,?)",
+                                (c_hash, c_hash, rel_p, b_size)
                             )
-                            # Link to question
+                            # Link to question: store both relative_path and filename for robust resolution
                             conn.execute(
-                                "INSERT OR IGNORE INTO question_assets (question_id, asset_id, reference_name) VALUES (?,?,?)",
-                                (q.id, asset_id, Path(rel_p).name)
+                                "INSERT OR IGNORE INTO question_assets (question_id, asset_id, original_reference, source_context, dependency_type, resolution_status, candidates_json) VALUES (?,?,?,?,?,?,?)",
+                                (q.id, c_hash, rel_p, "web_import", "image", "RESOLVED", "[]")
+                            )
+                            conn.execute(
+                                "INSERT OR IGNORE INTO question_assets (question_id, asset_id, original_reference, source_context, dependency_type, resolution_status, candidates_json) VALUES (?,?,?,?,?,?,?)",
+                                (q.id, c_hash, Path(rel_p).name, "web_import", "image", "RESOLVED", "[]")
                             )
             except Exception as e:
                 errors.append(f"Lỗi nhập câu hỏi '{draft.title}': {str(e)}")

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 
 from latex_question_studio.application.assets import AssetStore
 from latex_question_studio.application.web_import import (
-    QuestionDraft, WebScraperService
+    QuestionDraft, WebScraperService, sanitize_url
 )
 from latex_question_studio.preview.compiler import Compiler
 from latex_question_studio.scraping.fetcher import SafeFetcher
@@ -363,10 +363,14 @@ class WebScraperPage(QWidget):
 
     def _start_scrape(self):
         mode = "url" if self.combo_mode.currentIndex() == 0 else "html"
-        text = self.url_input.text() if mode == "url" else self.html_paste_edit.toPlainText()
-        if not text.strip():
+        raw_text = self.url_input.text() if mode == "url" else self.html_paste_edit.toPlainText()
+        if not raw_text.strip():
             QMessageBox.warning(self, "Chưa nhập thông tin", "Vui lòng nhập URL hoặc dán mã HTML để thu thập.")
             return
+
+        text = sanitize_url(raw_text) if mode == "url" else raw_text
+        if mode == "url" and text != raw_text:
+            self.url_input.setText(text)
 
         self.btn_scrape.setEnabled(False)
         self.btn_cancel.setEnabled(True)
