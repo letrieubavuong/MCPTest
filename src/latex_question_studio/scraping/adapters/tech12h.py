@@ -50,20 +50,17 @@ class Tech12hAdapter(BaseSiteAdapter):
         normalized_content = re.sub(r"&nbsp;|\u00a0", " ", container_html)
 
         # 3. Match questions starting with "Câu <number>:"
-        # Tech12h uses <p><strong>Câu 1:&nbsp;</strong>... or <strong>Câu 1:</strong>
+        # Tech12h can use:
+        # - <p><strong>Câu 1:&nbsp;</strong>
+        # - <p><b>Câu 1:</b>
+        # - <p>Câu 1:&nbsp; (plain paragraph without strong/b tags)
+        # - <strong>Câu 1:</strong>
         q_pattern = re.compile(
-            r"(?:<p[^>]*>\s*)?<strong>\s*Câu\s*(\d+)[:.]?\s*</strong>(.*?)(?=(?:<p[^>]*>\s*)?<strong>\s*Câu\s*\d+[:.]?\s*</strong>|$)",
+            r"(?:<(?:p|div|h\d)[^>]*>\s*(?:<(?:b|strong)[^>]*>\s*)?|<(?:b|strong)[^>]*>\s*)Câu\s*(\d+)[:.]?\s*(?:</(?:b|strong)>\s*)?(.*?)(?=(?:<(?:p|div|h\d)[^>]*>\s*(?:<(?:b|strong)[^>]*>\s*)?|<(?:b|strong)[^>]*>\s*)Câu\s*\d+[:.]?\s*(?:</(?:b|strong)>\s*)?|$)",
             re.DOTALL | re.IGNORECASE,
         )
 
         matches = list(q_pattern.finditer(normalized_content))
-        if not matches:
-            # Fallback for pages where 'Câu' is in bold or heading
-            q_pattern_fallback = re.compile(
-                r"(?:<(?:p|div|h\d)[^>]*>\s*)?<(?:b|strong)[^>]*>\s*Câu\s*(\d+)[:.]?\s*</(?:b|strong)>(.*?)(?=(?:<(?:p|div|h\d)[^>]*>\s*)?<(?:b|strong)[^>]*>\s*Câu\s*\d+[:.]?\s*</(?:b|strong)>|$)",
-                re.DOTALL | re.IGNORECASE,
-            )
-            matches = list(q_pattern_fallback.finditer(normalized_content))
 
         for idx, m in enumerate(matches, start=1):
             q_num_str = m.group(1)

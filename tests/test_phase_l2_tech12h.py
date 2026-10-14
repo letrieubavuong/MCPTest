@@ -270,3 +270,28 @@ def test_tech12h_live_url_smoke(tmp_path):
     assert drafts[23].title == "Câu 24"
     assert drafts[23].correct_choice == 1  # B
     assert len(drafts[23].local_assets) >= 1  # Successfully downloaded real assets
+
+
+def test_tech12h_live_url_semester_review_smoke(tmp_path):
+    """Test live URL without bold question prefix: https://tech12h.com/bai-hoc/trac-nghiem-tap-vat-li-9-ket-noi-tri-thuc-hoc-ki-1-phan-1."""
+    url = "https://tech12h.com/bai-hoc/trac-nghiem-tap-vat-li-9-ket-noi-tri-thuc-hoc-ki-1-phan-1"
+    fetcher = SafeFetcher()
+    res = fetcher.fetch(url, check_robots=True)
+
+    if not res.ok:
+        pytest.skip(f"Live network access to {url} failed: {res.error}")
+
+    adapter = get_adapter_for_url(url)
+    assert isinstance(adapter, Tech12hAdapter)
+
+    service = WebScraperService(fetcher=fetcher)
+    asset_store = AssetStore(tmp_path / "assets")
+
+    ok, msg, drafts = service.fetch_and_extract(url, asset_store=asset_store, check_robots=True)
+    assert ok, f"fetch_and_extract thất bại: {msg}"
+    assert len(drafts) == 24, f"Mong đợi 24 câu hỏi từ trang thật, nhận: {len(drafts)}"
+
+    # Check question 1: ans B (1)
+    assert drafts[0].title == "Câu 1"
+    assert drafts[0].correct_choice == 1  # B
+    assert len(drafts[0].options_latex) == 4
