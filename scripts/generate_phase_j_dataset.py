@@ -22,9 +22,11 @@ def get_real_questions(limit: int = 1000) -> List[Dict[str, Any]]:
                 content = f.read()
             parsed = parse_questions(content)
             for idx, q in enumerate(parsed):
+                if not q.source or not q.source.strip():
+                    continue
                 questions.append({
                     "id": f"real_{Path(fpath).stem}_{idx:03d}",
-                    "source": q.source,
+                    "source": q.source.strip(),
                     "kind": "real_exercise",
                     "origin_file": Path(fpath).name
                 })

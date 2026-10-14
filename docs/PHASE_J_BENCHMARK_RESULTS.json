@@ -1,0 +1,49 @@
+{
+  "hardware": {
+    "cpu": "13th Gen Intel(R) Core(TM) i5-13400 (10 cores, 16 threads)",
+    "ram_gb": 16.0,
+    "os": "Windows 11 Build 26100 (64-bit)",
+    "python": "Python 3.14.6",
+    "pyside6": "PySide6 6.11.2",
+    "texlive": "TeX Live 2026 (pdfTeX 3.141592653-2.6-1.40.29)"
+  },
+  "timestamps": {
+    "started_at": "2026-10-14T01:05:57Z"
+  },
+  "memory_rss_startup_mb": 80.61,
+  "dataset_1k_ingest_time_s": 10.23,
+  "cold_launch_ms": 1304.76,
+  "memory_rss_1k_mb": 223.34,
+  "viewports": {
+    "1366x768": {
+      "screenshot": "C:\\Users\\Admin\\.gemini\\antigravity-ide\\brain\\52e7ae05-be69-446a-b16d-863b72d92fe5\\phase_j_ui_1366x768.png",
+      "actual_size": "1366x768",
+      "cards_visible": 100
+    },
+    "1600x900": {
+      "screenshot": "C:\\Users\\Admin\\.gemini\\antigravity-ide\\brain\\52e7ae05-be69-446a-b16d-863b72d92fe5\\phase_j_ui_1600x900.png",
+      "actual_size": "1600x900",
+      "cards_visible": 100
+    },
+    "1920x1080": {
+      "screenshot": "C:\\Users\\Admin\\.gemini\\antigravity-ide\\brain\\52e7ae05-be69-446a-b16d-863b72d92fe5\\phase_j_ui_1920x1080.png",
+      "actual_size": "1920x1061",
+      "cards_visible": 100
+    }
+  },
+  "ttft_first_thumbnail_s": 4.215,
+  "scroll_performance": {
+    "samples": 40,
+    "p50_ms": 16.58,
+    "p95_ms": 17.13,
+    "p99_ms": 17.33,
+    "max_freeze_ms": 17.44,
+    "ui_freeze_gt_100ms_count": 0,
+    "dropped_frames_gt_16ms": 14,
+    "dropped_frames_gt_33ms": 0
+  },
+  "memory_rss_after_scroll_mb": 259.91,
+  "dataset_10k_ingest_time_s": 91.461,
+  "load_10k_questions_ms": 228.64,
+  "memory_rss_10k_mb": 279.21
+}
