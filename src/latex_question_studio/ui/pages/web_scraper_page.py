@@ -543,22 +543,41 @@ class WebScraperPage(QWidget):
             return
         self._on_draft_field_changed()
         draft = self.drafts[self.current_draft_idx]
+        if new_status == "verified":
+            draft.validate_and_update_warnings()
+            if draft.has_missing_images:
+                QMessageBox.warning(
+                    self, "Không thể duyệt câu hỏi",
+                    "Câu hỏi này bị thiếu hình ảnh từ nguồn web. Không thể đánh dấu 'Đã kiểm duyệt' khi chưa bổ sung ảnh đầy đủ."
+                )
+                return
+            if draft.warnings:
+                reply = QMessageBox.question(
+                    self, "Cảnh báo dữ liệu",
+                    f"Câu hỏi có cảnh báo:\n" + "\n".join(f"- {w}" for w in draft.warnings) + "\n\nBạn có chắc chắn muốn duyệt không?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
         draft.status = new_status
         self._refresh_question_list()
         self.list_questions.setCurrentRow(self.current_draft_idx)
 
     def _verify_all_valid(self):
         count = 0
+        skipped = 0
         for d in self.drafts:
             d.validate_and_update_warnings()
-            if not d.warnings:
+            if not d.warnings and not d.has_missing_images:
                 d.status = "verified"
                 count += 1
+            else:
+                skipped += 1
         self._refresh_question_list()
-        QMessageBox.information(
-            self, "Đã duyệt nhanh",
-            f"Đã chuyển {count} câu hỏi không có cảnh báo sang trạng thái 'Đã kiểm duyệt' (Verified)."
-        )
+        msg = f"Đã chuyển {count} câu hỏi hợp lệ sang trạng thái 'Đã kiểm duyệt' (Verified)."
+        if skipped > 0:
+            msg += f"\nBỏ qua {skipped} câu hỏi có cảnh báo hoặc thiếu thông tin/ảnh."
+        QMessageBox.information(self, "Kết quả duyệt hàng loạt", msg)
 
     def _compile_preview(self):
         if self.current_draft_idx < 0 or self.current_draft_idx >= len(self.drafts):
