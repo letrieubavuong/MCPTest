@@ -194,14 +194,8 @@ class Compiler:
     @staticmethod
     def render(pdf, page=0, scale=1.5):
         import pymupdf
+        from latex_question_studio.preview.crop import render_page
         with pymupdf.open(pdf) as document:
             target = document[page]
-            rectangles = [pymupdf.Rect(block[:4]) for block in target.get_text('blocks')]
-            rectangles += [drawing['rect'] for drawing in target.get_drawings()]
-            rectangles += [pymupdf.Rect(img['bbox']) for img in target.get_image_info() if 'bbox' in img]
-            clip = None
-            for rectangle in rectangles:
-                clip = rectangle if clip is None else clip | rectangle
-            if clip is not None:
-                clip = (clip + (-14, -14, 14, 14)) & target.rect
-            return target.get_pixmap(matrix=pymupdf.Matrix(scale, scale), clip=clip).tobytes('png'), len(document)
+            raw_png = render_page(target, scale=scale, crop=True)
+            return raw_png, len(document)

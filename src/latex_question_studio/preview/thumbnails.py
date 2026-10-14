@@ -192,22 +192,12 @@ class ThumbnailManager:
             return ThumbnailResult(key=key, file_path=path, format=fmt, data=data, cache_hit=True)
 
         import pymupdf
+        from latex_question_studio.preview.crop import render_page
         with pymupdf.open(pdf_path) as document:
             if page >= len(document):
                 page = 0
             target = document[page]
-            rectangles = [pymupdf.Rect(block[:4]) for block in target.get_text("blocks")]
-            rectangles += [drawing["rect"] for drawing in target.get_drawings()]
-            clip = None
-            for rect in rectangles:
-                clip = rect if clip is None else clip | rect
-
-            # Add gentle padding to preserve descenders and accents
-            if clip is not None:
-                clip = (clip + (-10, -10, 10, 10)) & target.rect
-
-            pixmap = target.get_pixmap(matrix=pymupdf.Matrix(scale, scale), clip=clip)
-            raw_png = pixmap.tobytes("png")
+            raw_png = render_page(target, scale=scale, crop=True)
 
         path, fmt = self.save(key, raw_png, prefer_webp=prefer_webp, quality=quality)
         return ThumbnailResult(key=key, file_path=path, format=fmt, data=raw_png, cache_hit=False)
