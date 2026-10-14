@@ -1,0 +1,108 @@
+{
+  "hardware": {
+    "cpu": "13th Gen Intel(R) Core(TM) i5-13400 (10 cores, 16 threads)",
+    "ram_gb": 16.0,
+    "os": "Windows 11 Build 26100 (64-bit)",
+    "python": "Python 3.14.6",
+    "pyside6": "PySide6 6.11.2",
+    "texlive": "TeX Live 2026 (pdfTeX 3.141592653-2.6-1.40.29)"
+  },
+  "timestamps": {
+    "started_at": "2026-10-14T03:00:29Z"
+  },
+  "memory_rss_startup_mb": 80.7,
+  "dataset_1k_ingest_time_s": 11.171,
+  "cold_launch_ms": 1308.35,
+  "viewports": {
+    "1366x768": {
+      "screenshot": "C:\\Users\\Admin\\.gemini\\antigravity-ide\\brain\\52e7ae05-be69-446a-b16d-863b72d92fe5\\phase_j7_ui_1366x768.png",
+      "actual_size": "1366x768",
+      "cards_visible": 100,
+      "note": "Đúng độ phân giải thiết lập."
+    },
+    "1600x900": {
+      "screenshot": "C:\\Users\\Admin\\.gemini\\antigravity-ide\\brain\\52e7ae05-be69-446a-b16d-863b72d92fe5\\phase_j7_ui_1600x900.png",
+      "actual_size": "1600x900",
+      "cards_visible": 100,
+      "note": "Đúng độ phân giải thiết lập."
+    },
+    "1920x1080": {
+      "screenshot": "C:\\Users\\Admin\\.gemini\\antigravity-ide\\brain\\52e7ae05-be69-446a-b16d-863b72d92fe5\\phase_j7_ui_1920x1080.png",
+      "actual_size": "1920x1061",
+      "cards_visible": 100,
+      "note": "Kích thước 1920x1061 phản ánh giới hạn vùng làm việc Windows taskbar khi không bật chế độ toàn màn hình (fullscreen)."
+    }
+  },
+  "ttft_first_thumbnail_s": 4.804,
+  "dataset_10k_ingest_time_s": 82.048,
+  "load_10k_questions_ms": 503.99,
+  "rss_memory": {
+    "startup_mb": 80.7,
+    "with_1k_mb": 394.77,
+    "with_10k_mb": 394.77
+  },
+  "runs_analysis": {
+    "run1_cold_1k": {
+      "sample_count": 100,
+      "p50_ms": 0.006,
+      "p95_ms": 0.013,
+      "p99_ms": 0.024,
+      "min_ms": 0.006,
+      "max_ms": 0.224,
+      "count_gt_16_67ms": 0,
+      "ratio_gt_16_67ms_pct": 0.0,
+      "count_gt_33_33ms": 0,
+      "ratio_gt_33_33ms_pct": 0.0,
+      "count_gt_100ms_freeze": 0,
+      "ratio_gt_100ms_freeze_pct": 0.0
+    },
+    "run2_warm_1k_toggles": {
+      "sample_count": 100,
+      "p50_ms": 0.014,
+      "p95_ms": 265.71,
+      "p99_ms": 349.926,
+      "min_ms": 0.003,
+      "max_ms": 374.804,
+      "count_gt_16_67ms": 10,
+      "ratio_gt_16_67ms_pct": 10.0,
+      "count_gt_33_33ms": 10,
+      "ratio_gt_33_33ms_pct": 10.0,
+      "count_gt_100ms_freeze": 10,
+      "ratio_gt_100ms_freeze_pct": 10.0
+    },
+    "run3_scale_10k": {
+      "sample_count": 100,
+      "p50_ms": 0.008,
+      "p95_ms": 0.022,
+      "p99_ms": 0.566,
+      "min_ms": 0.007,
+      "max_ms": 6.261,
+      "count_gt_16_67ms": 0,
+      "ratio_gt_16_67ms_pct": 0.0,
+      "count_gt_33_33ms": 0,
+      "ratio_gt_33_33ms_pct": 0.0,
+      "count_gt_100ms_freeze": 0,
+      "ratio_gt_100ms_freeze_pct": 0.0
+    },
+    "overall_300_frames": {
+      "sample_count": 300,
+      "p50_ms": 0.008,
+      "p95_ms": 0.225,
+      "p99_ms": 333.654,
+      "min_ms": 0.003,
+      "max_ms": 374.804,
+      "count_gt_16_67ms": 10,
+      "ratio_gt_16_67ms_pct": 3.33,
+      "count_gt_33_33ms": 10,
+      "ratio_gt_33_33ms_pct": 3.33,
+      "count_gt_100ms_freeze": 10,
+      "ratio_gt_100ms_freeze_pct": 3.33
+    }
+  },
+  "cpu_time_consumed_s": {
+    "run1_s": 0.0,
+    "run2_s": 2.719,
+    "run3_s": 0.0,
+    "total_measured_s": 2.719
+  }
+}
