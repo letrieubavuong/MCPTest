@@ -54,6 +54,19 @@ BUILTIN_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
   \end{center}%
   \vspace{1em}%
 }
+\providecommand{\PhanI}{\bigskip\noindent\textbf{\large PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn}\par\medskip}
+\providecommand{\PhanII}{\bigskip\noindent\textbf{\large PHẦN II. Câu trắc nghiệm đúng sai}\par\medskip}
+\providecommand{\PhanIII}{\bigskip\noindent\textbf{\large PHẦN III. Câu trắc nghiệm trả lời ngắn}\par\medskip}
+\providecommand{\PhanTL}{\bigskip\noindent\textbf{\large PHẦN IV. Tự luận}\par\medskip}
+\providecommand{\dapsoTL}[2][]{\par\textbf{Đáp án: }#2}
+\providecommand{\dapso}[2][]{\par\textbf{Đáp án: }#2}
+\providecommand{\newenvironmentTF}{}
+\providecommand{\Opensolutionfile}[2][]{}
+\providecommand{\Closesolutionfile}[1]{}
+\newenvironment{cauhoiTN}[1]{}{}
+\newenvironment{cauhoiDS}[1]{}{}
+\newenvironment{cauhoiTLN}[1]{}{}
+\newenvironment{cauhoiTL}[1]{}{}
 """
 
 MAPCLASS_PREAMBLE = r"""\documentclass[company=BookA4,pagesize=DethiA4,mausac=01,tuychon=GV1]{MAPClass}
@@ -155,7 +168,7 @@ class Compiler:
         rewritten=source
         for start,end,value in reversed(replacements):rewritten=rewritten[:start]+value+rewritten[end:]
         with tempfile.TemporaryDirectory(prefix='compile-',dir=cache,ignore_cleanup_errors=True) as temporary:
-            work=Path(temporary);(work/'assets').mkdir()
+            work=Path(temporary);(work/'assets').mkdir();(work/'Loigiai').mkdir(parents=True,exist_ok=True)
             for name,raw in asset_bytes.items():
                 (work/'assets'/(hashlib.sha256(raw).hexdigest()+Path(assets[name]).suffix.lower())).write_bytes(raw)
             for rel_path,content in extra_files.items():

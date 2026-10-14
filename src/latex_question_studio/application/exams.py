@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from datetime import datetime,timezone
 import random
@@ -303,13 +304,22 @@ class ExamService:
         with self.services.database.connect() as c:return [dict(r) for r in c.execute('SELECT v.*,p.title FROM exam_versions v JOIN exam_papers p ON p.id=v.paper_id ORDER BY v.created_at DESC LIMIT 100')]
 
     @staticmethod
-    def content(snapshot,solutions=False,answer_only=False):
-        escape={'\\':r'\textbackslash{}','&':r'\&','%':r'\%','$':r'\$','#':r'\#','_':r'\_','{':r'\{','}':r'\}','~':r'\textasciitilde{}','^':r'\textasciicircum{}'}
-        title=''.join(escape.get(ch,ch) for ch in snapshot.get('title', 'Đề kiểm tra'))
-        subject=''.join(escape.get(ch,ch) for ch in snapshot.get('subject', 'TOÁN'))
-        school=''.join(escape.get(ch,ch) for ch in snapshot.get('school', 'TRƯỜNG THPT'))
-        duration=''.join(escape.get(ch,ch) for ch in snapshot.get('duration', '90 phút'))
-        exam_code=''.join(escape.get(ch,ch) for ch in snapshot.get('exam_code', '101'))
+    def content(snapshot, solutions=False, answer_only=False):
+        escape = {'\\': r'\textbackslash{}', '&': r'\&', '%': r'\%', '$': r'\$', '#': r'\#', '_': r'\_', '{': r'\{', '}': r'\}', '~': r'\textasciitilde{}', '^': r'\textasciicircum{}'}
+        title = ''.join(escape.get(ch, ch) for ch in snapshot.get('title', 'Đề kiểm tra'))
+        subject = ''.join(escape.get(ch, ch) for ch in snapshot.get('subject', 'TOÁN'))
+        school = ''.join(escape.get(ch, ch) for ch in snapshot.get('school', 'TRƯỜNG THPT'))
+        duration = ''.join(escape.get(ch, ch) for ch in snapshot.get('duration', '90 phút'))
+        exam_code = ''.join(escape.get(ch, ch) for ch in snapshot.get('exam_code', '101'))
+
+        exam_code_str = str(snapshot.get('exam_code', '101')).strip()
+        if exam_code_str.startswith('De') or exam_code_str.startswith('de'):
+            exam_tag = exam_code_str
+        elif exam_code_str.isdigit():
+            exam_tag = f"De{exam_code_str.zfill(2)}"
+        else:
+            exam_tag = f"De{exam_code_str}"
+        exam_tag = re.sub(r'[^a-zA-Z0-9]', '', exam_tag) or 'De01'
 
         # Header theo phong cách lệnh \TieudeT trong MAPClass (kèm fallback 2 cột tương thích)
         header_tex = (
@@ -328,30 +338,119 @@ class ExamService:
             r"  \vspace{1em}" "\n"
             r"\fi"
         )
-        lines = [header_tex]
-        for i,q in enumerate(snapshot['questions'],1):
-            if answer_only:
-                answer=q['answer'];value=answer.get('correct_letter',answer.get('value',str(answer.get('truth','Tự luận'))))
-                # Values are genuine LaTeX answers; preserve math rather than escaping.
-                lines.append(f"\\noindent {i}. "+str(value)+r'\par')
-            else:
-                source = q['source']
-                if not solutions:
-                    from latex_question_studio.application.lessons import student_source
-                    try:
-                        source = student_source(source, hide_answers=True)
-                    except ValueError as err:
-                        qid = q.get('question_id', '')
-                        msg = str(err)
-                        if qid and not msg.startswith('Câu hỏi'):
-                            msg = f"Câu hỏi {qid[:8]}: {msg}"
-                        raise ValueError(msg) from err
-                if any(env in source for env in (r'\begin{ex}', r'\begin{bt}')):
-                    lines.append(source)
-                else:
-                    lines.append(f"\\noindent\\textbf{{Câu {i}.}}\n" + source)
-                if solutions and q['solution'] and not any(c.name in ('loigiai','hdan') for c in commands(q['source'])):lines.append(r'\loigiai{'+q['solution']+'}')
-        return '\n\n'.join(lines)
+
+        mcq_qs, tf_qs, sa_qs, essay_qs = [], [], [], []
+        for q in snapshot.get('questions', []):
+            q_type = q.get('question_type')
+            if not q_type:
+                ans = q.get('answer', {})
+                if 'correct_letter' in ans: q_type = 'mcq'
+                elif 'truth' in ans: q_type = 'true_false'
+                elif 'value' in ans: q_type = 'short_answer'
+                else: q_type = 'essay'
+            if q_type == 'mcq': mcq_qs.append(q)
+            elif q_type == 'true_false': tf_qs.append(q)
+            elif q_type == 'short_answer': sa_qs.append(q)
+            else: essay_qs.append(q)
+
+        if answer_only:
+            ans_lines = [header_tex]
+            q_counter = 1
+            if mcq_qs:
+                ans_lines.append(r"\noindent\textbf{\large PHẦN I. CÂU TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN LỰA CHỌN}\par\medskip")
+                items = []
+                for q in mcq_qs:
+                    ans = q.get('answer', {})
+                    val = ans.get('correct_letter', '?')
+                    items.append(f"\\textbf{{{q_counter}.}} {val}")
+                    q_counter += 1
+                ans_lines.append(r"\noindent " + r"\quad ".join(items) + r"\par")
+
+            if tf_qs:
+                ans_lines.append(r"\bigskip\noindent\textbf{\large PHẦN II. CÂU TRẮC NGHIỆM ĐÚNG SAI}\par\medskip")
+                for q in tf_qs:
+                    ans = q.get('answer', {})
+                    truth = ans.get('truth', [False, False, False, False])
+                    letters = ['a', 'b', 'c', 'd']
+                    parts = [f"{letters[idx]}) {'Đ' if t else 'S'}" for idx, t in enumerate(truth)]
+                    ans_lines.append(f"\\noindent\\textbf{{Câu {q_counter}.}} " + ", ".join(parts) + r"\par")
+                    q_counter += 1
+
+            if sa_qs:
+                ans_lines.append(r"\bigskip\noindent\textbf{\large PHẦN III. CÂU TRẮC NGHIỆM TRẢ LỜI NGẮN}\par\medskip")
+                items = []
+                for q in sa_qs:
+                    ans = q.get('answer', {})
+                    val = ans.get('value', '?')
+                    items.append(f"\\textbf{{{q_counter}.}} {val}")
+                    q_counter += 1
+                ans_lines.append(r"\noindent " + r"\quad ".join(items) + r"\par")
+
+            if essay_qs:
+                ans_lines.append(r"\bigskip\noindent\textbf{\large PHẦN IV. TỰ LUẬN}\par\medskip")
+                for q in essay_qs:
+                    ans_lines.append(f"\\noindent\\textbf{{Câu {q_counter}.}} Xem lời giải chi tiết.\\par")
+                    q_counter += 1
+
+            return '\n\n'.join(ans_lines)
+
+        def format_question(q):
+            source = q['source']
+            if not solutions:
+                from latex_question_studio.application.lessons import student_source
+                try:
+                    source = student_source(source, hide_answers=True)
+                except ValueError as err:
+                    qid = q.get('question_id', '')
+                    msg = str(err)
+                    if qid and not msg.startswith('Câu hỏi'):
+                        msg = f"Câu hỏi {qid[:8]}: {msg}"
+                    raise ValueError(msg) from err
+            if not any(env in source for env in (r'\begin{ex}', r'\begin{ex*}', r'\begin{bt}', r'\begin{bt*}', r'\begin{vidu}', r'\begin{vidu*}')):
+                source = f"\\begin{{ex}}\n{source}\n\\end{{ex}}"
+            if solutions and q.get('solution') and not any(c.name in ('loigiai', 'hdan') for c in commands(source)):
+                source += '\n' + r'\loigiai{' + q['solution'] + '}'
+            return source
+
+        body_sections = [header_tex]
+
+        if mcq_qs:
+            formatted = [format_question(q) for q in mcq_qs]
+            body_sections.append(
+                r"\PhanI" "\n"
+                rf"\begin{{cauhoiTN}}{{{exam_tag}}}" "\n"
+                + "\n\n".join(formatted) + "\n"
+                r"\end{cauhoiTN}"
+            )
+
+        if tf_qs:
+            formatted = [format_question(q) for q in tf_qs]
+            body_sections.append(
+                r"\PhanII" "\n"
+                rf"\begin{{cauhoiDS}}{{{exam_tag}}}" "\n"
+                + "\n\n".join(formatted) + "\n"
+                r"\end{cauhoiDS}"
+            )
+
+        if sa_qs:
+            formatted = [format_question(q) for q in sa_qs]
+            body_sections.append(
+                r"\PhanIII" "\n"
+                rf"\begin{{cauhoiTLN}}{{{exam_tag}}}" "\n"
+                + "\n\n".join(formatted) + "\n"
+                r"\end{cauhoiTLN}"
+            )
+
+        if essay_qs:
+            formatted = [format_question(q) for q in essay_qs]
+            body_sections.append(
+                r"\PhanTL" "\n"
+                rf"\begin{{cauhoiTL}}{{{exam_tag}}}" "\n"
+                + "\n\n".join(formatted) + "\n"
+                r"\end{cauhoiTL}"
+            )
+
+        return '\n\n'.join(body_sections)
 
     @staticmethod
     def copy_class_dependencies(target_folder, raise_on_missing=False):
@@ -361,6 +460,8 @@ class ExamService:
         root = default_profile_root()
         target_folder = Path(target_folder)
         target_folder.mkdir(parents=True, exist_ok=True)
+        (target_folder / 'Loigiai').mkdir(parents=True, exist_ok=True)
+        (target_folder / 'Loigiai' / '.gitkeep').touch(exist_ok=True)
 
         probe = target_folder / '.write_probe'
         try:
@@ -468,6 +569,8 @@ class ExamService:
             references.add(group(body, cursor)[0])
         path = Path(path).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
+        (path.parent / 'Loigiai').mkdir(parents=True, exist_ok=True)
+        (path.parent / 'Loigiai' / '.gitkeep').touch(exist_ok=True)
         for reference, source in snapshot.get('assets', {}).items():
             if reference not in references:
                 continue
@@ -522,6 +625,8 @@ class ExamService:
         """
         folder = Path(folder).resolve()
         folder.mkdir(parents=True, exist_ok=True)
+        (folder / 'Loigiai').mkdir(parents=True, exist_ok=True)
+        (folder / 'Loigiai' / '.gitkeep').touch(exist_ok=True)
         probe = folder / f'.probe_{os.getpid()}'
         try:
             probe.write_text('probe', encoding='utf-8')
@@ -629,6 +734,7 @@ class ExamService:
             "echo ========================================================\r\n"
             "echo DANG BIEN DICH DE THI BANG PDFLATEX (MCPTEST)\r\n"
             "echo ========================================================\r\n"
+            "if not exist Loigiai mkdir Loigiai\r\n"
             "if exist de-thi-hoc-sinh.tex (\r\n"
             "    echo [1/3] Dang bien dich de-thi-hoc-sinh.tex...\r\n"
             "    pdflatex -interaction=nonstopmode de-thi-hoc-sinh.tex\r\n"
@@ -764,6 +870,124 @@ class ExamService:
                 err_details = "; ".join(f"{name}: {log[:200]}" for name, log in bundle_res['errors'])
                 raise RuntimeError(f"Biên dịch PDF thất bại trong gói xuất đề: {err_details}")
 
+            temporary_zip = path.with_suffix(path.suffix + f'.tmp_{os.getpid()}')
+            with zipfile.ZipFile(temporary_zip, 'w', zipfile.ZIP_DEFLATED) as archive:
+                for file in sorted(folder.rglob('*')):
+                    if file.is_file():
+                        archive.write(file, file.relative_to(folder).as_posix())
+            temporary_zip.replace(path)
+        return path
+
+    def export_multi_variant_bundle(
+        self,
+        snapshots,
+        folder,
+        export_student=True,
+        export_teacher=True,
+        export_answers=True,
+        style='mapclass',
+        compile_pdf=True,
+        engine='pdflatex',
+        preamble_file=None,
+        cancelled=lambda: False,
+        progress=lambda a, b: None
+    ):
+        """Xuất gói đa mã đề (ví dụ De01-De04) vào các thư mục con riêng biệt kèm root dependencies."""
+        folder = Path(folder).resolve()
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / 'Loigiai').mkdir(parents=True, exist_ok=True)
+        (folder / 'Loigiai' / '.gitkeep').touch(exist_ok=True)
+        if style == 'mapclass' or preamble_file is None:
+            self.copy_class_dependencies(folder)
+
+        results = []
+        total = len(snapshots)
+        for idx, snap in enumerate(snapshots):
+            if cancelled():
+                raise InterruptedError('Đã hủy xuất đa mã đề')
+            exam_code = str(snap.get('exam_code', f'De{idx+1:02d}')).strip()
+            sub_name = exam_code if exam_code.startswith('De') or exam_code.startswith('de') else f"De{exam_code}"
+            sub_folder = folder / sub_name
+            sub_res = self.export_bundle(
+                snap,
+                sub_folder,
+                export_student=export_student,
+                export_teacher=export_teacher,
+                export_answers=export_answers,
+                style=style,
+                compile_pdf=compile_pdf,
+                engine=engine,
+                preamble_file=preamble_file,
+                cancelled=cancelled,
+                progress=lambda a, b: progress(idx * b + a, total * b) if progress else None
+            )
+            results.append((sub_name, sub_res))
+
+        bat_lines = [
+            "@echo off\r\n",
+            "chcp 65001 >nul\r\n",
+            "echo ========================================================\r\n",
+            "echo DANG BIEN DICH TAT CA MA DE BANG PDFLATEX (MCPTEST)\r\n",
+            "echo ========================================================\r\n",
+            "if not exist Loigiai mkdir Loigiai\r\n",
+        ]
+        for sub_name, _ in results:
+            bat_lines.append(f"if exist {sub_name}\\bien-dich.bat (\r\n")
+            bat_lines.append(f"    echo Dang bien dich ma de {sub_name}...\r\n")
+            bat_lines.append(f"    cd {sub_name}\r\n")
+            bat_lines.append("    call bien-dich.bat\r\n")
+            bat_lines.append("    cd ..\r\n")
+            bat_lines.append(")\r\n")
+        bat_lines.append("echo ========================================================\r\n")
+        bat_lines.append("echo HOAN TAT BIEN DICH TAT CA MA DE!\r\n")
+        bat_lines.append("pause\r\n")
+        (folder / 'bien-dich-tat-ca.bat').write_text("".join(bat_lines), encoding='utf-8')
+
+        master_manifest = {
+            'format': 1,
+            'variant_count': len(snapshots),
+            'variants': [sub_name for sub_name, _ in results],
+            'style': style,
+            'engine': engine,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+        (folder / 'master_manifest.json').write_text(json.dumps(master_manifest, ensure_ascii=False, indent=2), encoding='utf-8')
+        return {'folder': str(folder), 'variants': results, 'ok': all(r['ok'] for _, r in results)}
+
+    def export_multi_variant_zip(
+        self,
+        snapshots,
+        path,
+        export_student=True,
+        export_teacher=True,
+        export_answers=True,
+        style='mapclass',
+        compile_pdf=True,
+        engine='pdflatex',
+        preamble_file=None,
+        raise_on_compile_error=False,
+        cancelled=lambda: False
+    ):
+        """Tạo gói zip portable chứa toàn bộ các mã đề trong các thư mục con riêng biệt."""
+        path = Path(path).resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='.multi-exam-', dir=path.parent, ignore_cleanup_errors=True) as temporary:
+            folder = Path(temporary)
+            res = self.export_multi_variant_bundle(
+                snapshots,
+                folder,
+                export_student=export_student,
+                export_teacher=export_teacher,
+                export_answers=export_answers,
+                style=style,
+                compile_pdf=compile_pdf,
+                engine=engine,
+                preamble_file=preamble_file,
+                cancelled=cancelled
+            )
+            if compile_pdf and not res['ok'] and raise_on_compile_error:
+                failed = [name for name, r in res['variants'] if not r['ok']]
+                raise RuntimeError(f"Biên dịch thất bại ở các mã đề: {', '.join(failed)}")
             temporary_zip = path.with_suffix(path.suffix + f'.tmp_{os.getpid()}')
             with zipfile.ZipFile(temporary_zip, 'w', zipfile.ZIP_DEFLATED) as archive:
                 for file in sorted(folder.rglob('*')):
