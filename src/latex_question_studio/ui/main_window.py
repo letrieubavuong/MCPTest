@@ -135,7 +135,7 @@ class MainWindow(QMainWindow):
         self.library_control.setCentralWidget(self.library_vertical)
         self.build_pages()
         from latex_question_studio.ui.dashboard import DashboardPage
-        self.dashboard_page=DashboardPage(self.services,{'import':lambda:self.show_page(1),'exam':lambda:self.show_page(2),'library':lambda:self.show_page(0),'settings':lambda:self.show_page(3),'lesson':lambda:self.show_page(4)},self.pages)
+        self.dashboard_page=DashboardPage(self.services,{'import':lambda:self.show_page(1),'exam':lambda:self.show_page(2),'library':lambda:self.show_page(0),'settings':lambda:self.show_page(3),'lesson':lambda:self.show_page(4),'dedup':lambda:self.show_page(5),'web':lambda:self.show_page(6)},self.pages)
         self.pages.addWidget(self.dashboard_page)
         self.menuBar().hide()
         self.shell.home_clicked.connect(self.open_dashboard)
@@ -162,6 +162,8 @@ class MainWindow(QMainWindow):
         self.add_action("Bộ lọc", self.filter_library)
         self.add_action("Xóa tìm kiếm / bộ lọc", self.clear_search)
         self.add_action("Tìm câu trùng", self.find_duplicates)
+        self.add_action("Câu hỏi trùng", lambda: self.show_page(5), "Ctrl+D", activity=True)
+        self.add_action("Thu thập từ Web", lambda: self.show_page(6), "Ctrl+Shift+W", activity=True)
         self.add_action("Tạo đề", self.create_exam, activity=True)
         self.add_action("Lịch sử đề", self.exam_history)
         self.add_action("Soạn bài giảng", lambda: self.show_page(4), "Ctrl+L")
@@ -254,6 +256,12 @@ class MainWindow(QMainWindow):
         from latex_question_studio.ui.lesson_page import LessonPage
         self.lesson_page = LessonPage(self.services, self.start_job, self.compiler_config, self.pages)
         self.pages.addWidget(self.lesson_page)
+        from latex_question_studio.ui.pages.dedup_page import DedupPage
+        self.dedup_page = DedupPage(self.services, self.pages)
+        self.pages.addWidget(self.dedup_page)
+        from latex_question_studio.ui.pages.web_scraper_page import WebScraperPage
+        self.web_scraper_page = WebScraperPage(self.services, self.compiler_config, self.pages)
+        self.pages.addWidget(self.web_scraper_page)
 
     def show_page(self, index):
         if not 0 <= index < self.pages.count(): return
@@ -261,7 +269,9 @@ class MainWindow(QMainWindow):
         self.shell.home.setChecked(index==getattr(self,'dashboard_index',-1))
         if index==0 and hasattr(self,"library_ui"):self.ensure_library_tree()
         if index==2 and hasattr(self,"exam_page"):self.exam_page.ensure_tree_visible()
-        self.statusBar().showMessage(["CSDL", "Nhập câu hỏi", "Ra đề thi", "Cài đặt", "Bài giảng", "Dashboard"][index]+f" · {len(self.all_jobs)} tác vụ đang chạy")
+        page_titles = ["CSDL", "Nhập câu hỏi", "Ra đề thi", "Cài đặt", "Bài giảng", "Câu hỏi trùng", "Thu thập từ Web", "Dashboard"]
+        title = page_titles[index] if index < len(page_titles) else f"Trang {index}"
+        self.statusBar().showMessage(f"{title} · {len(self.all_jobs)} tác vụ đang chạy")
         if index < self.navigation.count() and self.navigation.currentRow() != index: self.navigation.setCurrentRow(index)
         if hasattr(self.shell, 'set_navigation_icons'): self.shell.set_navigation_icons(self.theme, index, False)
 

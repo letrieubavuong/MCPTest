@@ -258,7 +258,8 @@ class DashboardPage(QWidget):
         quick_layout = quick.layout()
         actions = [('Nhập câu hỏi', 'import', 'import'), ('Tạo đề thi', 'exam', 'exam'),
                    ('Soạn bài giảng', 'lesson', 'lesson'),
-                   ('Mở ngân hàng', 'bank', 'library'), ('Quản lý tài nguyên', 'settings', 'settings')]
+                   ('Mở ngân hàng', 'bank', 'library'), ('Quản lý tài nguyên', 'settings', 'settings'),
+                   ('Câu hỏi trùng', 'dedup', 'dedup'), ('Thu thập từ Web', 'web', 'web')]
         for label, icon_name, key in actions:
             button = QPushButton(label)
             button.setIcon(icon(icon_name, '#1677d2'))
