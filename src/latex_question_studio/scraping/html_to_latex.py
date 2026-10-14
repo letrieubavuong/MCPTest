@@ -245,6 +245,10 @@ def convert_unicode_in_text(text: str) -> str:
     if not text:
         return ""
 
+    # Normalize unicode spaces to standard ASCII space (\u2009 thinsp, \u00a0 nbsp, etc.)
+    text = re.sub(r"[\u2000-\u200a\u202f\u00a0]", " ", text)
+    text = re.sub(r"[\u200b\ufeff]", "", text)
+
     # Common scientific units with superscripts in text mode: m², cm³, dm³, km², m/s², kg/m³
     unit_map = {
         "m²": r"m$^2$",
@@ -726,6 +730,15 @@ def html_to_latex(html_fragment: str, base_url: str = "") -> tuple[str, list[str
 
     # Unescape HTML entities first if double-escaped
     raw_html = unescape(html_fragment)
+
+    # Normalize unicode spaces to standard ASCII space (\u2009 thinsp, \u00a0 nbsp, etc.)
+    raw_html = re.sub(r"[\u2000-\u200a\u202f\u00a0]", " ", raw_html)
+    raw_html = re.sub(r"[\u200b\ufeff]", "", raw_html)
+
+    # Convert MathJax delimiters \( ... \) and \[ ... \] to math/tex script tags
+    # so MathJax AST parser preserves mathematical symbols without text-mode escaping
+    raw_html = re.sub(r'\\\[([\s\S]*?)\\\]', r'<script type="math/tex; mode=display">\1</script>', raw_html)
+    raw_html = re.sub(r'\\\(([\s\S]*?)\\\)', r'<script type="math/tex">\1</script>', raw_html)
 
     # Build DOM tree
     builder = DOMTreeBuilder()

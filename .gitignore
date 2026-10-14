@@ -30,5 +30,6 @@ CodexTelegram/
 *.sqlite3-shm
 *.pem
 scratch/
+scratch_l3/
 data/
 exports/
