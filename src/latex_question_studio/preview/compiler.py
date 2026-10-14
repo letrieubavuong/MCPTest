@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import time
 import sys
+import threading
 from latex_question_studio.parsing.latex import commands, group, skip_space
 
 BUILTIN_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
@@ -87,6 +88,8 @@ class Compiler:
         self.preamble_file=Path(preamble_file) if preamble_file else None
         self.timeout=timeout
         self.cache_limit=cache_limit
+        self._active_processes = set()
+        self._process_lock = threading.Lock()
 
     @property
     def profile_root(self):
@@ -175,12 +178,26 @@ class Compiler:
             log_path=work/'process.log'
             with log_path.open('wb') as stream:
                 process=subprocess.Popen([engine,'-no-shell-escape','-interaction=nonstopmode','-halt-on-error','-file-line-error','preview.tex'],cwd=work,stdout=stream,stderr=subprocess.STDOUT,env=environment,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                with self._process_lock:
+                    self._active_processes.add(process)
                 deadline=time.monotonic()+self.timeout
                 aborted=False
-                while process.poll() is None:
-                    if cancelled() or time.monotonic()>deadline:
-                        aborted=True;process.kill();process.wait(timeout=5);break
-                    time.sleep(.04)
+                try:
+                    while process.poll() is None:
+                        if cancelled() or time.monotonic()>deadline:
+                            aborted=True
+                            try:
+                                process.kill()
+                                if os.name == 'nt':
+                                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, timeout=1)
+                                process.wait(timeout=2)
+                            except Exception:
+                                pass
+                            break
+                        time.sleep(.04)
+                finally:
+                    with self._process_lock:
+                        self._active_processes.discard(process)
             log=log_path.read_text(encoding='utf-8',errors='replace')[-24000:]
             line_offset=preamble.count('\n')+2
             import re
@@ -191,6 +208,18 @@ class Compiler:
             temp_output=output.with_name(output.name+'.'+__import__('uuid').uuid4().hex+'.tmp');shutil.copyfile(pdf,temp_output);temp_output.replace(output)
         self.trim_cache(output)
         return CompileResult(True,output,log)
+
+    def kill_all_active(self):
+        """Immediately forces termination of all currently running compiler subprocesses."""
+        with self._process_lock:
+            procs = list(self._active_processes)
+        for proc in procs:
+            try:
+                proc.kill()
+                if os.name == 'nt':
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True, timeout=1)
+            except Exception:
+                pass
 
     def trim_cache(self, keep=None):
         files=sorted((self.root/'cache').glob('*.pdf'),key=lambda p:p.stat().st_mtime)

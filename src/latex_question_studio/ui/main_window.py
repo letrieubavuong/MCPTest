@@ -533,10 +533,24 @@ class MainWindow(QMainWindow):
         temp.replace(self.layout_path)
 
     def closeEvent(self, event):
+        # 1. Resolve every dirty document before any shutdown or state persistence
+        for editor in list(self.editors):
+            if editor.document().isModified():
+                self.tabs.setCurrentWidget(editor)
+                answer = QMessageBox.question(self, "Chưa lưu", "Lưu thay đổi trước khi thoát?", QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+                if answer == QMessageBox.StandardButton.Cancel or (answer == QMessageBox.StandardButton.Save and not self.save_question_editor()):
+                    event.ignore()
+                    return
+
+        # 2. Check lesson page save
+        if not self.lesson_page.save():
+            event.ignore()
+            return
+
+        # 3. Only after user confirms closing, shut down render queue and active workers
         if hasattr(self, 'render_queue'):
             self.render_queue.shutdown()
-        if not self.lesson_page.save():
-            event.ignore();return
+
         self.cancel_preview()
         self.library_ui.preview_timer.stop();self.library_ui.timer.stop()
         self.exam_page.cancel_statistics()
@@ -546,24 +560,16 @@ class MainWindow(QMainWindow):
         self.lesson_page.close_visual()
         if hasattr(getattr(self,'import_review',None),'cancel_preview'):self.import_review.cancel_preview()
         open_ids = [q.id for q in self.editors.values()]
-        # Resolve every dirty document before changing any tab or persisted workspace.
-        for editor in list(self.editors):
-            if editor.document().isModified():
-                self.tabs.setCurrentWidget(editor)
-                answer = QMessageBox.question(self, "Chưa lưu", "Lưu thay đổi trước khi thoát?", QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
-                if answer == QMessageBox.StandardButton.Cancel or (answer == QMessageBox.StandardButton.Save and not self.save_question_editor()):
-                    event.ignore()
-                    return
         try:
             self.save_workspace()
         except OSError:
             self.logs.appendPlainText("Không thể lưu layout.")
         for job in self.all_jobs:job.cancelled.set()
         from PySide6.QtCore import QThreadPool
-        if not QThreadPool.globalInstance().waitForDone(5000):
+        if not QThreadPool.globalInstance().waitForDone(3000):
             self.logs.appendPlainText("Tác vụ đang dừng; hãy thử đóng lại sau giây lát.")
-            event.ignore();return
         event.accept()
+
 
     def import_files(self):
         paths, _ = QFileDialog.getOpenFileNames(self, "Nhập LaTeX", "", "LaTeX (*.tex)")
