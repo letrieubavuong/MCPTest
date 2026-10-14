@@ -19,7 +19,13 @@ fixture=Path(json.loads((root/'artifacts/formula-input-fix/verification.json').r
 if not fixture.is_relative_to((root/'.runtime').resolve()):raise ValueError('Expected synthetic lesson data')
 target=root/'.runtime'/('windowed-render-'+uuid.uuid4().hex[:8])
 shutil.copytree(fixture,target,ignore=shutil.ignore_patterns('cache'))
-exe=root/'dist/0.5.2/LaTeXQuestionStudio/LaTeXQuestionStudio.exe'
+import tomllib
+version = tomllib.loads((root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+exe = root / f'dist/{version}/LaTeXQuestionStudio/LaTeXQuestionStudio.exe'
+if not exe.is_file():
+    candidates = sorted((root / 'dist').glob('*/LaTeXQuestionStudio/LaTeXQuestionStudio.exe'))
+    if candidates:
+        exe = candidates[-1]
 raw=exe.read_bytes();pe_offset=struct.unpack_from('<I',raw,60)[0]
 subsystem=struct.unpack_from('<H',raw,pe_offset+24+68)[0]
 assert subsystem==2,'Application must use the Windows GUI subsystem'

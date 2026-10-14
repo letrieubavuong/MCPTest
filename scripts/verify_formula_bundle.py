@@ -17,7 +17,13 @@ fixture=Path(evidence['synthetic_data']).resolve()
 if not fixture.is_relative_to((root/'.runtime').resolve()):raise ValueError('Expected synthetic workspace data')
 target=root/'.runtime'/('formula-bundle-'+uuid.uuid4().hex[:8])
 shutil.copytree(fixture,target,ignore=shutil.ignore_patterns('cache'))
-exe=root/'dist/0.5.2/LaTeXQuestionStudio/LaTeXQuestionStudio.exe'
+import tomllib
+version = tomllib.loads((root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+exe = root / f'dist/{version}/LaTeXQuestionStudio/LaTeXQuestionStudio.exe'
+if not exe.is_file():
+    candidates = sorted((root / 'dist').glob('*/LaTeXQuestionStudio/LaTeXQuestionStudio.exe'))
+    if candidates:
+        exe = candidates[-1]
 process=subprocess.run([str(exe),'--smoke-test','--smoke-delay-ms','12000','--data-dir',str(target),'--screenshot',str(output/'bundle-window.png')],capture_output=True,timeout=45)
 
 
