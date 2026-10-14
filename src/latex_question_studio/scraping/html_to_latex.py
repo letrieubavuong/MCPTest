@@ -583,7 +583,9 @@ class LaTeXEmitter:
         # Subscript & Superscript in Text vs Math Mode
         elif tag == "sup":
             inner_text = node.text_content().strip()
-            if re.match(r"^[\d\+\-\*nxyz]+$", inner_text):
+            if inner_text in ("o", "0", "°"):
+                self.emit(r"$^\circ$")
+            elif re.match(r"^[\d\+\-\*nxyz]+$", inner_text):
                 self.emit(f"$^{inner_text}$" if len(inner_text) == 1 else f"$^{{{inner_text}}}$")
             else:
                 # Text superscript

@@ -2,6 +2,7 @@
 from latex_question_studio.scraping.adapters.base import BaseSiteAdapter, RawExtractedQuestion
 from latex_question_studio.scraping.adapters.vietjack import VietjackAdapter
 from latex_question_studio.scraping.adapters.tech24 import Tech24Adapter
+from latex_question_studio.scraping.adapters.tech12h import Tech12hAdapter
 from latex_question_studio.scraping.adapters.loigiaihay import LoigiaihayAdapter
 from latex_question_studio.scraping.adapters.generic import GenericArticleAdapter
 
@@ -9,6 +10,7 @@ from latex_question_studio.scraping.adapters.generic import GenericArticleAdapte
 ADAPTER_CLASSES: list[type[BaseSiteAdapter]] = [
     VietjackAdapter,
     Tech24Adapter,
+    Tech12hAdapter,
     LoigiaihayAdapter,
     GenericArticleAdapter,
 ]
@@ -30,6 +32,7 @@ __all__ = [
     "RawExtractedQuestion",
     "VietjackAdapter",
     "Tech24Adapter",
+    "Tech12hAdapter",
     "LoigiaihayAdapter",
     "GenericArticleAdapter",
     "ADAPTER_CLASSES",

@@ -18,7 +18,7 @@ from latex_question_studio.preview.compiler import Compiler, BUILTIN_PREAMBLE
 from latex_question_studio.scraping.adapters import get_adapter_for_url
 from latex_question_studio.scraping.adapters.base import BaseSiteAdapter, RawExtractedQuestion
 from latex_question_studio.scraping.fetcher import SafeFetcher
-from latex_question_studio.scraping.html_to_latex import html_to_latex
+from latex_question_studio.scraping.html_to_latex import html_to_latex, escape_latex_text
 
 
 @dataclass
@@ -188,9 +188,10 @@ class WebScraperService:
                                 staged_assets.append(staged)
                                 # Replace placeholder in LaTeX text
                                 rel_posix = staged["relative_path"]
-                                img_macro = f"\\includegraphics[max width=0.85\\linewidth]{{{rel_posix}}}"
+                                img_macro = f"\\includegraphics[width=0.65\\linewidth]{{{rel_posix}}}"
                                 prompt_latex = prompt_latex.replace(f"[IMG:{img_url}]", img_macro)
                                 sol_latex = sol_latex.replace(f"[IMG:{img_url}]", img_macro)
+                                options_latex = [opt.replace(f"[IMG:{img_url}]", img_macro) for opt in options_latex]
                                 downloaded = True
                         except Exception:
                             pass
@@ -200,10 +201,12 @@ class WebScraperService:
                         missing_tag = f"% [THIẾU ẢNH: {img_url}]\n"
                         prompt_latex = prompt_latex.replace(f"[IMG:{img_url}]", missing_tag)
                         sol_latex = sol_latex.replace(f"[IMG:{img_url}]", missing_tag)
+                        options_latex = [opt.replace(f"[IMG:{img_url}]", missing_tag) for opt in options_latex]
 
             # Clean any remaining placeholder tokens
             prompt_latex = re.sub(r'\[IMG:[^\]]+\]', '', prompt_latex).strip()
             sol_latex = re.sub(r'\[IMG:[^\]]+\]', '', sol_latex).strip()
+            options_latex = [re.sub(r'\[IMG:[^\]]+\]', '', opt).strip() for opt in options_latex]
 
             draft = QuestionDraft(
                 id=str(uuid.uuid4()),
@@ -333,8 +336,9 @@ class WebScraperService:
         essay_drafts = [d for d in verified if d.question_type == "essay"]
 
         # Build Phase K exam body
+        safe_title = escape_latex_text(exam_title.upper())
         body_lines = [
-            f"\\TieudeT{{{exam_title.upper()}}}",
+            f"\\TieudeT{{{safe_title}}}",
             "",
         ]
 
