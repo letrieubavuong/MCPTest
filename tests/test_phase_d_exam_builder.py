@@ -143,9 +143,14 @@ def test_generate_multiple_variants(tmp_path):
     q_ids = create_sample_questions(services)
 
     codes = ['101', '102', '103', '104']
+    q_extra = services.questions.create(
+        r'\begin{ex}Câu hỏi trắc nghiệm số 2?\choice{A}{\True B}{C}{D}\loigiai{B đúng}\end{ex}',
+        'mcq', cognitive_level='NB'
+    )
+    manual_ids = list(q_ids.values()) + [q_extra.id]
     multi_results = exam.generate_multiple(
         title='Đề Thi Thử Tốt Nghiệp',
-        manual_ids=list(q_ids.values()),
+        manual_ids=manual_ids,
         base_seed=2026,
         exam_codes=codes,
         shuffle_questions=True,
@@ -157,7 +162,7 @@ def test_generate_multiple_variants(tmp_path):
 
     for i, snap in enumerate(snapshots):
         assert snap['exam_code'] == codes[i]
-        assert len(snap['questions']) == 4
+        assert len(snap['questions']) == 5
 
     # Khác mã đề sẽ có hoán vị ngẫu nhiên khác nhau giữa các mã
     perms = [tuple(q['question_id'] for q in s['questions']) for s in snapshots]

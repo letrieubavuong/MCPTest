@@ -22,19 +22,21 @@ HIDE_ANSWERS = r"""\renewcommand{\True}{}
 def shuffled_question(item, rng, shuffle_options=True):
     source = item.source
     permutation = []
-    if item.question_type in ('mcq', 'true_false'):
+    if item.question_type == 'mcq':
         options = item.answer['options']
         permutation = list(range(len(options)))
-        if shuffle_options and item.question_type == 'mcq':
+        if shuffle_options:
             rng.shuffle(permutation)
-        if item.question_type == 'mcq':
-            answer = {'correct_letter': next(chr(65+i) for i, old in enumerate(permutation) if options[old]['correct'])}
-        else:
-            answer = {'truth': [option['correct'] for option in options]}
+        answer = {'correct_letter': next(chr(65+i) for i, old in enumerate(permutation) if options[old]['correct'])}
         if permutation != list(range(len(options))):
             for index in reversed(range(len(options))):
                 option = options[index]
                 source = source[:option['start']+1] + options[permutation[index]]['source'] + source[option['end']-1:]
+    elif item.question_type == 'true_false':
+        # Invariant Phase K2: statements a, b, c, d MUST NEVER be shuffled under any circumstances
+        options = item.answer['options']
+        permutation = list(range(len(options)))
+        answer = {'truth': [option['correct'] for option in options]}
     elif item.question_type == 'short_answer':
         answer = {'value': item.answer['value']}
     else:
@@ -136,32 +138,70 @@ class ExamService:
             if not assign(slot,set()):raise ValueError('Ma trận chồng lặp không có đủ câu độc lập')
         ids=manual+[qid for qid,slot in sorted(assignment.items(),key=lambda pair:pair[1])]
         if not ids:raise ValueError('Chưa chọn câu hỏi hoặc ma trận')
-        if shuffle_questions:rng.shuffle(ids)
-        snapshots=[];global_assets={}
+
+        from latex_question_studio.persistence.analysis import parsed
+        # Partition questions into 4 canonical sections (Phase K contract):
+        # Part I: MCQ (\choice)
+        # Part II: True/False (\choiceTF)
+        # Part III: Short Answer (\shortans)
+        # Part IV: Essay (Tự luận)
+        mcq_ids, tf_ids, sa_ids, essay_ids = [], [], [], []
+        cached_items = {}
         for qid in ids:
             if cancelled():raise InterruptedError("Đã hủy tạo đề")
-            q=self.services.questions.get(qid)
+            q = self.services.questions.get(qid)
             if not q:raise ValueError('Câu hỏi đã bị xóa')
-            from latex_question_studio.persistence.analysis import parsed
-            items=parsed(self.services.database,qid,q.latex_source)
-            if len(items)!=1 or items[0].diagnostics:raise ValueError('Câu chưa phân tích hợp lệ: '+qid[:8])
-            item=items[0];shuffled=shuffled_question(item,rng,shuffle_options)
-            source=q.latex_source[:item.start]+shuffled['source']+q.latex_source[item.end:]
-            permutation=shuffled['permutation'];answer=shuffled['answer']
-            replacements=[]
+            items = parsed(self.services.database, qid, q.latex_source)
+            if len(items) != 1 or items[0].diagnostics:raise ValueError('Câu chưa phân tích hợp lệ: ' + qid[:8])
+            cached_items[qid] = (q, items[0])
+            q_type = items[0].question_type
+            if q_type == 'mcq':
+                mcq_ids.append(qid)
+            elif q_type == 'true_false':
+                tf_ids.append(qid)
+            elif q_type == 'short_answer':
+                sa_ids.append(qid)
+            else:
+                essay_ids.append(qid)
+
+        if shuffle_questions:
+            rng.shuffle(mcq_ids)
+            rng.shuffle(tf_ids)
+            rng.shuffle(sa_ids)
+            # Invariant: Essay questions maintain teacher's specified order (never shuffled)
+
+        ordered_ids = mcq_ids + tf_ids + sa_ids + essay_ids
+
+        snapshots = []; global_assets = {}
+        for qid in ordered_ids:
+            if cancelled():raise InterruptedError("Đã hủy tạo đề")
+            q, item = cached_items[qid]
+            shuffled = shuffled_question(item, rng, shuffle_options)
+            source = q.latex_source[:item.start] + shuffled['source'] + q.latex_source[item.end:]
+            permutation = shuffled['permutation']; answer = shuffled['answer']
+            replacements = []
             with self.services.database.connect() as c:
-                assets={r['original_reference']:self.services.config.data_dir/r['relative_path'] for r in c.execute('SELECT qa.original_reference,a.relative_path FROM question_assets qa JOIN assets a ON qa.asset_id=a.id WHERE qa.question_id=?',(qid,))}
+                assets = {r['original_reference']: self.services.config.data_dir / r['relative_path'] for r in c.execute('SELECT qa.original_reference,a.relative_path FROM question_assets qa JOIN assets a ON qa.asset_id=a.id WHERE qa.question_id=?', (qid,))}
             for command in commands(source):
-                if command.name!='includegraphics':continue
-                cursor=skip_space(source,command.end)
-                if cursor<len(source) and source[cursor]=='*':cursor=skip_space(source,cursor+1)
-                if cursor<len(source) and source[cursor]=='[':_,cursor,_=group(source,cursor,'[',']')
-                reference,end,start=group(source,cursor)
-                if reference not in assets:raise ValueError('Thiếu ảnh: '+reference)
-                unique='assets/'+assets[reference].name
-                replacements.append((start+1,end-1,unique));global_assets[unique]=str(assets[reference])
-            for start,end,value in reversed(replacements):source=source[:start]+value+source[end:]
-            snapshots.append({'question_id':qid,'revision':q.revision,'source':source,'original_source':q.latex_source,'solution':item.solution,'permutation':permutation,'answer':answer})
+                if command.name != 'includegraphics': continue
+                cursor = skip_space(source, command.end)
+                if cursor < len(source) and source[cursor] == '*': cursor = skip_space(source, cursor + 1)
+                if cursor < len(source) and source[cursor] == '[': _, cursor, _ = group(source, cursor, '[', ']')
+                reference, end, start = group(source, cursor)
+                if reference not in assets: raise ValueError('Thiếu ảnh: ' + reference)
+                unique = 'assets/' + assets[reference].name
+                replacements.append((start + 1, end - 1, unique)); global_assets[unique] = str(assets[reference])
+            for start, end, value in reversed(replacements): source = source[:start] + value + source[end:]
+            snapshots.append({
+                'question_id': qid,
+                'revision': q.revision,
+                'question_type': item.question_type,
+                'source': source,
+                'original_source': q.latex_source,
+                'solution': item.solution,
+                'permutation': permutation,
+                'answer': answer
+            })
         paper,version=str(uuid.uuid4()),str(uuid.uuid4());now=datetime.now(timezone.utc).isoformat()
         # Suggestions only: content equality must not silently remove teacher-selected IDs.
         from difflib import SequenceMatcher
