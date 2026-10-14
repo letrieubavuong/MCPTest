@@ -10,6 +10,7 @@ from latex_question_studio.application.search import SearchService
 from latex_question_studio.persistence.questions import QuestionRepository
 from latex_question_studio.domain.curriculum import classification,breadcrumb
 from latex_question_studio.parsing.latex import group,skip_space
+from latex_question_studio.preview.queue import RenderPriority
 TYPE_LABELS={'mcq':'Trắc nghiệm','true_false':'Đúng / sai','essay':'Tự luận','short_answer':'Trả lời ngắn','unknown':'Chưa xác định'}
 
 SUPERSCRIPTS=str.maketrans('0123456789+-=()nxyz','⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿˣʸᶻ')
@@ -267,6 +268,14 @@ class LibraryWorkspace:
         self.mode.currentIndexChanged.connect(self.switch_mode)
         self.stack.setCurrentIndex(1)
         w.refresh_button.hide()
+        if hasattr(w, 'render_queue'):
+            w.render_queue.signals.ready.connect(self.on_queue_thumbnail_ready)
+            w.render_queue.signals.failed.connect(self.on_queue_thumbnail_failed)
+        self.scroll_timer = QTimer(w)
+        self.scroll_timer.setSingleShot(True)
+        self.scroll_timer.setInterval(120)
+        self.scroll_timer.timeout.connect(self.on_cards_scroll_settled)
+        self.cards.verticalScrollBar().valueChanged.connect(lambda *a: self.scroll_timer.start())
 
         # Floating Batch Action Bar for bulk question management
         self.batch_bar = QFrame()
@@ -462,8 +471,12 @@ class LibraryWorkspace:
         menu.addAction('Sao chép câu',self.copy);menu.addAction('Lưu trữ câu',self.archive)
         menu.exec(sender.viewport().mapToGlobal(pos))
     def filters_changed(self,*args):
+        if hasattr(self.w, 'render_queue'):
+            self.w.render_queue.cancel_all_pending()
         self.w.search_text=self.query.text();self.w.search_filters={'question_type':self.kind.currentData(),'cognitive_level':self.level.currentData()};self.w.offset=0;self.w.refresh_status(refresh_tree=False)
     def reset_filters(self):
+        if hasattr(self.w, 'render_queue'):
+            self.w.render_queue.cancel_all_pending()
         for widget in (self.query,self.kind,self.level,self.state):widget.blockSignals(True)
         self.query.clear();self.kind.setCurrentIndex(0);self.level.setCurrentIndex(0);self.state.setCurrentIndex(0);self.w.selected_taxonomy=None
         for widget in (self.query,self.kind,self.level,self.state):widget.blockSignals(False)
@@ -609,6 +622,33 @@ class LibraryWorkspace:
                     retry_btn.clicked.connect(lambda _,qid=q.id:(self.select_single_id(qid),self.w.ensure_preview_visible(),self.w.compile_current()))
                     err_l.addWidget(err_lbl, 1); err_l.addWidget(retry_btn)
                     card_layout.addWidget(err_box)
+                else:
+                    placeholder = QFrame()
+                    placeholder.setObjectName('cardRenderPlaceholder')
+                    ph_layout = QHBoxLayout(placeholder)
+                    ph_layout.setContentsMargins(8, 14, 8, 14)
+                    ph_lbl = QLabel("⏳ Đang chuẩn bị xem trước…")
+                    ph_lbl.setStyleSheet("color: #64748b; font-size: 11px; font-style: italic;")
+                    ph_layout.addWidget(ph_lbl, 0, Qt.AlignmentFlag.AlignCenter)
+                    card_layout.addWidget(placeholder)
+                    if hasattr(self.w, 'render_queue'):
+                        try:
+                            config = self.w.compiler_config()
+                            k = self.key(q, q.latex_source, config)
+                            thumb_key = hashlib.sha256(str(k).encode('utf-8')).hexdigest()
+                            assets = self.w.asset_map(q.id) if hasattr(self.w, 'asset_map') else {}
+                            prio = RenderPriority.SELECTED if q.id == self.selected_id else RenderPriority.PREFETCH
+                            self.w.render_queue.enqueue(
+                                question_id=q.id,
+                                revision=q.revision,
+                                source=q.latex_source,
+                                key=thumb_key,
+                                config=config,
+                                assets=assets,
+                                priority=prio,
+                            )
+                        except Exception:
+                            pass
                 actions=QHBoxLayout();actions.setContentsMargins(0,4,0,0);actions.setSpacing(8)
                 pv_btn=QPushButton('Xem trước');pv_btn.setObjectName('cardActionBtn')
                 pv_btn.clicked.connect(lambda _,qid=q.id:(self.select_single_id(qid),self.w.ensure_preview_visible(),self.w.compile_current()))
@@ -626,8 +666,119 @@ class LibraryWorkspace:
             if q.id in selected:item.setSelected(True)
             if q.id==current:self.cards.setCurrentItem(item)
         self.cards.verticalScrollBar().setValue(scroll_val);self.cards.blockSignals(False)
+
+    def on_queue_thumbnail_ready(self, question_id, revision, source, pix, key):
+        self.images[question_id] = (revision, source, pix)
+        while len(self.images) > 40:
+            self.images.pop(next(iter(self.images)))
+        self.compile_errors.pop(question_id, None)
+        if self.mode.currentIndex() != 1:
+            return
+        card_w = max(320, (self.cards.viewport().width() - 24) if self.cards.viewport().width() > 50 else 450)
+        scaled_pix = pix.scaledToWidth(min(card_w - 30, pix.width()), Qt.TransformationMode.SmoothTransformation)
+        for i in range(self.cards.count()):
+            item = self.cards.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == question_id:
+                box = self.cards.itemWidget(item)
+                if not box or box.property('expanded') != 'true':
+                    break
+                placeholder = box.findChild(QFrame, 'cardRenderPlaceholder')
+                existing_img = box.findChild(QLabel, 'cardRenderImg')
+                existing_err = box.findChild(QFrame, 'cardErrorBadge')
+                if existing_err:
+                    box.layout().removeWidget(existing_err)
+                    existing_err.deleteLater()
+                if placeholder:
+                    layout = box.layout()
+                    idx = layout.indexOf(placeholder)
+                    placeholder.hide()
+                    layout.removeWidget(placeholder)
+                    placeholder.deleteLater()
+                    img_lbl = QLabel()
+                    img_lbl.setObjectName('cardRenderImg')
+                    img_lbl.setPixmap(scaled_pix)
+                    layout.insertWidget(idx, img_lbl)
+                elif existing_img:
+                    existing_img.setPixmap(scaled_pix)
+                else:
+                    layout = box.layout()
+                    img_lbl = QLabel()
+                    img_lbl.setObjectName('cardRenderImg')
+                    img_lbl.setPixmap(scaled_pix)
+                    layout.insertWidget(max(0, layout.count() - 1), img_lbl)
+                box.adjustSize()
+                item.setSizeHint(QSize(card_w, max(140, box.sizeHint().height())))
+                break
+
+    def on_queue_thumbnail_failed(self, question_id, error_message, key):
+        self.compile_errors[question_id] = error_message
+        if self.mode.currentIndex() != 1:
+            return
+        card_w = max(320, (self.cards.viewport().width() - 24) if self.cards.viewport().width() > 50 else 450)
+        for i in range(self.cards.count()):
+            item = self.cards.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == question_id:
+                box = self.cards.itemWidget(item)
+                if not box or box.property('expanded') != 'true':
+                    break
+                placeholder = box.findChild(QFrame, 'cardRenderPlaceholder')
+                if placeholder:
+                    layout = box.layout()
+                    idx = layout.indexOf(placeholder)
+                    placeholder.hide()
+                    layout.removeWidget(placeholder)
+                    placeholder.deleteLater()
+                    err_box = QFrame()
+                    err_box.setObjectName('cardErrorBadge')
+                    err_l = QHBoxLayout(err_box)
+                    err_l.setContentsMargins(6, 2, 6, 2)
+                    err_l.setSpacing(6)
+                    err_lbl = QLabel(f"⚠️ Render lỗi: {error_message[:60]}…")
+                    err_lbl.setStyleSheet("color: #dc2626; font-size: 11px;")
+                    err_lbl.setToolTip(error_message)
+                    retry_btn = QPushButton("Thử lại")
+                    retry_btn.setStyleSheet("background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 4px; padding: 1px 6px; font-size: 11px;")
+                    retry_btn.clicked.connect(lambda _, qid=question_id: (self.select_single_id(qid), self.w.ensure_preview_visible(), self.w.compile_current()))
+                    err_l.addWidget(err_lbl, 1)
+                    err_l.addWidget(retry_btn)
+                    layout.insertWidget(idx, err_box)
+                    box.adjustSize()
+                    item.setSizeHint(QSize(card_w, max(140, box.sizeHint().height())))
+                break
+
+    def on_cards_scroll_settled(self):
+        if not hasattr(self.w, 'render_queue') or self.mode.currentIndex() != 1:
+            return
+        vp_rect = self.cards.viewport().rect()
+        visible_keys = set()
+        config = self.w.compiler_config()
+        for i in range(self.cards.count()):
+            item = self.cards.item(i)
+            item_rect = self.cards.visualItemRect(item)
+            if item_rect.intersects(vp_rect):
+                qid = item.data(Qt.ItemDataRole.UserRole)
+                if qid in self.expanded_ids:
+                    q = next((x for x in self.w.table_model.rows if x.id == qid), None)
+                    if q:
+                        k = self.key(q, q.latex_source, config)
+                        thumb_key = hashlib.sha256(str(k).encode('utf-8')).hexdigest()
+                        visible_keys.add(thumb_key)
+        if visible_keys:
+            self.w.render_queue.update_priority(visible_keys, RenderPriority.VIEWPORT)
+
     def card_selected(self,row):
-        if 0<=row<len(self.w.table_model.rows):self.w.table.setCurrentIndex(self.w.table_model.index(row,0));self.select(row)
+        if 0<=row<len(self.w.table_model.rows):
+            self.w.table.setCurrentIndex(self.w.table_model.index(row,0))
+            self.select(row)
+            q = self.w.table_model.rows[row]
+            if hasattr(self.w, 'render_queue') and q.id in self.expanded_ids:
+                try:
+                    config = self.w.compiler_config()
+                    k = self.key(q, q.latex_source, config)
+                    thumb_key = hashlib.sha256(str(k).encode('utf-8')).hexdigest()
+                    self.w.render_queue.update_priority({thumb_key}, RenderPriority.SELECTED)
+                except Exception:
+                    pass
     def ids(self):
         if self.mode.currentIndex()==1 and self.w.tabs.currentIndex()==0:return [i.data(Qt.ItemDataRole.UserRole) for i in self.cards.selectedItems()]
         return self.w.selected_exam_ids()

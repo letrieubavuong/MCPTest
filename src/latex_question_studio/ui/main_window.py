@@ -56,7 +56,21 @@ class MainWindow(QMainWindow):
         self.preview_job = None
         self.layout_path = services.config.data_dir / "workspace.json"
         from latex_question_studio.preview.thumbnails import ThumbnailManager
+        from latex_question_studio.preview.compiler import Compiler
+        from latex_question_studio.preview.queue import ThumbnailRenderQueue
         self.thumbnail_manager = ThumbnailManager(services.config.data_dir / "cache" / "thumbnails")
+        config = self.compiler_config()
+        self.thumbnail_compiler = Compiler(
+            services.config.data_dir,
+            engine=config.get('engine', 'pdflatex'),
+            preamble_file=config.get('preamble_file') or None
+        )
+        self.render_queue = ThumbnailRenderQueue(
+            self.thumbnail_compiler,
+            self.thumbnail_manager,
+            max_workers=2,
+            parent=self
+        )
         from latex_question_studio.ui.shell.application import ApplicationShell
         self.shell = ApplicationShell(self)
         self.drawer=self.shell.activity;self.drawer_toggle=self.shell.toggle
@@ -848,11 +862,31 @@ class MainWindow(QMainWindow):
 
     def save_compiler_settings(self):
         path=self.services.config.data_dir/"compiler.json";temp=path.with_suffix('.tmp')
-        temp.write_text(json.dumps({'engine':self.engine_input.text().strip() or 'pdflatex','preamble_file':self.preamble_input.text().strip()},ensure_ascii=False),encoding='utf-8');temp.replace(path)
+        config = {'engine':self.engine_input.text().strip() or 'pdflatex','preamble_file':self.preamble_input.text().strip()}
+        temp.write_text(json.dumps(config,ensure_ascii=False),encoding='utf-8');temp.replace(path)
         self.settings_status.setText("Đã lưu cấu hình pdfLaTeX.")
+        if hasattr(self, 'thumbnail_compiler'):
+            from latex_question_studio.preview.compiler import Compiler
+            self.thumbnail_compiler = Compiler(
+                self.services.config.data_dir,
+                engine=config.get('engine', 'pdflatex'),
+                preamble_file=config.get('preamble_file') or None
+            )
+            if hasattr(self, 'render_queue'):
+                self.render_queue.compiler = self.thumbnail_compiler
 
     def cancel_preview(self):
         if self.preview_job:self.preview_job.cancelled.set()
+
+    def asset_map(self, question_id: str) -> dict:
+        with self.services.database.connect() as c:
+            return {
+                r['original_reference']: self.services.config.data_dir / r['relative_path']
+                for r in c.execute(
+                    'SELECT qa.original_reference, a.relative_path FROM question_assets qa JOIN assets a ON a.id=qa.asset_id WHERE qa.question_id=?',
+                    (question_id,)
+                )
+            }
 
     def compile_current(self):
         if self.pages.currentIndex()==4:
@@ -881,8 +915,7 @@ class MainWindow(QMainWindow):
             result,image,pages=cached
             self.preview_ready((generation,q.id,source,result,image,pages,0));return
         compiler=Compiler(self.services.config.data_dir,engine=config.get('engine','pdflatex'),preamble_file=config.get('preamble_file') or None)
-        with self.services.database.connect() as c:
-            assets={r['original_reference']:self.services.config.data_dir/r['relative_path'] for r in c.execute('SELECT qa.original_reference,a.relative_path FROM question_assets qa JOIN assets a ON a.id=qa.asset_id WHERE qa.question_id=?',(q.id,))}
+        assets = self.asset_map(q.id)
         def work(cancelled,progress):
             result=compiler.compile(source,assets,cancelled)
             image,pages=(Compiler.render(result.pdf) if result.ok else (None,0))
@@ -1146,3 +1179,8 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QEvent,QTimer
         if hasattr(self,'library_ui') and obj==self.library_ui.scroll.viewport() and event.type()==QEvent.Type.Resize:QTimer.singleShot(0,self.library_ui.fit)
         return super().eventFilter(obj,event)
+
+    def closeEvent(self, event):
+        if hasattr(self, 'render_queue'):
+            self.render_queue.shutdown()
+        super().closeEvent(event)
