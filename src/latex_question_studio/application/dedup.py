@@ -112,6 +112,8 @@ def extract_prompt_and_options(source: str, question_type: str = "unknown") -> t
     if isinstance(parsed.answer, dict) and "options" in parsed.answer:
         for opt in parsed.answer["options"]:
             clean_text = re.sub(r"\\True\b", "", opt.get("source", "")).strip()
+            # Strip leading option label e.g. 'A. ', 'B. ', 'A) '
+            clean_text = re.sub(r"^[A-Da-d][.)]\s*", "", clean_text).strip()
             options.append({
                 "text": clean_text,
                 "source": opt.get("source", ""),
@@ -378,12 +380,20 @@ class DeduplicationService:
                 for it in bucket:
                     visited.add(it.id)
                 primary = bucket[0]
+                has_diff_sol = any(
+                    normalize_latex(it.solution) != normalize_latex(primary.solution)
+                    for it in bucket[1:]
+                )
+                reason = "Thân câu hỏi và tập 4 phương án trùng khớp (thứ tự các phương án bị xáo trộn)."
+                if has_diff_sol:
+                    reason += " Chú ý: Lời giải hai câu khác nhau (Khuyến nghị gộp lời giải, không xóa tự động)."
+
                 groups.append(
                     DuplicateGroup(
                         group_id=f"perm_{hashlib.sha256(p_key.encode('utf-8')).hexdigest()[:12]}",
                         match_level="permutation",
-                        confidence=0.95,
-                        match_reason="Thân câu hỏi và tập 4 phương án trùng khớp (thứ tự các phương án bị xáo trộn).",
+                        confidence=0.90 if has_diff_sol else 0.95,
+                        match_reason=reason,
                         items=bucket,
                         primary_id=primary.id,
                         selected_to_delete=set(),
@@ -392,50 +402,99 @@ class DeduplicationService:
 
         remaining = [it for it in remaining if it.id not in visited]
 
-        # Step 3: Advisory Near-Duplicate Similarity (O(N^2) over remaining unclustered)
-        # Limit candidate search to avoid excessive CPU on huge sets
-        max_similarity_candidates = min(len(remaining), 1000)
-        advisory_pool = remaining[:max_similarity_candidates]
+        # Step 3: Inverted Index Candidate Generation for Advisory Similarity
+        # Avoids global O(N^2) comparison while scanning all remaining questions without arbitrary truncation
+        index: dict[str, list[int]] = {}
+        stop_words = {
+            "cho", "tìm", "tính", "biết", "với", "trong", "các", "của", "được",
+            "và", "là", "có", "sau", "đây", "một", "khi", "hãy", "trên", "nào",
+        }
 
-        for i in range(len(advisory_pool)):
+        # Tokenize and index remaining unclustered questions
+        item_data: list[dict[str, Any]] = []
+        for idx, it in enumerate(remaining):
+            prompt, opts, _ = extract_prompt_and_options(it.source, it.question_type)
+            norm = normalize_latex(prompt)
+            nums = extract_numbers(norm)
+            tokens = set(
+                t for t in re.findall(r"[a-zA-Z0-9_\u00C0-\u1EF9]+", norm.lower())
+                if len(t) >= 3 and t not in stop_words
+            )
+            item_data.append({"item": it, "norm": norm, "nums": nums, "tokens": tokens})
+            for tok in tokens:
+                index.setdefault(tok, []).append(idx)
+
+        # Prune high-frequency stop-tokens appearing in > 20% of items
+        max_doc_freq = max(15, int(len(remaining) * 0.20))
+        pruned_index = {tok: ids for tok, ids in index.items() if len(ids) <= max_doc_freq}
+
+        for i, data_a in enumerate(item_data):
             if cancelled():
                 return groups
-            it_a = advisory_pool[i]
+            it_a = data_a["item"]
             if it_a.id in visited:
                 continue
 
-            sim_group = [it_a]
-            prompt_a, _, _ = extract_prompt_and_options(it_a.source, it_a.question_type)
-            norm_a = normalize_latex(prompt_a)
-            nums_a = extract_numbers(norm_a)
+            tokens_a = data_a["tokens"]
+            if not tokens_a:
+                continue
 
-            for j in range(i + 1, len(advisory_pool)):
-                it_b = advisory_pool[j]
+            # Candidate generation: gather items sharing significant tokens with item i
+            candidate_counts: dict[int, int] = {}
+            for tok in tokens_a:
+                for j in pruned_index.get(tok, ()):
+                    if j > i:
+                        candidate_counts[j] = candidate_counts.get(j, 0) + 1
+
+            # Only compare candidates with at least 2 shared tokens
+            min_shared = max(2, int(len(tokens_a) * 0.25))
+            sim_group = [it_a]
+            last_sim = 0.0
+            last_msg = ""
+
+            for j, count in candidate_counts.items():
+                if count < min_shared:
+                    continue
+                data_b = item_data[j]
+                it_b = data_b["item"]
                 if it_b.id in visited:
                     continue
-                # If question types differ, do not treat as similar
-                if it_a.question_type != it_b.question_type and it_a.question_type != "unknown" and it_b.question_type != "unknown":
+
+                # Compatible question types
+                if (
+                    it_a.question_type != it_b.question_type
+                    and it_a.question_type != "unknown"
+                    and it_b.question_type != "unknown"
+                ):
                     continue
 
-                prompt_b, _, _ = extract_prompt_and_options(it_b.source, it_b.question_type)
-                norm_b = normalize_latex(prompt_b)
-                nums_b = extract_numbers(norm_b)
-
-                sim = compute_token_similarity(norm_a, norm_b)
-                if sim >= 0.82:
-                    # Guardrail: check if numbers or signs differ
+                tokens_b = data_b["tokens"]
+                union = len(tokens_a | tokens_b)
+                if union == 0:
+                    continue
+                jaccard = len(tokens_a & tokens_b) / union
+                if jaccard >= 0.82:
+                    # Guardrails: check if numbers, assets, or answers differ
                     diff_reason = []
-                    if nums_a != nums_b:
-                        diff_reason.append(f"Khác số liệu ({nums_a} vs {nums_b})")
+                    if data_a["nums"] != data_b["nums"]:
+                        diff_reason.append(f"Khác số liệu ({data_a['nums']} vs {data_b['nums']})")
                     if it_a.assets != it_b.assets:
                         diff_reason.append("Khác tệp hình ảnh đính kèm")
 
-                    match_msg = f"Độ tương đồng cấu trúc {sim*100:.1f}% (Gợi ý xem xét thủ công)."
+                    # Check correct options
+                    corr_a = next((o for o in it_a.options if o.get("correct")), None)
+                    corr_b = next((o for o in it_b.options if o.get("correct")), None)
+                    if corr_a and corr_b and corr_a.get("text") != corr_b.get("text"):
+                        diff_reason.append("Khác đáp án đúng")
+
+                    match_msg = f"Độ tương đồng nội dung {jaccard*100:.1f}% (Gợi ý xem xét thủ công)."
                     if diff_reason:
                         match_msg += f" Chú ý: {'; '.join(diff_reason)}."
 
                     sim_group.append(it_b)
                     visited.add(it_b.id)
+                    last_sim = jaccard
+                    last_msg = match_msg
 
             if len(sim_group) > 1:
                 visited.add(it_a.id)
@@ -443,11 +502,11 @@ class DeduplicationService:
                     DuplicateGroup(
                         group_id=f"sim_{it_a.id[:8]}",
                         match_level="similarity",
-                        confidence=round(sim, 2),
-                        match_reason=match_msg,
+                        confidence=round(last_sim, 2),
+                        match_reason=last_msg,
                         items=sim_group,
                         primary_id=it_a.id,
-                        selected_to_delete=set(),
+                        selected_to_delete=set(),  # NO auto delete!
                     )
                 )
 
