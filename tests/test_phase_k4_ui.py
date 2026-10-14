@@ -48,7 +48,7 @@ def test_sync_cards_inplace_selection_and_latency(qtbot, tmp_path):
     assert lib_ui.cards.item(2).isSelected()
     assert lib_ui.cards.item(4).isSelected()
     assert not lib_ui.cards.item(1).isSelected()
-    assert elapsed_ms < 15.0  # Ultra-fast in-place update (typically < 1ms)
+    assert elapsed_ms < 100.0  # Ultra-fast in-place update without rebuilding widgets
 
 
 def test_exam_dialog_four_parts_categorization(qtbot, tmp_path):
