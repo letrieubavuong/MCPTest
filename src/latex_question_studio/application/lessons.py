@@ -184,7 +184,7 @@ STUDENT_COMMANDS=set(('begin end choice choiceTF choiceTFt True shortans loigiai
     'Rightarrow Leftrightarrow perp parallel angle degree '
     'implies iff Leftarrow leftarrow rightarrow leftrightarrow heva hoac motcot haicot bacot boncot '
     'motdong haidong badong bondong dapan bangdapan loai loaidapan nguon nganh tieude dethi tieuDe '
-    'tab rq lq circ setminus epsilon varepsilon varphi arcsin arccos arctan cotan gcd lcm pmod mod '
+    'tab rq lq circ setminus epsilon varepsilon varphi arcsin arccos arctan cotan gcd lcm pmod mod det dim ker deg inf sup '
     'clip shade shadedraw widehat widetilde TieudeT subject color textcolor definecolor '
     'bfseries itshape rmfamily sffamily tiny small large Large LARGE huge Huge phantom vphantom hphantom '
     'immini imminiL imlabel IMname IMlabel impicinpar doC ct itemch bth vd bt vidu chc printex '
