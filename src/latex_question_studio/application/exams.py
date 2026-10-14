@@ -310,9 +310,9 @@ class ExamService:
         subject = ''.join(escape.get(ch, ch) for ch in snapshot.get('subject', 'TOÁN'))
         school = ''.join(escape.get(ch, ch) for ch in snapshot.get('school', 'TRƯỜNG THPT'))
         duration = ''.join(escape.get(ch, ch) for ch in snapshot.get('duration', '90 phút'))
-        exam_code = ''.join(escape.get(ch, ch) for ch in snapshot.get('exam_code', '101'))
+        exam_code = ''.join(escape.get(ch, ch) for ch in (snapshot.get('exam_code') or '01'))
 
-        exam_code_str = str(snapshot.get('exam_code', '101')).strip()
+        exam_code_str = str(snapshot.get('exam_code') or '01').strip()
         if exam_code_str.startswith('De') or exam_code_str.startswith('de'):
             exam_tag = exam_code_str
         elif exam_code_str.isdigit():
@@ -750,7 +750,7 @@ class ExamService:
             "echo ========================================================\r\n"
             "echo HOAN TAT! Ban co the mo cac file PDF vua tao.\r\n"
             "echo ========================================================\r\n"
-            "pause\r\n"
+            "if \"%1\" neq \"--no-pause\" pause\r\n"
         )
         (folder / 'bien-dich.bat').write_text(bat_content, encoding='utf-8')
 
@@ -935,7 +935,7 @@ class ExamService:
             bat_lines.append(f"if exist {sub_name}\\bien-dich.bat (\r\n")
             bat_lines.append(f"    echo Dang bien dich ma de {sub_name}...\r\n")
             bat_lines.append(f"    cd {sub_name}\r\n")
-            bat_lines.append("    call bien-dich.bat\r\n")
+            bat_lines.append("    call bien-dich.bat --no-pause\r\n")
             bat_lines.append("    cd ..\r\n")
             bat_lines.append(")\r\n")
         bat_lines.append("echo ========================================================\r\n")
