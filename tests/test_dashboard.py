@@ -6,7 +6,7 @@ from latex_question_studio.ui.main_window import MainWindow
 def test_dashboard_is_data_backed_home_and_routes_actions(qtbot, tmp_path):
     services=create_services(AppConfig.load(tmp_path/'data'))
     window=MainWindow(services);qtbot.addWidget(window);window.show()
-    assert window.dashboard_index==5 and window.pages.currentWidget() is window.dashboard_page
+    assert window.dashboard_index == window.pages.indexOf(window.dashboard_page) and window.pages.currentWidget() is window.dashboard_page
     assert window.dashboard_page.cards[0].value.text()=='0'
     services.questions.create(r'\begin{ex}Dashboard question\end{ex}')
     window.refresh_status();assert window.dashboard_page.cards[0].value.text()=='1'

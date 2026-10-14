@@ -144,10 +144,6 @@ def analyze(item, whole_source=None):
     answer_seen = False
     for command in macro_commands:
         try:
-            # Skip commands inside solution text
-            if any(s <= command.start < e for s, e in solution_spans):
-                continue
-
             if command.name == 'includegraphics':
                 cursor = skip_space(source, command.end)
                 if cursor < len(source) and source[cursor] == '*': cursor += 1
@@ -155,6 +151,11 @@ def analyze(item, whole_source=None):
                 if cursor < len(source) and source[cursor] == '[':
                     _, cursor, _ = group(source, cursor, '[', ']')
                 item.assets.append(group(source, cursor)[0])
+                continue
+
+            # Skip answer commands inside solution text
+            if any(s <= command.start < e for s, e in solution_spans):
+                continue
 
             elif command.name in ('choice', 'choiceTF', 'choiceTFt'):
                 if answer_seen:
