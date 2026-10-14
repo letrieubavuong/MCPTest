@@ -57,6 +57,9 @@ BUILTIN_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
 
 MAPCLASS_PREAMBLE = r"""\documentclass[company=BookA4,pagesize=DethiA4,mausac=01,tuychon=GV1]{MAPClass}
 \pagestyle{empty}
+\providecommand{\nobox}{0}
+\providecommand{\nameans}{}
+\providecommand{\SttANS}{}
 \AtBeginDocument{\showansEX{ex}}
 """
 
@@ -156,11 +159,18 @@ class Compiler:
                 target_file=work/rel_path
                 target_file.parent.mkdir(parents=True,exist_ok=True)
                 if isinstance(content,bytes):target_file.write_bytes(content)
-                else:target_file.write_text(content,encoding='utf-8')
-            document=preamble+'\n\\begin{document}\n'+rewritten+'\n\\end{document}\n'
+            if r'\documentclass' in rewritten:
+                document = rewritten
+            else:
+                document = preamble + '\n\\begin{document}\n' + rewritten + '\n\\end{document}\n'
             (work/'preview.tex').write_text(document,encoding='utf-8')
-            environment=os.environ.copy()
-            environment['TEXINPUTS']=str(self.profile_root).replace('\\','/')+'//'+os.pathsep+environment.get('TEXINPUTS','')
+            environment = os.environ.copy()
+            environment['TEXINPUTS'] = (
+                str(work).replace('\\', '/') + '//' + os.pathsep +
+                str(self.root).replace('\\', '/') + '//' + os.pathsep +
+                str(self.profile_root).replace('\\', '/') + '//' + os.pathsep +
+                environment.get('TEXINPUTS', '')
+            )
             log_path=work/'process.log'
             with log_path.open('wb') as stream:
                 process=subprocess.Popen([engine,'-no-shell-escape','-interaction=nonstopmode','-halt-on-error','-file-line-error','preview.tex'],cwd=work,stdout=stream,stderr=subprocess.STDOUT,env=environment,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
@@ -192,10 +202,10 @@ class Compiler:
                 except OSError:continue
 
     @staticmethod
-    def render(pdf, page=0, scale=1.5):
+    def render(pdf, page=0, scale=1.5, crop=True):
         import pymupdf
         from latex_question_studio.preview.crop import render_page
         with pymupdf.open(pdf) as document:
             target = document[page]
-            raw_png = render_page(target, scale=scale, crop=True)
+            raw_png = render_page(target, scale=scale, crop=crop)
             return raw_png, len(document)
