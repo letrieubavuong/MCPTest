@@ -159,6 +159,7 @@ class Compiler:
                 target_file=work/rel_path
                 target_file.parent.mkdir(parents=True,exist_ok=True)
                 if isinstance(content,bytes):target_file.write_bytes(content)
+                else:target_file.write_text(content,encoding='utf-8')
             if r'\documentclass' in rewritten:
                 document = rewritten
             else:

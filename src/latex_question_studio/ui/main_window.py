@@ -533,6 +533,8 @@ class MainWindow(QMainWindow):
         temp.replace(self.layout_path)
 
     def closeEvent(self, event):
+        if hasattr(self, 'render_queue'):
+            self.render_queue.shutdown()
         if not self.lesson_page.save():
             event.ignore();return
         self.cancel_preview()
@@ -1179,8 +1181,3 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QEvent,QTimer
         if hasattr(self,'library_ui') and obj==self.library_ui.scroll.viewport() and event.type()==QEvent.Type.Resize:QTimer.singleShot(0,self.library_ui.fit)
         return super().eventFilter(obj,event)
-
-    def closeEvent(self, event):
-        if hasattr(self, 'render_queue'):
-            self.render_queue.shutdown()
-        super().closeEvent(event)
