@@ -2,7 +2,7 @@
 from dataclasses import asdict
 import hashlib,json
 from latex_question_studio.parsing.latex import parse_questions,normalized_source,ParsedQuestion,Diagnostic
-PARSER_VERSION=3
+PARSER_VERSION=4
 
 def record(connection,qid,source,items=None):
     items=parse_questions(source) if items is None else items

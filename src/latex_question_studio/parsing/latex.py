@@ -128,22 +128,38 @@ def brace_error(source):
 def analyze(item, whole_source=None):
     source = item.source
     macro_commands = list(commands(source))
-    answer_seen=False
+
+    # Track solution spans (\loigiai or \hdan) to avoid false answer macro detections in solutions
+    solution_spans = []
+    for command in macro_commands:
+        if command.name in ('loigiai', 'hdan'):
+            try:
+                val, end, _ = group(source, command.end)
+                item.solution = val
+                solution_spans.append((command.start, end))
+            except ValueError as error:
+                base = whole_source if whole_source is not None else source
+                item.diagnostics.append(diagnostic(base, item.start + command.start, str(error)))
+
+    answer_seen = False
     for command in macro_commands:
         try:
-            if command.name in ('choice','choiceTF','choiceTFt','shortans') and command.depth==0:
-                if answer_seen:raise ValueError('Multiple answer macros; ambiguous question cannot be shuffled')
-                answer_seen=True
-            if command.name in ('loigiai', 'hdan') and command.depth == 0:
-                item.solution = group(source, command.end)[0]
-            elif command.name == 'includegraphics':
+            # Skip commands inside solution text
+            if any(s <= command.start < e for s, e in solution_spans):
+                continue
+
+            if command.name == 'includegraphics':
                 cursor = skip_space(source, command.end)
                 if cursor < len(source) and source[cursor] == '*': cursor += 1
                 cursor = skip_space(source, cursor)
                 if cursor < len(source) and source[cursor] == '[':
                     _, cursor, _ = group(source, cursor, '[', ']')
                 item.assets.append(group(source, cursor)[0])
-            elif command.name in ('choice', 'choiceTF', 'choiceTFt') and command.depth == 0:
+
+            elif command.name in ('choice', 'choiceTF', 'choiceTFt'):
+                if answer_seen:
+                    raise ValueError('Multiple answer macros; ambiguous question cannot be shuffled')
+                answer_seen = True
                 cursor = skip_space(source, command.end)
                 if cursor < len(source) and source[cursor] == '[':
                     _, cursor, _ = group(source, cursor, '[', ']')
@@ -156,17 +172,37 @@ def analyze(item, whole_source=None):
                 item.answer = {'options': options, 'macro': command.name, 'macro_start': command.start, 'options_end': cursor}
                 if item.question_type == 'mcq' and sum(o['correct'] for o in options) != 1:
                     raise ValueError('MCQ requires exactly one True option')
-            elif command.name == 'shortans' and command.depth == 0:
+
+            elif command.name == 'shortans':
+                if answer_seen and item.question_type != 'short_answer':
+                    raise ValueError('Multiple answer macros; ambiguous question cannot be shuffled')
+                answer_seen = True
                 cursor = skip_space(source, command.end)
                 if cursor < len(source) and source[cursor] == '[':
                     _, cursor, _ = group(source, cursor, '[', ']')
                 value, _, _ = group(source, cursor)
-                item.question_type, item.answer = 'short_answer', {'value': value}
+                item.question_type, item.answer = 'short_answer', {'value': value, 'macro': 'shortans'}
+
+            elif command.name in ('dapsoTL', 'dapso'):
+                cursor = skip_space(source, command.end)
+                if cursor < len(source) and source[cursor] == '[':
+                    _, cursor, _ = group(source, cursor, '[', ']')
+                value, _, _ = group(source, cursor)
+                if item.question_type == 'unknown':
+                    item.question_type, item.answer = 'short_answer', {'value': value, 'macro': command.name}
+                    answer_seen = True
+                elif item.question_type == 'short_answer':
+                    pass
+                else:
+                    raise ValueError('Multiple answer macros; ambiguous question cannot be shuffled')
         except ValueError as error:
             base = whole_source if whole_source is not None else source
             item.diagnostics.append(diagnostic(base, item.start + command.start, str(error)))
+
     if item.question_type == 'unknown' and not item.diagnostics:
         item.question_type = 'essay'
+        item.answer = {'essay': True}
+
     bad_brace = brace_error(source)
     if bad_brace is not None:
         item.diagnostics.append(diagnostic(whole_source or source, item.start + bad_brace, 'Unbalanced brace'))
