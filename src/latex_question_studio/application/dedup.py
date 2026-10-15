@@ -30,6 +30,9 @@ class DuplicateItem:
     source_location: str = ""
     usage_count: int = 0
     references: list[str] = field(default_factory=list)
+    file_path: str = ""
+    span_start: int = -1
+    span_end: int = -1
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -43,6 +46,9 @@ class DuplicateItem:
             "source_location": self.source_location,
             "usage_count": self.usage_count,
             "references": self.references,
+            "file_path": self.file_path,
+            "span_start": self.span_start,
+            "span_end": self.span_end,
         }
 
 
@@ -208,6 +214,9 @@ class DeduplicationService:
                         options=options,
                         assets=assets,
                         source_location=f"{path.name} (dòng {line_no})",
+                        file_path=str(path.resolve()),
+                        span_start=q.start,
+                        span_end=q.end,
                     )
                 )
 
@@ -313,6 +322,19 @@ class DeduplicationService:
                 ).fetchall()
                 for l in lessons:
                     name = f"Bài giảng: {l['title']}"
+                    if name not in refs:
+                        refs.append(name)
+
+            # 3. Check exams
+            if "exam_questions" in tables and "exam_versions" in tables and "exam_papers" in tables:
+                eqs = conn.execute(
+                    "SELECT p.title FROM exam_questions eq "
+                    "JOIN exam_versions v ON v.id=eq.version_id "
+                    "JOIN exam_papers p ON p.id=v.paper_id WHERE eq.question_id=?",
+                    (question_id,),
+                ).fetchall()
+                for e in eqs:
+                    name = f"Đề thi: {e['title']}"
                     if name not in refs:
                         refs.append(name)
         return refs
@@ -519,6 +541,9 @@ class DeduplicationService:
     ) -> tuple[int, list[str]]:
         """Deletes selected question IDs safely with FK protection in SQLite.
         
+        Verifies row count before reporting success. Never reports success for missing IDs.
+        Cleans up associated metadata, taxonomy, analysis, and assets.
+        
         Returns:
             (deleted_count, error_messages)
         """
@@ -530,17 +555,33 @@ class DeduplicationService:
 
         with self.services.database.transaction() as conn:
             for q_id in selected_ids:
-                # Check FK constraints
+                # 1. Verify existence in SQLite database
+                row = conn.execute("SELECT id FROM questions WHERE id = ?", (q_id,)).fetchone()
+                if not row:
+                    errors.append(f"Không tìm thấy câu hỏi [{q_id[:8]}] trong CSDL ngân hàng (có thể đã bị xóa trước đó).")
+                    continue
+
+                # 2. Check FK constraints and references in lessons/exams
                 refs = self._check_question_references(q_id)
                 if refs and not force:
                     errors.append(
-                        f"Không thể xóa câu [{q_id[:8]}]: Đang được sử dụng trong {len(refs)} tài liệu ({', '.join(refs[:2])})."
+                        f"Không thể xóa câu [{q_id[:8]}]: Đang được sử dụng trong {len(refs)} tài liệu ({', '.join(refs[:3])})."
                     )
                     continue
 
                 try:
-                    conn.execute("DELETE FROM questions WHERE id = ?", (q_id,))
-                    deleted_count += 1
+                    # Clean up associated tables
+                    conn.execute("DELETE FROM question_metadata WHERE question_id = ?", (q_id,))
+                    conn.execute("DELETE FROM question_taxonomy WHERE question_id = ?", (q_id,))
+                    conn.execute("DELETE FROM question_analysis WHERE question_id = ?", (q_id,))
+                    conn.execute("DELETE FROM question_revisions WHERE question_id = ?", (q_id,))
+                    conn.execute("DELETE FROM question_assets WHERE question_id = ?", (q_id,))
+
+                    cursor = conn.execute("DELETE FROM questions WHERE id = ?", (q_id,))
+                    if cursor.rowcount > 0:
+                        deleted_count += cursor.rowcount
+                    else:
+                        errors.append(f"Lệnh xóa câu [{q_id[:8]}] không tác động đến bản ghi nào trong CSDL.")
                 except Exception as e:
                     errors.append(f"Lỗi khi xóa câu [{q_id[:8]}]: {str(e)}")
 
@@ -617,28 +658,136 @@ class DeduplicationService:
 
         return out
 
+    def clean_tex_files(
+        self,
+        deleted_items: list[DuplicateItem],
+        output_map: dict[str, Path | str] | None = None,
+        output_dir: Path | str | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        """Safely removes selected question spans from .tex files without modifying originals.
+        
+        Preserves 100% of preambles, packages, theory, comments, macros, and question order.
+        Verifies question counts after reverse-offset slicing before writing to destination.
+        
+        Returns:
+            dict mapping original file path to:
+            {"output_path": Path, "removed_count": int, "remaining_count": int, "original_count": int}
+        """
+        if not deleted_items:
+            return {}
+
+        by_file: dict[str, list[DuplicateItem]] = {}
+        for it in deleted_items:
+            if not it.file_path:
+                raise ValueError(f"Câu hỏi [{it.id}] không có đường dẫn tệp nguồn (file_path).")
+            by_file.setdefault(it.file_path, []).append(it)
+
+        results: dict[str, dict[str, Any]] = {}
+
+        for fpath_str, items in by_file.items():
+            fpath = Path(fpath_str)
+            if not fpath.is_file():
+                raise FileNotFoundError(f"Không tìm thấy file nguồn: {fpath}")
+
+            content = fpath.read_text(encoding="utf-8-sig")
+            parsed_original = parse_questions(content)
+
+            # Determine destination path
+            if output_map and fpath_str in output_map:
+                out_path = Path(output_map[fpath_str]).resolve()
+            elif output_map and str(fpath.resolve()) in output_map:
+                out_path = Path(output_map[str(fpath.resolve())]).resolve()
+            elif output_dir:
+                out_path = (Path(output_dir) / f"cleaned_{fpath.name}").resolve()
+            else:
+                out_path = (fpath.parent / f"cleaned_{fpath.name}").resolve()
+
+            # Prevent overwriting original source file
+            if out_path.resolve() == fpath.resolve():
+                raise ValueError(f"Đường dẫn xuất ({out_path}) trùng với file gốc. Vui lòng chọn đường dẫn khác.")
+
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Sort items to remove by span_start descending (reverse order)
+            sorted_items = sorted(items, key=lambda it: it.span_start, reverse=True)
+
+            cur_content = content
+            removed_count = 0
+
+            for it in sorted_items:
+                if it.span_start < 0 or it.span_end <= it.span_start or it.span_end > len(cur_content):
+                    raise ValueError(
+                        f"Vị trí câu hỏi [{it.id}] ({it.span_start}-{it.span_end}) không hợp lệ trong tệp {fpath.name}."
+                    )
+
+                # Verify text match at offset
+                span_text = cur_content[it.span_start:it.span_end]
+                if normalize_latex(span_text) != it.normalized_source and span_text.strip() != it.source.strip():
+                    raise ValueError(
+                        f"Nội dung tại vị trí {it.span_start}-{it.span_end} của {fpath.name} không khớp với câu hỏi [{it.id}]."
+                    )
+
+                cut_end = it.span_end
+                # Cleanly eat trailing newline if present to prevent extra empty lines
+                if cut_end < len(cur_content) and cur_content[cut_end] == "\n":
+                    cut_end += 1
+
+                cur_content = cur_content[:it.span_start] + cur_content[cut_end:]
+                removed_count += 1
+
+            # Validate question count after removal
+            parsed_remaining = parse_questions(cur_content)
+            expected_remaining = len(parsed_original) - removed_count
+            if len(parsed_remaining) != expected_remaining:
+                raise RuntimeError(
+                    f"Lỗi kiểm tra sau khi loại câu: Số câu còn lại ({len(parsed_remaining)}) không khớp với kỳ vọng ({expected_remaining}) trong tệp {fpath.name}."
+                )
+
+            out_path.write_text(cur_content, encoding="utf-8")
+            results[fpath_str] = {
+                "output_path": out_path,
+                "removed_count": removed_count,
+                "remaining_count": len(parsed_remaining),
+                "original_count": len(parsed_original),
+            }
+
+        return results
+
     def export_clean_tex(
         self,
         source_file: Path | str,
         items_to_keep: set[str],
         output_file: Path | str,
     ) -> Path:
-        """Exports clean .tex file keeping only non-deleted questions."""
-        src_path = Path(source_file)
-        out_path = Path(output_file).resolve()
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-
+        """Exports clean .tex file keeping only specified questions while preserving 100% of preambles, theory, and comments."""
+        src_path = Path(source_file).resolve()
         content = src_path.read_text(encoding="utf-8-sig")
         parsed_list = parse_questions(content)
 
-        clean_blocks = []
+        items_to_remove: list[DuplicateItem] = []
         for idx, q in enumerate(parsed_list):
             item_id = f"{src_path.name}::q{idx + 1}"
-            if item_id in items_to_keep:
-                raw = q.source.strip()
-                if raw:
-                    clean_blocks.append(raw)
+            if item_id not in items_to_keep:
+                items_to_remove.append(
+                    DuplicateItem(
+                        id=item_id,
+                        source=q.source.strip(),
+                        normalized_source=normalize_latex(q.source.strip()),
+                        question_type=q.question_type,
+                        file_path=str(src_path),
+                        span_start=q.start,
+                        span_end=q.end,
+                    )
+                )
 
-        out_content = "\n\n".join(clean_blocks) + "\n"
-        out_path.write_text(out_content, encoding="utf-8")
-        return out_path
+        if items_to_remove:
+            res = self.clean_tex_files(
+                items_to_remove,
+                output_map={str(src_path): output_file},
+            )
+            return res[str(src_path)]["output_path"]
+        else:
+            out_p = Path(output_file).resolve()
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            out_p.write_text(content, encoding="utf-8")
+            return out_p

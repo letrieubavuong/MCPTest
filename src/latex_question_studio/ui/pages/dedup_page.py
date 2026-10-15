@@ -206,9 +206,9 @@ class DedupPage(QWidget):
 
         action_bar.addStretch()
 
-        self.delete_btn = QPushButton("Xóa các bản được chọn")
-        self.delete_btn.setStyleSheet("background-color: #e74c3c; color: white; font-weight: bold;")
-        self.delete_btn.clicked.connect(self._delete_selected)
+        self.delete_btn = QPushButton("🗑️ Xóa khỏi ngân hàng CSDL (0 câu đã chọn)")
+        self.delete_btn.setStyleSheet("background-color: #e74c3c; color: white; font-weight: bold; padding: 6px 12px;")
+        self.delete_btn.clicked.connect(self._on_delete_clicked)
         self.delete_btn.setEnabled(False)
         action_bar.addWidget(self.delete_btn)
 
@@ -220,12 +220,17 @@ class DedupPage(QWidget):
         main_layout.addWidget(splitter, 1)
 
         self.selected_files = []
+        self._on_scope_changed(0)
 
     def _on_scope_changed(self, index):
         is_files = (self.scope_combo.currentData() == "files")
         self.db_filter_widget.setVisible(not is_files)
         self.file_control_widget.setVisible(is_files)
-        self.export_tex_btn.setEnabled(is_files and len(self.groups) > 0)
+        self.merge_btn.setVisible(not is_files)
+        self.export_tex_btn.setVisible(is_files)
+        self._update_action_bar_counts()
+        if 0 <= self.current_group_idx < len(self.groups):
+            self._render_group_cards(self.groups[self.current_group_idx])
 
     def _select_files(self):
         paths, _ = QFileDialog.getOpenFileNames(
@@ -301,6 +306,8 @@ class DedupPage(QWidget):
 
         if groups:
             self.group_list.setCurrentRow(0)
+        else:
+            self._update_action_bar_counts()
 
     def _on_scan_failed(self, error: str):
         self.scan_btn.setEnabled(True)
@@ -322,7 +329,7 @@ class DedupPage(QWidget):
             self._clear_cards()
             self.ignore_btn.setEnabled(False)
             self.merge_btn.setEnabled(False)
-            self.delete_btn.setEnabled(False)
+            self._update_action_bar_counts()
             return
 
         self.current_group_idx = row
@@ -332,13 +339,13 @@ class DedupPage(QWidget):
             f"Lý do: {group.match_reason}"
         )
         self.ignore_btn.setEnabled(True)
-        self.merge_btn.setEnabled(True)
-        self.delete_btn.setEnabled(True)
-
+        self.merge_btn.setEnabled(self.scope_combo.currentData() == "database")
         self._render_group_cards(group)
+        self._update_action_bar_counts()
 
     def _render_group_cards(self, group: DuplicateGroup):
         self._clear_cards()
+        scope = self.scope_combo.currentData()
 
         # Button group for primary radio buttons
         bg = QButtonGroup(self.cards_container)
@@ -361,19 +368,33 @@ class DedupPage(QWidget):
             h_row.addWidget(rb)
 
             # Checkbox: Delete this item (DEFAULT FALSE)
-            cb = QCheckBox("Xóa bản này")
+            cb_label = "Xóa khỏi CSDL" if scope == "database" else "Loại khỏi file .tex"
+            cb = QCheckBox(cb_label)
             cb.setChecked(it.id in group.selected_to_delete)
             cb.setEnabled(not is_primary)
+            if is_primary:
+                cb.setToolTip("Bản gốc đang được bảo vệ giữ lại, không thể đánh dấu xóa/loại bỏ.")
+            else:
+                cb.setToolTip(f"Đánh dấu câu này để {'xóa khỏi CSDL' if scope == 'database' else 'loại khỏi file .tex'}")
             cb.toggled.connect(lambda checked, item_id=it.id: self._toggle_delete(item_id, checked))
             h_row.addWidget(cb)
             card_layout.addLayout(h_row)
 
             # Metadata info
-            meta_txt = f"<b>ID:</b> {it.id[:16]}...<br><b>Nguồn:</b> {it.source_location}"
-            if it.created_at:
-                meta_txt += f" | <b>Ngày:</b> {it.created_at[:10]}"
-            if it.references:
-                meta_txt += f"<br><span style='color: #e67e22;'><b>Đang dùng trong:</b> {', '.join(it.references)}</span>"
+            if scope == "files":
+                meta_txt = f"<b>Nguồn:</b> {it.source_location}"
+                if it.span_start >= 0 and it.span_end >= 0:
+                    meta_txt += f" | <b>Vị trí ký tự:</b> {it.span_start} - {it.span_end}"
+            else:
+                meta_txt = f"<b>ID:</b> {it.id[:16]}...<br><b>Nguồn:</b> {it.source_location}"
+                if it.created_at:
+                    meta_txt += f" | <b>Ngày:</b> {it.created_at[:10]}"
+                if it.references:
+                    meta_txt += f"<br><span style='color: #e67e22;'>⚠️ <b>Đang dùng trong:</b> {', '.join(it.references)}</span>"
+
+            if is_primary:
+                meta_txt = "<span style='color: #27ae60; font-weight: bold;'>[BẢN GỐC - ĐƯỢC BẢO VỆ GIỮ LẠI]</span><br>" + meta_txt
+
             lbl = QLabel(meta_txt)
             lbl.setWordWrap(True)
             card_layout.addWidget(lbl)
@@ -394,25 +415,43 @@ class DedupPage(QWidget):
             self.cards_layout.addWidget(card)
 
     def _set_primary(self, item_id: str, checked: bool):
-        if not checked or self.current_group_idx < 0:
+        if not checked or self.current_group_idx < 0 or self.current_group_idx >= len(self.groups):
             return
         group = self.groups[self.current_group_idx]
         group.primary_id = item_id
         # Primary cannot be selected to delete
         group.selected_to_delete.discard(item_id)
         self._render_group_cards(group)
+        self._update_action_bar_counts()
 
     def _toggle_delete(self, item_id: str, checked: bool):
-        if self.current_group_idx < 0:
+        if self.current_group_idx < 0 or self.current_group_idx >= len(self.groups):
             return
         group = self.groups[self.current_group_idx]
         if checked:
             group.selected_to_delete.add(item_id)
         else:
             group.selected_to_delete.discard(item_id)
+        self._update_action_bar_counts()
+
+    def _update_action_bar_counts(self):
+        scope = self.scope_combo.currentData()
+        if scope == "database":
+            current_group = self.groups[self.current_group_idx] if (0 <= self.current_group_idx < len(self.groups)) else None
+            count = len(current_group.selected_to_delete) if current_group else 0
+            self.delete_btn.setText(f"🗑️ Xóa khỏi ngân hàng CSDL ({count} câu đã chọn)")
+            self.delete_btn.setStyleSheet("background-color: #e74c3c; color: white; font-weight: bold; padding: 6px 12px;")
+            self.delete_btn.setEnabled(count > 0)
+        else:
+            total_selected = sum(len(g.selected_to_delete) for g in self.groups)
+            self.delete_btn.setText(f"✂️ Loại câu khỏi file .tex ({total_selected} câu đã chọn)")
+            self.delete_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 6px 12px;")
+            self.delete_btn.setEnabled(total_selected > 0)
+            self.export_tex_btn.setEnabled(total_selected > 0)
+            self.export_tex_btn.setText(f"Xuất file .tex đã lọc ({total_selected} câu)...")
 
     def _ignore_current_group(self):
-        if self.current_group_idx < 0:
+        if self.current_group_idx < 0 or self.current_group_idx >= len(self.groups):
             return
         del self.groups[self.current_group_idx]
         self.group_list.takeItem(self.current_group_idx)
@@ -420,14 +459,23 @@ class DedupPage(QWidget):
             self.group_list.setCurrentRow(min(self.current_group_idx, len(self.groups) - 1))
         else:
             self._on_group_selected(-1)
+        self._update_action_bar_counts()
 
     def _merge_metadata(self):
-        if self.current_group_idx < 0:
+        if self.current_group_idx < 0 or self.current_group_idx >= len(self.groups):
             return
         group = self.groups[self.current_group_idx]
         secondary_ids = [it.id for it in group.items if it.id != group.primary_id]
         if not secondary_ids:
             QMessageBox.information(self, "Không có bản sao", "Nhóm chỉ có 1 bản ghi duy nhất.")
+            return
+
+        confirm = QMessageBox.question(
+            self, "Xác nhận gộp metadata",
+            f"Bạn có chắc muốn gộp toàn bộ nhãn taxonomy và ghi chú từ {len(secondary_ids)} câu trùng vào câu bản gốc [{group.primary_id[:8]}]?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
             return
 
         ok = self.service.merge_metadata(group.primary_id, secondary_ids)
@@ -439,22 +487,42 @@ class DedupPage(QWidget):
         else:
             QMessageBox.warning(self, "Lỗi gộp", "Không thể gộp metadata.")
 
-    def _delete_selected(self):
-        if self.current_group_idx < 0:
+    def _on_delete_clicked(self):
+        scope = self.scope_combo.currentData()
+        if scope == "database":
+            self._delete_selected_database()
+        else:
+            self._export_cleaned_tex_files()
+
+    def _delete_selected_database(self):
+        if self.current_group_idx < 0 or self.current_group_idx >= len(self.groups):
             return
         group = self.groups[self.current_group_idx]
         to_delete = list(group.selected_to_delete)
         if not to_delete:
             QMessageBox.information(
-                self, "Chưa chọn bản xóa",
-                "Vui lòng tick chọn 'Xóa bản này' ở các câu hỏi trùng lặp mà bạn muốn xóa."
+                self, "Chưa chọn câu cần xóa",
+                "Vui lòng tick chọn 'Xóa khỏi CSDL' ở các câu hỏi trùng lặp mà bạn muốn xóa khỏi ngân hàng."
             )
             return
 
+        # Check references to inform user
+        blocked_refs = [
+            f"[{it.id[:8]}]: {', '.join(it.references)}"
+            for it in group.items if it.id in to_delete and it.references
+        ]
+        if blocked_refs:
+            msg = (
+                "Các câu hỏi sau đang được sử dụng trong bài giảng hoặc đề thi:\n\n"
+                + "\n".join(blocked_refs)
+                + "\n\nĐể đảm bảo tính toàn vẹn dữ liệu, các câu này sẽ được bảo vệ và không bị xóa."
+            )
+            QMessageBox.warning(self, "Cảnh báo tài liệu đang tham chiếu", msg)
+
         confirm = QMessageBox.question(
-            self, "Xác nhận xóa vĩnh viễn",
-            f"Bạn có chắc chắn muốn xóa {len(to_delete)} câu hỏi được chọn khỏi CSDL?\n"
-            f"Hành động này không thể hoàn tác.",
+            self, "Xác nhận xóa vĩnh viễn khỏi CSDL",
+            f"Bạn có chắc chắn muốn xóa {len(to_delete)} câu hỏi đã chọn khỏi CSDL ngân hàng câu hỏi?\n\n"
+            f"Lưu ý: Thao tác này sẽ xóa dữ liệu vĩnh viễn trong CSDL và không thể hoàn tác.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if confirm != QMessageBox.StandardButton.Yes:
@@ -462,10 +530,13 @@ class DedupPage(QWidget):
 
         count, errors = self.service.delete_selected(to_delete)
         if errors:
-            QMessageBox.warning(self, "Cảnh báo xóa", "\n".join(errors))
+            QMessageBox.warning(self, "Thông báo xóa câu hỏi", "\n".join(errors))
 
         if count > 0:
-            QMessageBox.information(self, "Xóa hoàn tất", f"Đã xóa thành công {count} câu hỏi khỏi CSDL.")
+            QMessageBox.information(
+                self, "Xóa hoàn tất",
+                f"Đã xóa thành công {count}/{len(to_delete)} câu hỏi khỏi CSDL ngân hàng."
+            )
             # Remove deleted from group items
             group.items = [it for it in group.items if it.id not in to_delete]
             group.selected_to_delete.clear()
@@ -473,6 +544,89 @@ class DedupPage(QWidget):
                 self._ignore_current_group()
             else:
                 self._render_group_cards(group)
+            self._update_action_bar_counts()
+
+    def _export_cleaned_tex_files(self):
+        items_to_remove = [it for g in self.groups for it in g.items if it.id in g.selected_to_delete]
+        if not items_to_remove:
+            QMessageBox.information(
+                self, "Chưa chọn câu để loại bỏ",
+                "Vui lòng tick chọn 'Loại khỏi file .tex' ở các câu hỏi trùng lặp cần loại bỏ trước khi xuất file."
+            )
+            return
+
+        # Group by file path
+        affected_files = sorted(set(it.file_path for it in items_to_remove if it.file_path))
+        if not affected_files and self.selected_files:
+            affected_files = [str(Path(f).resolve()) for f in self.selected_files]
+
+        output_map: dict[str, Path | str] = {}
+        if len(affected_files) == 1:
+            src_p = Path(affected_files[0])
+            out_str, _ = QFileDialog.getSaveFileName(
+                self, "Lưu file .tex đã làm sạch (Save As)", f"cleaned_{src_p.name}",
+                "LaTeX File (*.tex)"
+            )
+            if not out_str:
+                return
+            output_map[str(src_p)] = out_str
+        else:
+            dir_str = QFileDialog.getExistingDirectory(
+                self, f"Chọn thư mục lưu {len(affected_files)} file .tex mới đã loại bỏ câu trùng"
+            )
+            if not dir_str:
+                return
+            for af in affected_files:
+                output_map[af] = Path(dir_str) / f"cleaned_{Path(af).name}"
+
+        # Build preview confirmation text
+        preview_lines = []
+        for af, out_p in output_map.items():
+            rem_count = sum(1 for it in items_to_remove if it.file_path == af)
+            preview_lines.append(f"• {Path(af).name}: Loại bỏ {rem_count} câu -> Tạo file: {Path(out_p).name}")
+
+        confirm_msg = (
+            f"Xác nhận loại bỏ câu trùng và xuất file .tex mới:\n\n"
+            + "\n".join(preview_lines) + "\n\n"
+            f"Các tệp gốc sẽ được giữ nguyên 100% không bị thay đổi. Bạn có muốn tiếp tục?"
+        )
+        confirm = QMessageBox.question(
+            self, "Xác nhận tạo file .tex đã làm sạch", confirm_msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            results = self.service.clean_tex_files(items_to_remove, output_map=output_map)
+        except Exception as e:
+            QMessageBox.critical(self, "Lỗi xuất file .tex", f"Không thể làm sạch file: {str(e)}")
+            return
+
+        # Show success message
+        success_lines = [
+            f"• {Path(r['output_path']).name} (Còn lại {r['remaining_count']}/{r['original_count']} câu)"
+            for r in results.values()
+        ]
+        QMessageBox.information(
+            self, "Xuất file .tex thành công",
+            f"Đã tạo thành công {len(results)} file .tex mới đã loại bỏ câu trùng:\n\n"
+            + "\n".join(success_lines)
+        )
+
+        # Update groups: remove eliminated items
+        removed_ids = {it.id for it in items_to_remove}
+        for g in self.groups:
+            g.items = [it for it in g.items if it.id not in removed_ids]
+            g.selected_to_delete.clear()
+
+        # Prune groups with <= 1 item
+        self.groups = [g for g in self.groups if len(g.items) > 1]
+        self._on_scan_finished(self.groups)
+
+    # Backwards compatibility aliases
+    _delete_selected = _on_delete_clicked
+    _export_clean_tex = _export_cleaned_tex_files
 
     def _export_report(self):
         if not self.groups:
@@ -486,25 +640,3 @@ class DedupPage(QWidget):
         fmt = "csv" if path.endswith(".csv") else "json"
         out = self.service.export_report(self.groups, path, fmt)
         QMessageBox.information(self, "Xuất báo cáo", f"Đã lưu báo cáo tại:\n{out}")
-
-    def _export_clean_tex(self):
-        if not self.selected_files or not self.groups:
-            return
-        src_path = self.selected_files[0]
-        out_path, _ = QFileDialog.getSaveFileName(
-            self, "Xuất file TeX đã lọc bỏ trùng lặp", f"cleaned_{Path(src_path).name}",
-            "LaTeX File (*.tex)"
-        )
-        if not out_path:
-            return
-
-        # Determine all items to keep
-        deleted_ids = set()
-        for g in self.groups:
-            deleted_ids.update(g.selected_to_delete)
-
-        all_item_ids = {it.id for g in self.groups for it in g.items}
-        items_to_keep = all_item_ids - deleted_ids
-
-        out = self.service.export_clean_tex(src_path, items_to_keep, out_path)
-        QMessageBox.information(self, "Xuất TeX thành công", f"Đã tạo file mới đã loại bỏ câu trùng tại:\n{out}")
