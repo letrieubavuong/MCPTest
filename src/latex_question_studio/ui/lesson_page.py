@@ -29,6 +29,7 @@ from latex_question_studio.application.lessons import (
     LessonService, KINDS, POLICIES, FILE_ROLE_LABELS, block
 )
 from latex_question_studio.application.legacy_lesson_importer import LegacyLessonImporter
+from latex_question_studio.application.assets import AssetStore
 from latex_question_studio.parsing.visual import recover_literal_tex
 from latex_question_studio.application.search import SearchService
 from latex_question_studio.ui.editor import LatexEditor
@@ -1107,27 +1108,28 @@ class LessonPage(QWidget):
         if not file_path:
             return
 
-        importer = LegacyLessonImporter(asset_store=self.services.assets)
+        store = getattr(self.services, 'assets', None) or AssetStore(self.services.config.data_dir / 'assets')
+        importer = LegacyLessonImporter(asset_store=store)
         try:
-            res = importer.parse_file(file_path, subject=self.doc.get('subject', 'Toán') if self.doc else 'Toán')
+            res = importer.dry_run(file_path, subject=self.doc.get('subject', 'Toán') if self.doc else 'Toán')
+            review_note = ""
+            if res.needs_review:
+                review_note = "\n\n⚠️ Chú ý: Một số đoạn chưa phân loại tự động hoặc tài nguyên phụ thuộc đã được giữ nguyên trong các khối Lý thuyết/Raw để bạn rà soát."
             reply = QMessageBox.question(
                 self,
-                "Xác nhận nhập bài giảng TeX",
+                "Xác nhận nhập bài giảng TeX (Xem trước Dry-run)",
                 f"Đã phân tích tệp '{Path(file_path).name}':\n\n"
                 f"- Tiêu đề phát hiện: {res.title}\n"
                 f"- Số khối nội dung: {len(res.blocks)} khối\n"
                 f"- Mức độ bảo toàn nội dung: {res.coverage_percent}%\n"
-                f"- Tài nguyên ảnh tìm thấy: {len(res.assets_found)} tệp\n\n"
+                f"- Tài nguyên ảnh tìm thấy: {len(res.assets_found)} tệp\n"
+                f"- Đoạn cần rà soát: {len(res.unmapped_segments)} đoạn"
+                f"{review_note}\n\n"
                 f"Bạn có muốn tạo bài giảng mới từ nội dung này không?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply == QMessageBox.StandardButton.Yes:
-                doc = self.service.create(
-                    title=res.title,
-                    subject=res.subject,
-                    grade=res.grade,
-                    blocks=res.blocks
-                )
+                doc = importer.import_to_lesson(res, self.service)
                 self.reload_list(doc['id'])
                 self.load(doc)
                 self.status.setText(f"Đã nhập thành công bài giảng từ '{Path(file_path).name}' ({len(res.blocks)} mục).")
