@@ -1,0 +1,27 @@
+\section{Bài toán môi trường lồng nhau}
+
+\begin{ex}
+Cho hệ phương trình bậc nhất hai ẩn sau:
+\begin{enumerate}
+\item Xét hệ phương trình:
+\begin{align*}
+2x + 3y &= 7 \\
+x - y &= 1
+\end{align*}
+\item Vẽ đồ thị minh họa:
+\begin{center}
+\begin{tikzpicture}
+\draw[->] (-1,0) -- (3,0);
+\draw[->] (0,-1) -- (0,3);
+\draw[domain=0:2, smooth, variable=\x, blue] plot ({\x}, {(7-2*\x)/3});
+\end{tikzpicture}
+\end{center}
+\end{enumerate}
+\loigiai{
+Nghiệm của hệ phương trình được tính theo các bước:
+\begin{itemize}
+\item Từ phương trình hai suy ra $x = y + 1$.
+\item Thế vào phương trình một ta tìm được nghiệm $(x, y) = (2, 1)$.
+\end{itemize}
+}
+\end{ex}

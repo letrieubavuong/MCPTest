@@ -175,12 +175,12 @@ class Compiler:
                 target_file=work/rel_path
                 target_file.parent.mkdir(parents=True,exist_ok=True)
                 if isinstance(content,bytes):target_file.write_bytes(content)
-                else:target_file.write_text(content,encoding='utf-8')
+                else:target_file.write_text(content.replace('\r\n', '\n').replace('\r', '\n'),encoding='utf-8',newline='\n')
             if r'\documentclass' in rewritten:
                 document = rewritten
             else:
                 document = preamble + '\n\\begin{document}\n' + rewritten + '\n\\end{document}\n'
-            (work/'preview.tex').write_text(document,encoding='utf-8')
+            (work/'preview.tex').write_text(document.replace('\r\n', '\n').replace('\r', '\n'),encoding='utf-8',newline='\n')
             environment = os.environ.copy()
             environment['TEXINPUTS'] = (
                 str(work).replace('\\', '/') + '//' + os.pathsep +

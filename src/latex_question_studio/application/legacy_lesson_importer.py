@@ -337,6 +337,16 @@ class LegacyLessonImporter:
             blocks=result.blocks,
         )
 
+        # Promote staged assets into permanent AssetStore
+        if self.asset_store:
+            for item in result.assets_found:
+                staged = item.get("staged")
+                if staged and staged.get("staging_path"):
+                    try:
+                        self.asset_store.promote(staged)
+                    except Exception:
+                        pass
+
         # If preamble exists, store as metadata
         if result.preamble:
             doc["preamble"] = result.preamble
@@ -389,12 +399,16 @@ class LegacyLessonImporter:
     # -------------------------------------------------------------------------
 
     def _decode_bytes(self, raw_bytes: bytes) -> str:
+        text = ""
         for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1258"):
             try:
-                return raw_bytes.decode(enc)
+                text = raw_bytes.decode(enc)
+                break
             except Exception:
                 continue
-        return raw_bytes.decode("utf-8", errors="replace")
+        if not text:
+            text = raw_bytes.decode("utf-8", errors="replace")
+        return text.replace("\r\n", "\n").replace("\r", "\n")
 
     def _resolve_inputs(
         self,
@@ -427,10 +441,16 @@ class LegacyLessonImporter:
                 resolved_lines.append(line)
                 continue
 
-            # Candidate path resolution
+            # Candidate path resolution: first check relative to source_dir, then fallback to allowed_root
             cand = source_dir / rel_path_str
             if not cand.is_file() and not rel_path_str.endswith(".tex"):
                 cand = source_dir / (rel_path_str + ".tex")
+            if not cand.is_file() and allowed_root:
+                cand_root = allowed_root / rel_path_str
+                if not cand_root.is_file() and not rel_path_str.endswith(".tex"):
+                    cand_root = allowed_root / (rel_path_str + ".tex")
+                if cand_root.is_file():
+                    cand = cand_root
 
             # 1. Path traversal security check
             try:
