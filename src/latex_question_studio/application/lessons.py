@@ -170,7 +170,7 @@ def without_comments(source):
 
 # Student source uses the explicitly supported built-in vocabulary. Unknown
 # macros/definitions must be reviewed instead of claiming their answers are hidden.
-STUDENT_COMMANDS=set(('begin end choice choiceTF choiceTFt True shortans loigiai hdan '
+STUDENT_COMMANDS=set(('begin end choice choiceTF choiceTFt True False shortans loigiai hdan '
     'frac dfrac tfrac sqrt left right text textrm textbf textit emph underline textbackslash textasciicircum textasciitilde '
     'sin cos tan cot log ln exp lim max min sum prod int iint infty partial prime '
     'alpha beta gamma delta theta lambda mu pi sigma omega Delta Omega '
@@ -207,12 +207,12 @@ STUDENT_COMMANDS=set(('begin end choice choiceTF choiceTFt True shortans loigiai
     'xrightarrow xleftarrow').split())
 
 
-def student_source(source, hide_answers=False):
+def student_source(source, hide_answers=False, block_title=""):
     source = without_comments(source)
     if hide_answers:
         edits = []
         for cmd in commands(source):
-            if cmd.name == 'True':
+            if cmd.name in ('True', 'False'):
                 edits.append((cmd.start, cmd.end, ''))
             elif cmd.name in ('loigiai', 'hdan', 'shortans', 'dapso', 'dapsoTL', 'chudapso'):
                 cursor = skip_space(source, cmd.end)
@@ -236,7 +236,9 @@ def student_source(source, hide_answers=False):
     # Kiểm tra xác thực các lệnh còn lại trong source học sinh (fail-closed)
     for cmd in commands(source):
         if cmd.name not in STUDENT_COMMANDS and len(cmd.name) > 1:
-            raise ValueError('Macro chưa được chứng nhận cho source học sinh: \\' + cmd.name)
+            line = source.count('\n', 0, cmd.start) + 1
+            loc = f"Khối '{block_title}' (Dòng {line})" if block_title else f"Dòng {line}"
+            raise ValueError(f"{loc}: Macro chưa được chứng nhận cho source học sinh: \\{cmd.name}")
     return source
 
 
@@ -530,7 +532,7 @@ class LessonService:
                     command='subsection*' if depth==0 else 'subsubsection*'
                     if include_block_titles:lines.append('\\'+command+'{'+tex_text(b['title'])+'}')
                     source=b['source']
-                    if audience=='student':source=student_source(source,b['policy']=='question')
+                    if audience=='student':source=student_source(source,b['policy']=='question',block_title=b.get('title',''))
                     replacements=[]
                     for cmd in commands(source):
                         if cmd.name!='includegraphics':continue
