@@ -143,8 +143,8 @@ def test_wysiwyg_mode_notice_on_complex_tikz(qtbot, tmp_path):
 \end{tikzpicture}
 \end{center}""")
 
-    # Switch to WYSIWYG mode (index 0)
-    page.set_edit_mode(0)
+    # Switch to visual mode (index 1)
+    page.set_edit_mode(1)
     QApplication.processEvents()
 
     # Check advisory message

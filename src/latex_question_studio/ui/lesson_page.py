@@ -288,7 +288,7 @@ class WorkTabsShim:
             self.page.ensure_preview_visible()
             self.page.start_preview()
         else:
-            if hasattr(self.page, 'edit_mode') and self.page.edit_mode.currentIndex() == 0 and hasattr(self.page, 'visual_editor'):
+            if hasattr(self.page, 'edit_mode') and self.page.edit_mode.currentIndex() == 1 and hasattr(self.page, 'visual_editor'):
                 self.page.visual_editor.setFocus()
             else:
                 self.page.editor.setFocus()
@@ -670,10 +670,10 @@ class LessonPage(QWidget):
 
         format_bar.addStretch()
 
-        # Edit mode combo (WYSIWYG / Mã LaTeX)
+        # Edit mode combo (Mã LaTeX mặc định / Trực quan tùy chọn)
         self.edit_mode = QComboBox()
-        self.edit_mode.addItems(['WYSIWYG', 'Mã LaTeX'])
-        self.edit_mode.setToolTip('Chế độ soạn thảo trực quan (WYSIWYG) hoặc mã LaTeX')
+        self.edit_mode.addItems(['Mã LaTeX (mặc định)', 'Trực quan (tùy chọn)'])
+        self.edit_mode.setToolTip('Chế độ soạn thảo: Mã LaTeX thuần (mặc định) hoặc Trực quan')
         self.edit_mode.currentIndexChanged.connect(self.set_edit_mode)
         format_bar.addWidget(self.edit_mode)
 
@@ -689,8 +689,9 @@ class LessonPage(QWidget):
         self.visual_editor.notice.connect(lambda text: self.status.setText(text))
 
         self.editor_stack = QStackedWidget()
-        self.editor_stack.addWidget(self.visual_editor)
-        self.editor_stack.addWidget(self.editor)
+        self.editor_stack.addWidget(self.editor)         # Index 0: Raw LatexEditor (Default)
+        self.editor_stack.addWidget(self.visual_editor)  # Index 1: VisualLatexEditor (Optional)
+        self.editor_stack.setCurrentIndex(0)
         center_layout.addWidget(self.editor_stack, 1)
 
         self.recover_button = QPushButton('Nhận dạng lại công thức LaTeX')
@@ -852,11 +853,11 @@ class LessonPage(QWidget):
         self.fit_preview()
 
     def wrap_selection(self, prefix: str, suffix: str):
-        if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 0 and hasattr(self, 'visual_editor'):
+        if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 1 and hasattr(self, 'visual_editor'):
             self.visual_editor.open_tex_dialog() if prefix == r'\( ' else self.visual_editor.wrap_selection(prefix, suffix)
             return
         cursor = self.editor.textCursor()
-        selected = cursor.selectedText() or 'nội dung'
+        selected = cursor.selectedText()
         cursor.insertText(prefix + selected + suffix)
         self.editor.setTextCursor(cursor)
         self.changed()
@@ -893,13 +894,13 @@ class LessonPage(QWidget):
         self.changed()
 
     def undo_edit(self):
-        if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 0 and hasattr(self, 'visual_editor'):
+        if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 1 and hasattr(self, 'visual_editor'):
             self.visual_editor.history.undo()
         else:
             self.editor.undo()
 
     def redo_edit(self):
-        if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 0 and hasattr(self, 'visual_editor'):
+        if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 1 and hasattr(self, 'visual_editor'):
             self.visual_editor.history.redo()
         else:
             self.editor.redo()
@@ -907,20 +908,26 @@ class LessonPage(QWidget):
     def set_edit_mode(self, index: int):
         if hasattr(self, 'visual_sync'):
             self.visual_sync.stop()
-        if index == 0:
+        if index == 1:
             self.sync_visual()
             src = self.editor.toPlainText()
             if r'\begin{tikzpicture}' in src or r'\begin{align' in src:
-                self.status.setText("Chế độ WYSIWYG: Khối chứa hình TikZ/công thức nhiều dòng; chuyển 'Mã LaTeX' nếu muốn sửa TeX chuyên sâu.")
+                self.status.setText("Chế độ trực quan: Khối chứa hình TikZ/công thức nhiều dòng; chuyển 'Mã LaTeX' nếu muốn sửa TeX chuyên sâu.")
+            else:
+                self.status.setText("Chế độ trực quan (tùy chọn): Định dạng cơ bản cho văn bản và công thức đơn giản.")
+        else:
+            self.status.setText("Chế độ soạn thảo: Mã LaTeX thuần (mặc định).")
         if hasattr(self, 'editor_stack'):
             self.editor_stack.setCurrentIndex(index)
-        (self.visual_editor if index == 0 and hasattr(self, 'visual_editor') else self.editor).setFocus()
+        (self.visual_editor if index == 1 and hasattr(self, 'visual_editor') else self.editor).setFocus()
 
     def source_changed(self):
         if hasattr(self, 'recover_button'):
             self.recover_button.setVisible(recover_literal_tex(self.editor.toPlainText()) != self.editor.toPlainText())
-        if not self.loading and not getattr(self, 'syncing_visual', False) and hasattr(self, 'visual_sync'):
-            self.visual_sync.start()
+        # NEVER trigger visual sync when user is working in raw LaTeX mode!
+        if getattr(self, 'edit_mode', None) and self.edit_mode.currentIndex() == 1:
+            if not self.loading and not getattr(self, 'syncing_visual', False) and hasattr(self, 'visual_sync'):
+                self.visual_sync.start()
         self.changed()
 
     def recover_formula_input(self):
@@ -931,6 +938,8 @@ class LessonPage(QWidget):
             self.visual_editor.recover_tex_input()
 
     def sync_visual(self):
+        if getattr(self, 'edit_mode', None) and self.edit_mode.currentIndex() != 1:
+            return
         b = self.current_block()
         assets = {}
         if b:
@@ -949,9 +958,17 @@ class LessonPage(QWidget):
     def visual_changed(self, source: str):
         if hasattr(self, 'visual_sync'):
             self.visual_sync.stop()
+        if getattr(self, 'edit_mode', None) and self.edit_mode.currentIndex() != 1:
+            return
+        if self.editor.toPlainText() == source:
+            return
         self.syncing_visual = True
         try:
+            cursor = self.editor.textCursor()
+            pos = cursor.position()
             self.editor.setPlainText(source)
+            cursor.setPosition(min(pos, len(source)))
+            self.editor.setTextCursor(cursor)
         finally:
             self.syncing_visual = False
 
@@ -1393,7 +1410,7 @@ class LessonPage(QWidget):
             return
         try:
             source = self.service.attach_image(b, path)
-            if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 0 and hasattr(self, 'visual_editor'):
+            if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 1 and hasattr(self, 'visual_editor'):
                 self.visual_editor.assets = {reference: self.services.config.data_dir / info['path'] for reference, info in b.get('assets', {}).items()}
                 self.visual_editor.insert_tex(source)
             else:
