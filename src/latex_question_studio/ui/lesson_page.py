@@ -924,10 +924,8 @@ class LessonPage(QWidget):
     def source_changed(self):
         if hasattr(self, 'recover_button'):
             self.recover_button.setVisible(recover_literal_tex(self.editor.toPlainText()) != self.editor.toPlainText())
-        # NEVER trigger visual sync when user is working in raw LaTeX mode!
-        if getattr(self, 'edit_mode', None) and self.edit_mode.currentIndex() == 1:
-            if not self.loading and not getattr(self, 'syncing_visual', False) and hasattr(self, 'visual_sync'):
-                self.visual_sync.start()
+        if not self.loading and not getattr(self, 'syncing_visual', False) and hasattr(self, 'visual_sync'):
+            self.visual_sync.start()
         self.changed()
 
     def recover_formula_input(self):
@@ -938,8 +936,6 @@ class LessonPage(QWidget):
             self.visual_editor.recover_tex_input()
 
     def sync_visual(self):
-        if getattr(self, 'edit_mode', None) and self.edit_mode.currentIndex() != 1:
-            return
         b = self.current_block()
         assets = {}
         if b:
@@ -953,14 +949,21 @@ class LessonPage(QWidget):
             if self.visual_block_id == self.current_id and source == self.visual_editor.source() and assets == self.visual_editor.assets:
                 return
             self.visual_block_id = self.current_id
-            self.visual_editor.set_source(source, assets)
+            self.syncing_to_visual = True
+            try:
+                self.visual_editor.set_source(source, assets)
+            finally:
+                self.syncing_to_visual = False
 
     def visual_changed(self, source: str):
         if hasattr(self, 'visual_sync'):
             self.visual_sync.stop()
-        if getattr(self, 'edit_mode', None) and self.edit_mode.currentIndex() != 1:
+        if getattr(self, 'syncing_to_visual', False):
             return
         if self.editor.toPlainText() == source:
+            return
+        # If user is actively typing in raw editor, do not let background visual mutations clobber raw source
+        if self.editor.hasFocus():
             return
         self.syncing_visual = True
         try:

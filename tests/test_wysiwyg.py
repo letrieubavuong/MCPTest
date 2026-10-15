@@ -157,9 +157,9 @@ def test_lesson_visual_source_sync_autosave_block_switch_and_pinned_question(qtb
     assert 'Beta' not in page.visual_editor.toPlainText()
     page.tree.setCurrentItem(page.tree.topLevelItem(0))
     assert 'Beta' in page.visual_editor.toPlainText() and page.current_id == first
-    page.edit_mode.setCurrentIndex(1)
-    page.editor.setPlainText('Source mode change')
     page.edit_mode.setCurrentIndex(0)
+    page.editor.setPlainText('Source mode change')
+    page.edit_mode.setCurrentIndex(1)
     assert 'Source mode change' in page.visual_editor.toPlainText()
     question = services.questions.create(r'\begin{ex}Pinned question\end{ex}', 'essay')
     page.search_bank()
