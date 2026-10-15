@@ -189,8 +189,8 @@ Các thay đổi trong Phase M.1 được phân chia thành các commit độc l
 3. **Commit 3 (M1.2):** `dceb02d`  
    *Thông điệp:* `feat(safety): M1.2 - verify pinned revisions, enforce student policy and fail-closed location reporting`
 4. **Commit 4 (M1.3):** `ed3d42a`  
-   *Thông điệp:* `feat(ux): M1.3 - optimize question drawer latency, fix drawer insertion parent argument, and add WYSIWYG TikZ advisory`
-5. **Commit 5 (M1.4):** *(Commit hiện tại bàn giao Phase M.1)*  
+5. **Commit 5 (M1.4):** `78b258e` (Final Acceptance & Report)  
+   *Thông điệp:* `docs(phase-m1): M1.4 - add real-world lesson fixtures, acceptance tests, and final report`  
    *Nội dung:* Bổ sung bộ fixture tài liệu thật Toán 8, KHTN 9, Vật lí 10, suite kiểm thử chấp nhận `test_phase_m1_real_acceptance.py`, chuẩn hóa Unix newline trong `compiler.py` ngăn lỗi Windows `\r\r\n`, và lập báo cáo nghiệm thu hoàn thiện.
 
 ---
