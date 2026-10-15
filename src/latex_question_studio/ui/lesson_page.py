@@ -197,23 +197,13 @@ class QuestionBankDrawer(QDialog):
             'cognitive_level': self.cognitive.currentData()
         }
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._populate_filters()
+
     def search_bank(self):
-        try:
-            with self.services.database.connect() as c:
-                metadata = [json.loads(r[0]) for r in c.execute('SELECT data_json FROM question_metadata')]
-            for key, combo in self.filters.items():
-                current = combo.currentData()
-                combo.blockSignals(True)
-                while combo.count() > 1:
-                    combo.removeItem(1)
-                for value in sorted({str(m[key]) for m in metadata if m.get(key)}):
-                    combo.addItem(value, value)
-                combo.setCurrentIndex(max(0, combo.findData(current)))
-                combo.blockSignals(False)
-        except Exception:
-            pass
         query_text = self.query.text().strip()
-        rows = SearchService(self.services).find(query_text, self.bank_filters(), limit=150)
+        rows = SearchService(self.services).find(query_text, self.bank_filters(), limit=200)
         self.show_bank(rows)
         self.picker_status.setText(f"Tìm thấy {len(rows)} câu hỏi phù hợp trong ngân hàng.")
 
@@ -919,6 +909,9 @@ class LessonPage(QWidget):
             self.visual_sync.stop()
         if index == 0:
             self.sync_visual()
+            src = self.editor.toPlainText()
+            if r'\begin{tikzpicture}' in src or r'\begin{align' in src:
+                self.status.setText("Chế độ WYSIWYG: Khối chứa hình TikZ/công thức nhiều dòng; chuyển 'Mã LaTeX' nếu muốn sửa TeX chuyên sâu.")
         if hasattr(self, 'editor_stack'):
             self.editor_stack.setCurrentIndex(index)
         (self.visual_editor if index == 0 and hasattr(self, 'visual_editor') else self.editor).setFocus()
@@ -1458,7 +1451,7 @@ class LessonPage(QWidget):
         self.flush()
         try:
             self.doc = self.service.insert_questions(
-                self.doc, question_ids, kind=role, target=self.current_id, allow_repeat=allow_repeat
+                self.doc, question_ids, kind=role, parent=self.current_id, allow_repeat=allow_repeat
             )
             self.refresh_tree(self.doc['blocks'][-1]['id'])
             self.changed()

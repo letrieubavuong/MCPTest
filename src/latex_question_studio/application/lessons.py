@@ -487,7 +487,9 @@ class LessonService:
                 b['assets'][row['original_reference']]={'path':row['relative_path'],'hash':row['content_hash']}
         return b
 
-    def insert_questions(self, doc, ids, kind='exercise', parent=None, allow_repeat=False):
+    def insert_questions(self, doc, ids, kind='exercise', parent=None, allow_repeat=False, target=None):
+        if parent is None and target is not None:
+            parent = target
         present={b['question']['id'] for b in doc['blocks'] if b.get('question')}
         if len(ids)!=len(set(ids)) or (not allow_repeat and present.intersection(ids)):
             raise ValueError('Câu đã có trong bài; chỉ cho phép lặp khi bạn chọn rõ tùy chọn đó')
