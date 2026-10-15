@@ -297,13 +297,21 @@ class WorkTabsShim:
             self.page.ensure_preview_visible()
             self.page.start_preview()
         else:
-            self.page.editor.setFocus()
+            if hasattr(self.page, 'edit_mode') and self.page.edit_mode.currentIndex() == 0 and hasattr(self.page, 'visual_editor'):
+                self.page.visual_editor.setFocus()
+            else:
+                self.page.editor.setFocus()
 
     def currentIndex(self) -> int:
         return self._current_index
 
     def count(self) -> int:
         return 2
+
+    def widget(self, idx: int):
+        if idx == 1:
+            return getattr(self.page, 'preview_pane', self.page)
+        return getattr(self.page, 'center_pane', self.page)
 
     def addTab(self, widget, label):
         pass
@@ -581,6 +589,7 @@ class LessonPage(QWidget):
 
         # === PANE 2: CENTER BLOCK EDITOR ===
         center_pane = QWidget()
+        self.center_pane = center_pane
         center_layout = QVBoxLayout(center_pane)
         center_layout.setContentsMargins(4, 0, 4, 0)
         center_layout.setSpacing(6)
@@ -670,17 +679,40 @@ class LessonPage(QWidget):
 
         format_bar.addStretch()
 
-        # Edit mode combo for compatibility
+        # Edit mode combo (WYSIWYG / Mã LaTeX)
         self.edit_mode = QComboBox()
-        self.edit_mode.addItems(['Mã LaTeX', 'WYSIWYG'])
-        self.edit_mode.hide()
+        self.edit_mode.addItems(['WYSIWYG', 'Mã LaTeX'])
+        self.edit_mode.setToolTip('Chế độ soạn thảo trực quan (WYSIWYG) hoặc mã LaTeX')
+        self.edit_mode.currentIndexChanged.connect(self.set_edit_mode)
+        format_bar.addWidget(self.edit_mode)
 
         center_layout.addLayout(format_bar)
 
-        # Main LaTeX Text Editor
+        # Main LaTeX Text Editor & WYSIWYG Editor in StackedWidget
         self.editor = LatexEditor()
         self.editor.textChanged.connect(self.source_changed)
-        center_layout.addWidget(self.editor, 1)
+
+        from latex_question_studio.ui.wysiwyg import VisualLatexEditor
+        self.visual_editor = VisualLatexEditor(self.services, self.run_job, self.compiler_config, self)
+        self.visual_editor.sourceChanged.connect(self.visual_changed)
+        self.visual_editor.notice.connect(lambda text: self.status.setText(text))
+
+        self.editor_stack = QStackedWidget()
+        self.editor_stack.addWidget(self.visual_editor)
+        self.editor_stack.addWidget(self.editor)
+        center_layout.addWidget(self.editor_stack, 1)
+
+        self.recover_button = QPushButton('Nhận dạng lại công thức LaTeX')
+        self.recover_button.setToolTip('Khôi phục công thức đã bị nhập thành chữ, giữ lịch sử và có thể hoàn tác')
+        self.recover_button.setStyleSheet('background: #fef3c7; color: #92400e; font-weight: bold; padding: 4px 8px; border-radius: 4px;')
+        self.recover_button.clicked.connect(self.recover_formula_input)
+        self.recover_button.hide()
+        center_layout.addWidget(self.recover_button)
+
+        self.visual_sync = QTimer(self)
+        self.visual_sync.setSingleShot(True)
+        self.visual_sync.setInterval(180)
+        self.visual_sync.timeout.connect(self.sync_visual)
 
         # Teacher private notes group
         notes_box = QGroupBox("Ghi chú riêng giáo viên (Tự động ẩn khỏi bản học sinh)")
@@ -829,6 +861,9 @@ class LessonPage(QWidget):
         self.fit_preview()
 
     def wrap_selection(self, prefix: str, suffix: str):
+        if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 0 and hasattr(self, 'visual_editor'):
+            self.visual_editor.open_tex_dialog() if prefix == r'\( ' else self.visual_editor.wrap_selection(prefix, suffix)
+            return
         cursor = self.editor.textCursor()
         selected = cursor.selectedText() or 'nội dung'
         cursor.insertText(prefix + selected + suffix)
@@ -867,13 +902,64 @@ class LessonPage(QWidget):
         self.changed()
 
     def undo_edit(self):
-        self.editor.undo()
+        if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 0 and hasattr(self, 'visual_editor'):
+            self.visual_editor.history.undo()
+        else:
+            self.editor.undo()
 
     def redo_edit(self):
-        self.editor.redo()
+        if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 0 and hasattr(self, 'visual_editor'):
+            self.visual_editor.history.redo()
+        else:
+            self.editor.redo()
+
+    def set_edit_mode(self, index: int):
+        if hasattr(self, 'visual_sync'):
+            self.visual_sync.stop()
+        if index == 0:
+            self.sync_visual()
+        if hasattr(self, 'editor_stack'):
+            self.editor_stack.setCurrentIndex(index)
+        (self.visual_editor if index == 0 and hasattr(self, 'visual_editor') else self.editor).setFocus()
 
     def source_changed(self):
+        if hasattr(self, 'recover_button'):
+            self.recover_button.setVisible(recover_literal_tex(self.editor.toPlainText()) != self.editor.toPlainText())
+        if not self.loading and not getattr(self, 'syncing_visual', False) and hasattr(self, 'visual_sync'):
+            self.visual_sync.start()
         self.changed()
+
+    def recover_formula_input(self):
+        if hasattr(self, 'visual_sync'):
+            self.visual_sync.stop()
+        self.sync_visual()
+        if hasattr(self, 'visual_editor'):
+            self.visual_editor.recover_tex_input()
+
+    def sync_visual(self):
+        b = self.current_block()
+        assets = {}
+        if b:
+            root = self.services.config.data_dir.resolve()
+            for reference, info in b.get('assets', {}).items():
+                path = (root / info['path']).resolve()
+                if path.is_relative_to(root):
+                    assets[reference] = path
+        source = self.editor.toPlainText()
+        if hasattr(self, 'visual_editor'):
+            if self.visual_block_id == self.current_id and source == self.visual_editor.source() and assets == self.visual_editor.assets:
+                return
+            self.visual_block_id = self.current_id
+            self.visual_editor.set_source(source, assets)
+
+    def visual_changed(self, source: str):
+        if hasattr(self, 'visual_sync'):
+            self.visual_sync.stop()
+        self.syncing_visual = True
+        try:
+            self.editor.setPlainText(source)
+        finally:
+            self.syncing_visual = False
 
     def changed(self, *args):
         if self.loading or self.doc is None:
@@ -964,6 +1050,10 @@ class LessonPage(QWidget):
 
         if self.tree.topLevelItemCount() > 0:
             self.tree.setCurrentItem(self.tree.topLevelItem(0))
+
+        if hasattr(self, 'visual_sync'):
+            self.visual_sync.stop()
+        self.sync_visual()
 
         self.status.setText(f"Đã mở bài giảng '{doc['title']}' (Rev {doc.get('revision', 1)}).")
 
@@ -1241,6 +1331,10 @@ class LessonPage(QWidget):
                     self.file_source.blockSignals(False)
                     break
 
+        if hasattr(self, 'visual_sync'):
+            self.visual_sync.stop()
+        self.sync_visual()
+
     def add_block(self, child=False):
         if not self.doc:
             self.new_lesson()
@@ -1304,7 +1398,11 @@ class LessonPage(QWidget):
             return
         try:
             source = self.service.attach_image(b, path)
-            self.editor.insertPlainText('\n' + source + '\n')
+            if hasattr(self, 'edit_mode') and self.edit_mode.currentIndex() == 0 and hasattr(self, 'visual_editor'):
+                self.visual_editor.assets = {reference: self.services.config.data_dir / info['path'] for reference, info in b.get('assets', {}).items()}
+                self.visual_editor.insert_tex(source)
+            else:
+                self.editor.insertPlainText('\n' + source + '\n')
             self.changed()
             self.status.setText(f"Đã chèn và liên kết tài nguyên ảnh '{Path(path).name}'.")
         except Exception as error:
@@ -1591,4 +1689,7 @@ class LessonPage(QWidget):
         return super().eventFilter(obj, event)
 
     def close_visual(self):
-        pass
+        if hasattr(self, 'visual_sync'):
+            self.visual_sync.stop()
+        if hasattr(self, 'visual_editor'):
+            self.visual_editor.cancel_render()
